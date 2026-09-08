@@ -7,6 +7,7 @@ interface Props {
   entries: Array<{ file: ReviewFile; hunks: HunkModel[] }>;
   expanded: boolean;
   isTarget: boolean;
+  flashed: boolean;
   handlers: DiffHandlers;
   registerGroup(id: string, el: HTMLElement | null): void;
   onToggle(): void;
@@ -18,6 +19,7 @@ export function GroupHeader({
   entries,
   expanded,
   isTarget,
+  flashed,
   handlers,
   registerGroup,
   onToggle,
@@ -31,7 +33,7 @@ export function GroupHeader({
 
   return (
     <section
-      className="group"
+      className={`group${flashed ? ' hunk-target' : ''}`}
       ref={(el) => registerGroup(group.id, el)}
       data-group-id={group.id}
       onMouseEnter={() => onHover(group.id)}

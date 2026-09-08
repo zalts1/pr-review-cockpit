@@ -216,3 +216,20 @@ Status: accepted · 2026-09-08
 **Decision.** TypeScript for schema, analyzer, server, CLI and cockpit, so one toolchain and no native build. Packages: `schema`, `analyzer`, `server`, `cockpit`, `cli`, plus a `skill/` folder.
 
 **Consequences.** Wasm parsing is slower than native. The per-repository symbol index cache in ADR-6's stage 3 exists to absorb that.
+
+---
+
+## ADR-17: The blast-radius map is laid out with dagre in the main thread
+
+Status: accepted · 2026-09-08
+
+**Context.** `04-cockpit-ux.md` asks for a layered left-to-right layout with package boxes, and says the layout should run in a web worker. M1 needs a layout library chosen before the Map tab can be built.
+
+**Options.**
+1. `@dagrejs/dagre`. Small, layered Sugiyama layout, compound graphs give the package boxes for free. Unmaintained upstream but stable.
+2. `elkjs`. Richer layouts and real hierarchical containers, but a 1.5 MB wasm-free bundle that would dominate the single-file build, and its API is asynchronous.
+3. Hand-rolled layering from the call direction.
+
+**Decision.** Option 1, and the layout runs synchronously in a `useMemo` rather than in a worker.
+
+**Consequences.** The graph is capped at 300 nodes by the schema, and 34 nodes lay out in under a millisecond, so the worker buys nothing yet. If a real repository produces a graph that blocks the Files tab, the layout call moves into a worker without touching the rest of the Map code. Option 2 stays open because only `computeLayout` in `MapView.tsx` knows about dagre.

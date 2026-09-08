@@ -72,7 +72,7 @@ export function FileTree({
             </li>
           );
         })}
-        {files.length === 0 && (
+        {files.length === 0 && totalFiles > 0 && (
           <li>
             <div className="file-note">No files outside the groups.</div>
           </li>

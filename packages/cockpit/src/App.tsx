@@ -122,6 +122,7 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
   const [toast, setToast] = useState<string | null>(null);
 
   const paneRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<DragRange | null>(null);
   const hunkEls = useRef(new Map<string, HTMLElement>());
   const fileEls = useRef(new Map<string, HTMLElement>());
   const groupEls = useRef(new Map<string, HTMLElement>());
@@ -156,14 +157,16 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
   }, [pendingScroll, scrollToId]);
 
   useEffect(() => {
-    if (!drag) return;
     const finish = () => {
-      setEditor(editorTargetFromDrag(drag));
+      const range = dragRef.current;
+      if (!range) return;
+      dragRef.current = null;
       setDrag(null);
+      setEditor(editorTargetFromDrag(range));
     };
     window.addEventListener('mouseup', finish);
     return () => window.removeEventListener('mouseup', finish);
-  }, [drag]);
+  }, []);
 
   const seenHunks = useMemo(() => {
     const all = new Set(seen);
@@ -381,14 +384,20 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
     },
     removeDraft: (id) => setDrafts((current) => current.filter((d) => d.id !== id)),
     drag,
-    startDrag: (target) => setDrag({ start: target, end: target }),
-    extendDrag: (target) =>
-      setDrag((current) =>
-        current && current.start.hunkId === target.hunkId && current.start.side === target.side
-          ? { start: current.start, end: target }
-          : current,
-      ),
-    hoverLine: (target) => setHoveredLine(target),
+    startDrag: (target) => {
+      dragRef.current = { start: target, end: target };
+      setDrag(dragRef.current);
+    },
+    extendDrag: (target) => {
+      const current = dragRef.current;
+      if (!current) return;
+      if (current.start.hunkId !== target.hunkId || current.start.side !== target.side) return;
+      dragRef.current = { start: current.start, end: target };
+      setDrag(dragRef.current);
+    },
+    hoverLine: (target) => {
+      if (target) setHoveredLine(target);
+    },
     registerHunk: (id, el) => {
       if (el) hunkEls.current.set(id, el);
       else hunkEls.current.delete(id);
@@ -478,7 +487,13 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
               )}
             </aside>
 
-            <div className="pane" ref={paneRef}>
+            <div
+              className="pane"
+              ref={paneRef}
+              onScroll={(e) => {
+                if (e.currentTarget.scrollTop > 160) setSummaryCollapsed(true);
+              }}
+            >
               <StatusBanner doc={doc} />
 
               <SummaryCard
@@ -508,6 +523,7 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
                       entries={entries}
                       expanded={expandedGroups.has(group.id)}
                       isTarget={targetGroupId === group.id}
+                      flashed={flashed === group.id}
                       handlers={handlers}
                       registerGroup={(id, el) => {
                         if (el) groupEls.current.set(id, el);
