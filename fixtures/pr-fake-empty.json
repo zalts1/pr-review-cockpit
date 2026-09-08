@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-09-08T12:34:56Z",
+  "tool": {
+    "name": "review-cockpit",
+    "version": "0.1.0"
+  },
+  "pr": {
+    "owner": "daylightsec",
+    "repo": "management",
+    "number": 1240,
+    "url": "https://github.com/daylightsec/management/pull/1240",
+    "title": "Merge main into release-2026-09",
+    "body": "Merge commit only. No textual changes.",
+    "author": "zalts1",
+    "draft": false,
+    "labels": [],
+    "base": {
+      "ref": "release-2026-09",
+      "sha": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+    },
+    "head": {
+      "ref": "main",
+      "sha": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3"
+    },
+    "additions": 0,
+    "deletions": 0,
+    "changedFiles": 0
+  },
+  "checkout": {
+    "mode": "worktree",
+    "path": "/Users/zalts/.cache/review-cockpit/daylightsec/management/pr-1240/worktree",
+    "sourceRepo": "/Users/zalts/workspace/daylight/management"
+  },
+  "status": {
+    "files": {
+      "state": "ready",
+      "updatedAt": "2026-09-08T12:34:56Z"
+    },
+    "comments": {
+      "state": "ready",
+      "updatedAt": "2026-09-08T12:34:56Z"
+    },
+    "checks": {
+      "state": "ready",
+      "updatedAt": "2026-09-08T12:34:56Z"
+    },
+    "groups": {
+      "state": "ready",
+      "updatedAt": "2026-09-08T12:36:10Z"
+    },
+    "path": {
+      "state": "ready",
+      "updatedAt": "2026-09-08T12:36:10Z"
+    },
+    "summary": {
+      "state": "ready",
+      "updatedAt": "2026-09-08T12:36:10Z"
+    },
+    "graph": {
+      "state": "ready",
+      "updatedAt": "2026-09-08T12:37:44Z"
+    }
+  },
+  "files": [],
+  "comments": [],
+  "checks": [
+    {
+      "name": "lint-and-test",
+      "app": "github-actions",
+      "status": "success",
+      "url": "https://github.com/daylightsec/management/pull/1240/checks?check_run_id=41100",
+      "completedAt": "2026-09-08T11:02:00Z"
+    }
+  ],
+  "groups": [],
+  "path": [],
+  "summary": {
+    "oneLiner": "Merge of main into the release branch. No file content changed.",
+    "reviewFocus": [],
+    "counts": {
+      "hunks": 0,
+      "highRisk": 0,
+      "skimmable": 0
+    }
+  },
+  "graph": {
+    "nodes": [],
+    "edges": [],
+    "truncated": false
+  }
+}
