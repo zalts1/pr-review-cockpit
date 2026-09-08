@@ -114,7 +114,7 @@ Where to look for local clones: the current directory's repository first. Then a
 
 **4. Serve and open.** Start the server on a free port. Print the URL. The skill opens the browser. The cockpit is usable from this moment, with the recommended order and the graph tab showing a loading state.
 
-**5. Judgment pass.** The skill instructs the resident Claude session to read the stage 1 document, or a compact view of it, and produce `judgment.json` in the exact shape the schema demands. The CLI validates it, rejects anything that lowers a deterministically high-risk hunk, and merges the result into the document. The server pushes the change.
+**5. Judgment pass.** The CLI writes `compact.md` next to the document: one block per hunk with its id, file, enclosing symbol, signals, risk floor and the first lines of the change, and the full text of any hunk under 40 lines. A 4,500-line PR compacts to roughly a fifth of its size. The skill instructs the resident Claude session to read the compact view, open full hunks from the checkout only where it needs to, and produce `judgment.json` in the exact shape the schema demands. The CLI validates it, rejects anything that lowers a deterministically high-risk hunk, and merges the result into the document. The server pushes the change.
 
 **6. Graph stage.** The CLI builds the call graph for the changed Go functions: what they call and what calls them, one hop out, within the repository. Written as stage 3.
 
@@ -156,6 +156,7 @@ The server posts as the user's own `gh` identity. The tool never holds a token o
 ~/.cache/review-cockpit/
   <owner>/<repo>/
     repo/                  temp clone, only when no local clone was found
+    index/                 tree-sitter symbol index keyed by commit, reused across PRs of this repository
     pr-123/
       worktree/            git worktree at the PR head
       review.json          the document, all stages

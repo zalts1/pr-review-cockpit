@@ -124,6 +124,7 @@ The raw deterministic measurements for the file. The risk model doc says how eac
   "authorPriorCommits": 0,         // commits by the PR author to this file before this PR
   "fanIn": 23,                     // functions elsewhere that call a function changed in this file
   "fanOut": 7,                     // functions the changed functions call
+  "fanSource": "grep",             // grep | graph   stage 1 estimates with git grep on the changed symbols, stage 3 replaces it with parsed call-graph counts
   "complexityBefore": 18,          // sum of cyclomatic complexity of changed functions, base side
   "complexityAfter": 27,           // same, head side
   "sensitivePath": { "match": true, "rule": "**/auth/**" },   // or { "match": false, "rule": null }
