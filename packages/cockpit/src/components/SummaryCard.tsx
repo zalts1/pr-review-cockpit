@@ -77,7 +77,7 @@ export function SummaryCard({ summary, status, prBody, path, collapsed, onToggle
                         <td>{row.step}</td>
                         <td className="summary-path-file">{row.file}</td>
                         <td>{row.why ? <MarkdownInline text={row.why} /> : '—'}</td>
-                        <td className="summary-path-file">{row.what}</td>
+                        <td className="summary-path-file">{row.what || '—'}</td>
                       </tr>
                     ))}
                     {path.more && (
