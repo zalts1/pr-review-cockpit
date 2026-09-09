@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Draft, PrInfo } from '@review-cockpit/schema';
-import { draftTarget, preview } from '../lib/drafts';
+import { draftTarget } from '../lib/drafts';
+import { Markdown } from '../lib/markdown';
 import { shortSha } from '../lib/derive';
 
 export type Verdict = 'COMMENT' | 'REQUEST_CHANGES' | 'APPROVE';
@@ -65,7 +66,7 @@ export function SubmitModal({ pr, drafts, unseenHigh, onCancel, onPost }: Props)
                 {drafts.map((draft) => (
                   <li key={draft.id}>
                     <span className="dry-run-target">{draftTarget(draft)}</span>
-                    <span className="dry-run-preview">“{preview(draft.body)}”</span>
+                    <Markdown text={draft.body} className="dry-run-preview" />
                   </li>
                 ))}
               </ul>

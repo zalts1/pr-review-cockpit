@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import type { Comment, DiffLine, Hunk as HunkModel, ReviewFile } from '@review-cockpit/schema';
 import type { CockpitDraft } from '../lib/drafts';
+import { Markdown } from '../lib/markdown';
 import type { DragRange, EditorTarget, LineTarget } from '../lib/interaction';
 import { rangeOf } from '../lib/interaction';
 import { CommentPin } from './CommentPin';
@@ -176,7 +177,7 @@ export function Hunk({ hunk, file, handlers }: Props) {
                               delete
                             </button>
                           </div>
-                          <p className="draft-body">{draft.body}</p>
+                          <Markdown text={draft.body} className="draft-body" />
                         </div>
                       ))}
                       {editor && (

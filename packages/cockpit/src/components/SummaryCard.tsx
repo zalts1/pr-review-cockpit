@@ -1,4 +1,5 @@
 import type { ReadySummary, SectionStatus } from '@review-cockpit/schema';
+import { Markdown } from '../lib/markdown';
 
 interface Props {
   summary: ReadySummary | null;
@@ -56,7 +57,7 @@ export function SummaryCard({ summary, status, prBody, collapsed, onToggle }: Pr
               </div>
             </>
           ) : (
-            <p className="summary-body">{prBody || 'This PR has no description.'}</p>
+            <Markdown className="summary-body" text={prBody || 'This PR has no description.'} />
           )}
         </>
       )}

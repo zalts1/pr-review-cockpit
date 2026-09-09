@@ -1,4 +1,4 @@
-import { isReadySummary } from '@review-cockpit/schema';
+import { isReadySummary } from '@review-cockpit/schema/types';
 import type {
   Comment,
   Group,
