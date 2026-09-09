@@ -198,7 +198,6 @@ interface Cell {
   height: number;
 }
 
-/** One box of cells in a column, or a loose cell when box is null. */
 interface Item {
   box: { id: string; label: string } | null;
   cells: Cell[];
