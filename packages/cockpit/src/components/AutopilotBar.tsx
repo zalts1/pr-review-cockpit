@@ -3,7 +3,8 @@ import type { PathStep } from '@review-cockpit/schema';
 interface Props {
   steps: PathStep[];
   index: number;
-  pathPending: boolean;
+  /** The label for a pending path section, or null when it is not pending. */
+  pathPending: string | null;
   stage2Failed: boolean;
   totalHigh: number;
   highRemaining: number;
@@ -47,7 +48,7 @@ export function AutopilotBar({
     <div className="autopilot">
       <div className="autopilot-row">
         <span className="autopilot-label">
-          {pathPending ? 'Recommended order: analyzing…' : 'Autopilot'}
+          {pathPending === null ? 'Autopilot' : `Recommended order: ${pathPending.toLowerCase()}`}
         </span>
         <button className="btn btn-small" onClick={onPrev} disabled={index <= 0}>
           ◀ Prev

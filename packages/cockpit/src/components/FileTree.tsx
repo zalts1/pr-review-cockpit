@@ -5,7 +5,8 @@ interface Props {
   totalFiles: number;
   heatByFile: Map<string, RiskLevel>;
   groups: Array<{ group: Group; fileCount: number }>;
-  groupsPending: boolean;
+  /** The label for a pending groups section, or null when it is not pending. */
+  groupsPending: string | null;
   viewed: Set<string>;
   targetFileId: string | null;
   targetGroupId: string | null;
@@ -79,7 +80,7 @@ export function FileTree({
         )}
       </ul>
 
-      {(groups.length > 0 || groupsPending) && (
+      {(groups.length > 0 || groupsPending !== null) && (
         <div className="sidebar-section">
           <div className="sidebar-title">Groups</div>
           <ul className="tree">
@@ -97,8 +98,8 @@ export function FileTree({
               </li>
             ))}
           </ul>
-          {groupsPending && (
-            <div className="file-note">Looking for mechanical changes…</div>
+          {groupsPending !== null && (
+            <div className="file-note">Mechanical changes: {groupsPending.toLowerCase()}</div>
           )}
         </div>
       )}

@@ -1,4 +1,4 @@
-import { isReadySummary } from '@review-cockpit/schema/types';
+import { isReadySummary, NOT_ATTACHED } from '@review-cockpit/schema/types';
 import type {
   Comment,
   Group,
@@ -8,6 +8,7 @@ import type {
   ReviewDocument,
   ReviewFile,
   RiskLevel,
+  SectionStatus,
 } from '@review-cockpit/schema';
 
 export const levelRank: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
@@ -167,4 +168,55 @@ export function factorText(hunk: Hunk): string {
 
 export function fileOfHunk(id: string, derived: Derived): ReviewFile | undefined {
   return derived.hunkById.get(id)?.file;
+}
+
+/** What a pending stage 2 section is honestly doing: nothing, unless a judgment pass is attached. */
+export function pendingLabel(status: SectionStatus): string {
+  return status.message === NOT_ATTACHED ? 'Not analyzed' : 'Analyzing…';
+}
+
+export interface PathRow {
+  step: number;
+  file: string;
+  why: string;
+  what: string;
+}
+
+export interface ReviewPath {
+  rows: PathRow[];
+  more: { steps: number; phases: string[] } | null;
+}
+
+export const PATH_TABLE_ROWS = 8;
+
+/** The summary card's review path table, read off the walk so the two cannot disagree. */
+export function reviewPath(derived: Derived, cap = PATH_TABLE_ROWS): ReviewPath {
+  const rowOf = (step: PathStep): PathRow => {
+    if (step.ref.kind === 'hunk') {
+      const at = derived.hunkById.get(step.ref.id);
+      return {
+        step: step.step,
+        file: at?.file.path ?? step.ref.id,
+        why: step.note ?? '',
+        what: at?.hunk.symbols[0] ?? at?.hunk.header ?? '',
+      };
+    }
+    const group = derived.groupById.get(step.ref.id);
+    const entries = derived.groupFiles.get(step.ref.id) ?? [];
+    return {
+      step: step.step,
+      file: entries.length === 1 ? (entries[0]?.file.path ?? '') : `${entries.length} files`,
+      why: step.note ?? group?.description ?? '',
+      what: group?.title ?? '',
+    };
+  };
+
+  const rest = derived.steps.slice(cap);
+  return {
+    rows: derived.steps.slice(0, cap).map(rowOf),
+    more:
+      rest.length === 0
+        ? null
+        : { steps: rest.length, phases: [...new Set(rest.map((step) => step.phase))] },
+  };
 }

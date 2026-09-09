@@ -580,6 +580,79 @@ a:hover {
   margin-bottom: 3px;
 }
 
+.summary-label {
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+
+.summary-flow {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border-muted);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+.summary-flow-label {
+  display: inline-block;
+  min-width: 52px;
+  color: var(--fg-muted);
+}
+
+.summary-flow-line {
+  white-space: pre;
+}
+
+.summary-example {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.summary-path {
+  margin-top: 6px;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.summary-path th,
+.summary-path td {
+  border: 1px solid var(--border-muted);
+  padding: 3px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.summary-path th {
+  background: var(--panel);
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.summary-path th:first-child,
+.summary-path td:first-child {
+  width: 24px;
+  text-align: right;
+  color: var(--fg-muted);
+}
+
+.summary-path-file {
+  font-family: var(--mono);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.summary-path-more td {
+  color: var(--fg-muted);
+}
+
 .summary-counts {
   margin-top: 8px;
   font-size: 12px;

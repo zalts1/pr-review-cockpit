@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReviewDocument, RiskLevel } from '@review-cockpit/schema';
 import { checkVersion } from '@review-cockpit/schema/version';
-import { derive, levelRank } from './lib/derive';
+import { derive, levelRank, pendingLabel, reviewPath } from './lib/derive';
 import {
   documentSource,
   documentUrlOf,
@@ -98,6 +98,7 @@ interface CockpitProps {
 
 export function Cockpit({ doc, disconnected }: CockpitProps) {
   const derived = useMemo(() => derive(doc), [doc]);
+  const path = useMemo(() => reviewPath(derived), [derived]);
   const storageKey = draftsKey(doc.pr, storageSourceOf(documentSource));
 
   const seedCollapsed = useMemo(
@@ -510,7 +511,9 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
                   group,
                   fileCount: entries.length,
                 }))}
-                groupsPending={doc.status.groups.state === 'pending'}
+                groupsPending={
+                  doc.status.groups.state === 'pending' ? pendingLabel(doc.status.groups) : null
+                }
                 viewed={viewed}
                 targetFileId={targetFileId}
                 targetGroupId={targetGroupId}
@@ -558,6 +561,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
                 summary={derived.summary}
                 status={doc.status.summary}
                 prBody={doc.pr.body}
+                path={path}
                 collapsed={summaryCollapsed}
                 onToggle={() => setSummaryCollapsed((current) => !current)}
               />
@@ -634,7 +638,9 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
       <AutopilotBar
         steps={derived.steps}
         index={stepIndex}
-        pathPending={doc.status.path.state === 'pending'}
+        pathPending={
+          doc.status.path.state === 'pending' ? pendingLabel(doc.status.path) : null
+        }
         stage2Failed={doc.status.path.state === 'failed'}
         totalHigh={derived.highHunkIds.length}
         highRemaining={highRemaining}
