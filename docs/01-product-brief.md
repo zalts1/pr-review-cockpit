@@ -10,18 +10,18 @@ We want the opposite. A cockpit that reduces what the reviewer has to read, and 
 
 ## Who it is for
 
-The primary user is a developer on the Daylight team who reviews Go and TypeScript pull requests on github.com. They already use Claude Code and the `gh` command line tool. They review alone; there is no shared review session.
+The primary user is a developer on a small platform team who reviews Go and TypeScript pull requests on github.com. They already use Claude Code and the `gh` command line tool. They review alone; there is no shared review session.
 
-The tool must not be tied to the `daylightsec` organization. It reads the repository from the local clone or from the PR URL, so any GitHub repository works.
+The tool must not be tied to one GitHub organization. It reads the repository from the local clone or from the PR URL, so any GitHub repository works.
 
 ## What we learned about the target
 
-These facts come from the local clones under `../../daylight` and from the GitHub API. They shape the defaults.
+These facts come from local clones of the target organization and from the GitHub API. They shape the defaults.
 
 | Fact | Consequence for the design |
 |---|---|
 | Go is the dominant language. TypeScript in the frontend repos. Python in a few tools. | Go gets the full static analysis in v1. TypeScript gets import-level edges. Python is out. |
-| Polyrepo, 57 repositories. `management` is the large one: 14 Go modules and buf-generated protobuf code. | The analyzer must work per repository with no cross-repo knowledge. |
+| Polyrepo, about 60 repositories. The main backend repository is the large one: 14 Go modules and buf-generated protobuf code. | The analyzer must work per repository with no cross-repo knowledge. |
 | A typical merged PR touches 6 or 7 files and about 300 lines. The painful tail is 20 to 25 files and 2,000 to 4,500 lines. | The cockpit must earn its keep on the tail. Small PRs are fine on GitHub already. |
 | Generated files (`*.pb.go`, mocks) have no `.gitattributes` markers. | We ship our own detection patterns and let the user turn them off. |
 | Cursor Bugbot is the only bot that posts inline comments. Wiz, Socket and CodeQL only report a pass or fail check. | We pin Bugbot and human comments to the diff. Other checks appear as a status strip. |
@@ -76,7 +76,7 @@ The kill criterion is the first milestone. We build the cockpit against realisti
 - **The thesis is wrong.** A spatial, guided view may not beat a good text summary. The first milestone exists to find this out cheaply.
 - **Wrong "skim" labels.** If the heatmap hides a real bug behind a collapsed group, trust is gone. The risk floor and conservative grouping rules exist for this.
 - **Comment placement.** GitHub review comments need exact commit, file, line and side. Getting one wrong looks worse than posting nothing. Write-back needs a dry-run preview before submit.
-- **Startup time on the large repository.** A fresh clone of `management` is slow. The worktree path must be the common path for the team.
+- **Startup time on the large repository.** A fresh clone of the main backend repository is slow. The worktree path must be the common path for the team.
 
 ## Open questions carried into later docs
 

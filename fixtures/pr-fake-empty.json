@@ -6,13 +6,13 @@
     "version": "0.1.0"
   },
   "pr": {
-    "owner": "daylightsec",
-    "repo": "management",
+    "owner": "northwind-labs",
+    "repo": "tenant-platform",
     "number": 1240,
-    "url": "https://github.com/daylightsec/management/pull/1240",
+    "url": "https://github.com/northwind-labs/tenant-platform/pull/1240",
     "title": "Merge main into release-2026-09",
     "body": "Merge commit only. No textual changes.",
-    "author": "zalts1",
+    "author": "jdoe",
     "draft": false,
     "labels": [],
     "base": {
@@ -29,8 +29,8 @@
   },
   "checkout": {
     "mode": "worktree",
-    "path": "/Users/zalts/.cache/review-cockpit/daylightsec/management/pr-1240/worktree",
-    "sourceRepo": "/Users/zalts/workspace/daylight/management"
+    "path": "/Users/me/.cache/review-cockpit/northwind-labs/tenant-platform/pr-1240/worktree",
+    "sourceRepo": "/Users/me/workspace/tenant-platform"
   },
   "status": {
     "files": {
@@ -69,7 +69,7 @@
       "name": "lint-and-test",
       "app": "github-actions",
       "status": "success",
-      "url": "https://github.com/daylightsec/management/pull/1240/checks?check_run_id=41100",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1240/checks?check_run_id=41100",
       "completedAt": "2026-09-08T11:02:00Z"
     }
   ],

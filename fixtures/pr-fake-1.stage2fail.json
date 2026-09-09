@@ -6,13 +6,13 @@
     "version": "0.1.0"
   },
   "pr": {
-    "owner": "daylightsec",
-    "repo": "management",
+    "owner": "northwind-labs",
+    "repo": "tenant-platform",
     "number": 1234,
-    "url": "https://github.com/daylightsec/management/pull/1234",
+    "url": "https://github.com/northwind-labs/tenant-platform/pull/1234",
     "title": "Add tenant profile API",
-    "body": "### What\n\nReplaces the thin `TenantRecord` message with `TenantProfile`: region, tier, retention and\nsoft delete, plus field-mask driven validation on update.\n\n### Why\n\nPLA-329. The console needs per-region profiles, and the worker needs to page through them.\n\n### Notes\n\n- Migration 0042 adds the new columns. Run it before deploying the API.\n- The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.",
-    "author": "zalts1",
+    "body": "### What\n\nReplaces the thin `TenantRecord` message with `TenantProfile`: region, tier, retention and\nsoft delete, plus field-mask driven validation on update.\n\n### Why\n\nTP-329. The console needs per-region profiles, and the worker needs to page through them.\n\n### Notes\n\n- Migration 0042 adds the new columns. Run it before deploying the API.\n- The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.",
+    "author": "jdoe",
     "draft": false,
     "labels": [
       "backend",
@@ -23,17 +23,17 @@
       "sha": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
     },
     "head": {
-      "ref": "PLA-329-tenant-profile-api",
+      "ref": "TP-329-tenant-profile-api",
       "sha": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3"
     },
-    "additions": 1365,
+    "additions": 1366,
     "deletions": 142,
     "changedFiles": 20
   },
   "checkout": {
     "mode": "worktree",
-    "path": "/Users/zalts/.cache/review-cockpit/daylightsec/management/pr-1234/worktree",
-    "sourceRepo": "/Users/zalts/workspace/daylight/management"
+    "path": "/Users/me/.cache/review-cockpit/northwind-labs/tenant-platform/pr-1234/worktree",
+    "sourceRepo": "/Users/me/workspace/tenant-platform"
   },
   "status": {
     "files": {
@@ -264,7 +264,7 @@
         "is": true,
         "rule": "**/*.pb.go"
       },
-      "additions": 658,
+      "additions": 659,
       "deletions": 25,
       "signals": {
         "churnCommits90d": 9,
@@ -3560,7 +3560,7 @@
           "oldStart": 420,
           "oldLines": 11,
           "newStart": 640,
-          "newLines": 102,
+          "newLines": 103,
           "header": "var file_api_proto_tenant_v1_tenant_proto_rawDesc = []byte{",
           "symbols": [],
           "kind": "code",
@@ -3839,366 +3839,372 @@
               "type": "add",
               "oldNo": null,
               "newNo": 681,
-              "text": "\t0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x64,"
+              "text": "\t0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x6e,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 682,
-              "text": "\t0x61, 0x79, 0x6c, 0x69, 0x67, 0x68, 0x74, 0x73, 0x65, 0x63, 0x2f, 0x6d,"
+              "text": "\t0x6f, 0x72, 0x74, 0x68, 0x77, 0x69, 0x6e, 0x64, 0x2d, 0x6c, 0x61, 0x62,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 683,
-              "text": "\t0x61, 0x6e, 0x61, 0x67, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x2f, 0x61, 0x70,"
+              "text": "\t0x73, 0x2f, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2d, 0x70, 0x6c, 0x61,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 684,
-              "text": "\t0x69, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x74, 0x65, 0x6e, 0x61,"
+              "text": "\t0x74, 0x66, 0x6f, 0x72, 0x6d, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x70, 0x72,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 685,
-              "text": "\t0x6e, 0x74, 0x2f, 0x76, 0x31, 0x3b, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74,"
+              "text": "\t0x6f, 0x74, 0x6f, 0x2f, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2f, 0x76,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 686,
-              "text": "\t0x76, 0x31, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e,"
+              "text": "\t0x31, 0x3b, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x76, 0x31, 0x74, 0x65,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 687,
-              "text": "\t0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c,"
+              "text": "\t0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x54, 0x65, 0x6e, 0x61,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 688,
-              "text": "\t0x65, 0x2e, 0x46, 0x65, 0x61, 0x74, 0x75, 0x72, 0x65, 0x46, 0x6c, 0x61,"
+              "text": "\t0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x2e, 0x46, 0x65,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 689,
-              "text": "\t0x67, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x45, 0x4e, 0x41, 0x4e,"
+              "text": "\t0x61, 0x74, 0x75, 0x72, 0x65, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x45, 0x6e,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 690,
-              "text": "\t0x54, 0x5f, 0x54, 0x49, 0x45, 0x52, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45,"
+              "text": "\t0x74, 0x72, 0x79, 0x54, 0x45, 0x4e, 0x41, 0x4e, 0x54, 0x5f, 0x54, 0x49,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 691,
-              "text": "\t0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x54, 0x45, 0x4e, 0x41, 0x4e, 0x54,"
+              "text": "\t0x45, 0x52, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 692,
-              "text": "\t0x5f, 0x54, 0x49, 0x45, 0x52, 0x5f, 0x46, 0x52, 0x45, 0x45, 0x54, 0x45,"
+              "text": "\t0x45, 0x44, 0x54, 0x45, 0x4e, 0x41, 0x4e, 0x54, 0x5f, 0x54, 0x49, 0x45,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 693,
-              "text": "\t0x4e, 0x41, 0x4e, 0x54, 0x5f, 0x54, 0x49, 0x45, 0x52, 0x5f, 0x53, 0x54,"
+              "text": "\t0x52, 0x5f, 0x46, 0x52, 0x45, 0x45, 0x54, 0x45, 0x4e, 0x41, 0x4e, 0x54,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 694,
-              "text": "\t0x41, 0x4e, 0x44, 0x41, 0x52, 0x44, 0x54, 0x45, 0x4e, 0x41, 0x4e, 0x54,"
+              "text": "\t0x5f, 0x54, 0x49, 0x45, 0x52, 0x5f, 0x53, 0x54, 0x41, 0x4e, 0x44, 0x41,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 695,
-              "text": "\t0x5f, 0x54, 0x49, 0x45, 0x52, 0x5f, 0x45, 0x4e, 0x54, 0x45, 0x52, 0x50,"
+              "text": "\t0x52, 0x44, 0x54, 0x45, 0x4e, 0x41, 0x4e, 0x54, 0x5f, 0x54, 0x49, 0x45,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 696,
-              "text": "\t0x52, 0x49, 0x53, 0x45, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x56,"
+              "text": "\t0x52, 0x5f, 0x45, 0x4e, 0x54, 0x45, 0x52, 0x50, 0x52, 0x49, 0x53, 0x45,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 697,
-              "text": "\t0x69, 0x65, 0x77, 0x50, 0x52, 0x4f, 0x46, 0x49, 0x4c, 0x45, 0x5f, 0x56,"
+              "text": "\t0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x56, 0x69, 0x65, 0x77, 0x50,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 698,
-              "text": "\t0x49, 0x45, 0x57, 0x5f, 0x42, 0x41, 0x53, 0x49, 0x43, 0x50, 0x52, 0x4f,"
+              "text": "\t0x52, 0x4f, 0x46, 0x49, 0x4c, 0x45, 0x5f, 0x56, 0x49, 0x45, 0x57, 0x5f,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 699,
-              "text": "\t0x46, 0x49, 0x4c, 0x45, 0x5f, 0x56, 0x49, 0x45, 0x57, 0x5f, 0x46, 0x55,"
+              "text": "\t0x42, 0x41, 0x53, 0x49, 0x43, 0x50, 0x52, 0x4f, 0x46, 0x49, 0x4c, 0x45,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 700,
-              "text": "\t0x4c, 0x4c, 0x65, 0x74, 0x61, 0x67, 0x76, 0x69, 0x65, 0x77, 0x70, 0x72,"
+              "text": "\t0x5f, 0x56, 0x49, 0x45, 0x57, 0x5f, 0x46, 0x55, 0x4c, 0x4c, 0x65, 0x74,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 701,
-              "text": "\t0x6f, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x6e, 0x65, 0x78, 0x74, 0x5f, 0x70,"
+              "text": "\t0x61, 0x67, 0x76, 0x69, 0x65, 0x77, 0x70, 0x72, 0x6f, 0x66, 0x69, 0x6c,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 702,
-              "text": "\t0x61, 0x67, 0x65, 0x5f, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x74, 0x6f, 0x74,"
+              "text": "\t0x65, 0x73, 0x6e, 0x65, 0x78, 0x74, 0x5f, 0x70, 0x61, 0x67, 0x65, 0x5f,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 703,
-              "text": "\t0x61, 0x6c, 0x5f, 0x73, 0x69, 0x7a, 0x65, 0x70, 0x61, 0x67, 0x65, 0x5f,"
+              "text": "\t0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x5f, 0x73,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 704,
-              "text": "\t0x73, 0x69, 0x7a, 0x65, 0x70, 0x61, 0x67, 0x65, 0x5f, 0x74, 0x6f, 0x6b,"
+              "text": "\t0x69, 0x7a, 0x65, 0x70, 0x61, 0x67, 0x65, 0x5f, 0x73, 0x69, 0x7a, 0x65,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 705,
-              "text": "\t0x65, 0x6e, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e,"
+              "text": "\t0x70, 0x61, 0x67, 0x65, 0x5f, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x74, 0x65,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 706,
-              "text": "\t0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c,"
+              "text": "\t0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x54, 0x65, 0x6e, 0x61,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 707,
-              "text": "\t0x65, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x55,"
+              "text": "\t0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x74, 0x65, 0x6e,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 708,
-              "text": "\t0x70, 0x64, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50,"
+              "text": "\t0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 709,
-              "text": "\t0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,"
+              "text": "\t0x65, 0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 710,
-              "text": "\t0x74, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x55,"
+              "text": "\t0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x74, 0x65, 0x6e,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 711,
-              "text": "\t0x70, 0x64, 0x61, 0x74, 0x65, 0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50,"
+              "text": "\t0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 712,
-              "text": "\t0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,"
+              "text": "\t0x65, 0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 713,
-              "text": "\t0x73, 0x65, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e,"
+              "text": "\t0x6c, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x74, 0x65,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 714,
-              "text": "\t0x47, 0x65, 0x74, 0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50, 0x72, 0x6f,"
+              "text": "\t0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x54,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 715,
-              "text": "\t0x66, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x74,"
-            },
-            {
-              "type": "add",
-              "oldNo": null,
-              "newNo": 716,
-              "text": "\t0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74,"
-            },
-            {
-              "type": "add",
-              "oldNo": null,
-              "newNo": 717,
-              "text": "\t0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c,"
-            },
-            {
-              "type": "add",
-              "oldNo": null,
-              "newNo": 718,
-              "text": "\t0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x74, 0x65, 0x6e,"
-            },
-            {
-              "type": "add",
-              "oldNo": null,
-              "newNo": 719,
-              "text": "\t0x61, 0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x54,"
-            },
-            {
-              "type": "add",
-              "oldNo": null,
-              "newNo": 720,
               "text": "\t0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65,"
             },
             {
               "type": "add",
               "oldNo": null,
+              "newNo": 716,
+              "text": "\t0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x74, 0x65, 0x6e, 0x61, 0x6e,"
+            },
+            {
+              "type": "add",
+              "oldNo": null,
+              "newNo": 717,
+              "text": "\t0x74, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6e, 0x61,"
+            },
+            {
+              "type": "add",
+              "oldNo": null,
+              "newNo": 718,
+              "text": "\t0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x73,"
+            },
+            {
+              "type": "add",
+              "oldNo": null,
+              "newNo": 719,
+              "text": "\t0x70, 0x6f, 0x6e, 0x73, 0x65, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2e,"
+            },
+            {
+              "type": "add",
+              "oldNo": null,
+              "newNo": 720,
+              "text": "\t0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x54, 0x65, 0x6e, 0x61, 0x6e,"
+            },
+            {
+              "type": "add",
+              "oldNo": null,
               "newNo": 721,
-              "text": "\t0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x74, 0x65, 0x6e, 0x61,"
+              "text": "\t0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x52, 0x65, 0x71,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 722,
-              "text": "\t0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x54, 0x65,"
+              "text": "\t0x75, 0x65, 0x73, 0x74, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 723,
-              "text": "\t0x6e, 0x61, 0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x73,"
+              "text": "\t0x31, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 724,
-              "text": "\t0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x74, 0x65, 0x6e, 0x61,"
+              "text": "\t0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 725,
-              "text": "\t0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65,"
+              "text": "\t0x6f, 0x6e, 0x73, 0x65, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 726,
-              "text": "\t0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c,"
+              "text": "\t0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x54, 0x65, 0x6e, 0x61,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 727,
-              "text": "\t0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x74, 0x65, 0x6e, 0x61,"
+              "text": "\t0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x71,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 728,
-              "text": "\t0x6e, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65,"
+              "text": "\t0x75, 0x65, 0x73, 0x74, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x2e, 0x76,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 729,
-              "text": "\t0x54, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c,"
+              "text": "\t0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x54, 0x65, 0x6e, 0x61,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 730,
-              "text": "\t0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x67, 0x6f, 0x6f,"
+              "text": "\t0x6e, 0x74, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x73,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 731,
-              "text": "\t0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66,"
+              "text": "\t0x70, 0x6f, 0x6e, 0x73, 0x65, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 732,
-              "text": "\t0x2f, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x2e, 0x70,"
+              "text": "\t0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x74, 0x69, 0x6d,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 733,
-              "text": "\t0x72, 0x6f, 0x74, 0x6f, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70,"
+              "text": "\t0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 734,
-              "text": "\t0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x66, 0x69, 0x65, 0x6c,"
+              "text": "\t0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f,"
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 735,
-              "text": "\t0x64, 0x5f, 0x6d, 0x61, 0x73, 0x6b, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,"
+              "text": "\t0x62, 0x75, 0x66, 0x2f, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x5f, 0x6d, 0x61,"
+            },
+            {
+              "type": "add",
+              "oldNo": null,
+              "newNo": 736,
+              "text": "\t0x73, 0x6b, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,"
             },
             {
               "type": "context",
               "oldNo": 425,
-              "newNo": 736,
+              "newNo": 737,
               "text": "}"
             },
             {
               "type": "context",
               "oldNo": 426,
-              "newNo": 737,
+              "newNo": 738,
               "text": ""
             },
             {
               "type": "context",
               "oldNo": 427,
-              "newNo": 738,
+              "newNo": 739,
               "text": "var ("
             },
             {
               "type": "context",
               "oldNo": 428,
-              "newNo": 739,
+              "newNo": 740,
               "text": "\tfile_api_proto_tenant_v1_tenant_proto_rawDescOnce sync.Once"
             },
             {
               "type": "context",
               "oldNo": 429,
-              "newNo": 740,
+              "newNo": 741,
               "text": "\tfile_api_proto_tenant_v1_tenant_proto_rawDescData = file_api_proto_tenant_v1_tenant_proto_rawDesc"
             },
             {
               "type": "context",
               "oldNo": 430,
-              "newNo": 741,
+              "newNo": 742,
               "text": ")"
             }
           ],
@@ -4986,7 +4992,7 @@
               "type": "context",
               "oldNo": 8,
               "newNo": 8,
-              "text": "option go_package = \"github.com/daylightsec/management/api/proto/tenant/v1;tenantv1\";"
+              "text": "option go_package = \"github.com/northwind-labs/tenant-platform/api/proto/tenant/v1;tenantv1\";"
             },
             {
               "type": "context",
@@ -6895,19 +6901,19 @@
               "type": "context",
               "oldNo": 9,
               "newNo": 10,
-              "text": "\tpb \"github.com/daylightsec/management/api/proto/tenant/v1\""
+              "text": "\tpb \"github.com/northwind-labs/tenant-platform/api/proto/tenant/v1\""
             },
             {
               "type": "context",
               "oldNo": 10,
               "newNo": 11,
-              "text": "\t\"github.com/daylightsec/management/db/gen\""
+              "text": "\t\"github.com/northwind-labs/tenant-platform/db/gen\""
             },
             {
               "type": "add",
               "oldNo": null,
               "newNo": 12,
-              "text": "\t\"github.com/daylightsec/management/internal/store\""
+              "text": "\t\"github.com/northwind-labs/tenant-platform/internal/store\""
             },
             {
               "type": "add",
@@ -7548,13 +7554,13 @@
               "type": "context",
               "oldNo": 7,
               "newNo": 10,
-              "text": "\tpb \"github.com/daylightsec/management/api/proto/tenant/v1\""
+              "text": "\tpb \"github.com/northwind-labs/tenant-platform/api/proto/tenant/v1\""
             },
             {
               "type": "context",
               "oldNo": 8,
               "newNo": 11,
-              "text": "\t\"github.com/daylightsec/management/db/gen\""
+              "text": "\t\"github.com/northwind-labs/tenant-platform/db/gen\""
             },
             {
               "type": "add",
@@ -12525,7 +12531,7 @@
       "side": "RIGHT",
       "hunkId": "f7.h2",
       "body": "**status.Error drops the sentinel.** Callers in `api/http` and `cmd/worker` compare against `ErrMissingProfile` with `errors.Is`. After this change the comparison always fails and both call sites fall through to their 500 branch.\n\nConsider wrapping the sentinel: `status.Error(codes.InvalidArgument, ...)` loses it, `fmt.Errorf(\"%w: %v\", ErrMissingProfile, err)` keeps it.",
-      "url": "https://github.com/daylightsec/management/pull/1234#discussion_r1990001",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990001",
       "createdAt": "2026-09-08T10:00:00Z",
       "resolved": false,
       "severity": "medium"
@@ -12542,7 +12548,7 @@
       "side": "RIGHT",
       "hunkId": "f7.h2",
       "body": "The If-Match read happens outside the transaction that writes, so two concurrent updates can both pass the etag check. Do we need `SELECT ... FOR UPDATE` here, or is last-write-wins acceptable for profiles?",
-      "url": "https://github.com/daylightsec/management/pull/1234#discussion_r1990002",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990002",
       "createdAt": "2026-09-08T10:22:00Z",
       "resolved": false,
       "severity": null
@@ -12553,13 +12559,13 @@
         "kind": "human",
         "name": "GitHub"
       },
-      "author": "zalts1",
+      "author": "jdoe",
       "path": "db/migrations/0042_tenant_profile_region.sql",
       "line": 3,
       "side": "RIGHT",
       "hunkId": "f13.h1",
       "body": "Needs a default or a two-step migration. The staging table has 41k rows, so `ADD COLUMN region text NOT NULL` fails before the backfill on line 13 ever runs.",
-      "url": "https://github.com/daylightsec/management/pull/1234#discussion_r1990003",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990003",
       "createdAt": "2026-09-08T10:31:00Z",
       "resolved": false,
       "severity": null
@@ -12576,7 +12582,7 @@
       "side": "RIGHT",
       "hunkId": "f9.h1",
       "body": "An empty `update_mask` validates every path, which turns a partial update into a full one. Was that intended?",
-      "url": "https://github.com/daylightsec/management/pull/1234#discussion_r1990004",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990004",
       "createdAt": "2026-09-07T16:10:00Z",
       "resolved": true,
       "severity": "low"
@@ -12593,7 +12599,7 @@
       "side": "RIGHT",
       "hunkId": null,
       "body": "`listParams` does not clamp the page size, so a client can ask for the whole table in one call.",
-      "url": "https://github.com/daylightsec/management/pull/1234#discussion_r1989004",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1989004",
       "createdAt": "2026-09-06T09:12:00Z",
       "resolved": false,
       "severity": "low"
@@ -12604,35 +12610,35 @@
       "name": "lint-and-test",
       "app": "github-actions",
       "status": "success",
-      "url": "https://github.com/daylightsec/management/pull/1234/checks?check_run_id=41001",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41001",
       "completedAt": "2026-09-08T11:02:00Z"
     },
     {
       "name": "Wiz",
       "app": "wiz-io",
       "status": "success",
-      "url": "https://github.com/daylightsec/management/pull/1234/checks?check_run_id=41002",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41002",
       "completedAt": "2026-09-08T11:04:00Z"
     },
     {
       "name": "Socket",
       "app": "socket-security",
       "status": "success",
-      "url": "https://github.com/daylightsec/management/pull/1234/checks?check_run_id=41003",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41003",
       "completedAt": "2026-09-08T11:05:00Z"
     },
     {
       "name": "Analyze",
       "app": "github-code-scanning",
       "status": "failure",
-      "url": "https://github.com/daylightsec/management/pull/1234/checks?check_run_id=41004",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41004",
       "completedAt": "2026-09-08T11:09:00Z"
     },
     {
       "name": "app-client",
       "app": "buildkite",
       "status": "pending",
-      "url": "https://buildkite.com/daylight/app-client/builds/8821",
+      "url": "https://buildkite.com/northwind/app-client/builds/8821",
       "completedAt": null
     }
   ],

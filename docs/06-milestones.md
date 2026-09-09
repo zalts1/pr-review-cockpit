@@ -44,9 +44,9 @@ Order matters. M1 tests the thesis before anything expensive is built. M2 turns 
 - `packages/server`, first version: serves the cockpit and the document, watches the file, pushes changes over server-sent events. `cockpit serve <pr>`.
 - Stage 3 in its first form: full call graph for Go on the checked-out repository, written after stage 1, with the per-repository index cache.
 
-**Verify.** Run on a recent merged PR from `management` with 15 or more files, and on one from `app`. Compare the heat against the user's own read of the same PR. Measure time from command to open cockpit, and time to stage 3.
+**Verify.** Run on a recent merged PR from the main backend repository with 15 or more files, and on one from the frontend repository. Compare the heat against the user's own read of the same PR. Measure time from command to open cockpit, and time to stage 3.
 
-**Done when.** The cockpit opens within about a minute for the `management` PR using a local worktree, the heat is defensible to the user hunk by hunk, and stage 3 arrives without blocking anything.
+**Done when.** The cockpit opens within about a minute for the backend PR using a local worktree, the heat is defensible to the user hunk by hunk, and stage 3 arrives without blocking anything.
 
 ## M4 — Judgment pass
 

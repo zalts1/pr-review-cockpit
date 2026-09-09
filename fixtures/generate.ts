@@ -235,7 +235,7 @@ const files: ReviewFile[] = [
  import "google/protobuf/field_mask.proto";
  import "google/protobuf/timestamp.proto";
 
- option go_package = "github.com/daylightsec/management/api/proto/tenant/v1;tenantv1";
+ option go_package = "github.com/northwind-labs/tenant-platform/api/proto/tenant/v1;tenantv1";
 
 -message TenantRecord {
 -  string id = 1;
@@ -410,9 +410,9 @@ const files: ReviewFile[] = [
  \t"fmt"
 +\t"time"
 
- \tpb "github.com/daylightsec/management/api/proto/tenant/v1"
- \t"github.com/daylightsec/management/db/gen"
-+\t"github.com/daylightsec/management/internal/store"
+ \tpb "github.com/northwind-labs/tenant-platform/api/proto/tenant/v1"
+ \t"github.com/northwind-labs/tenant-platform/db/gen"
++\t"github.com/northwind-labs/tenant-platform/internal/store"
 +\t"google.golang.org/grpc/codes"
 +\t"google.golang.org/grpc/status"
  )
@@ -555,8 +555,8 @@ const files: ReviewFile[] = [
  \t"testing"
 +\t"time"
 
- \tpb "github.com/daylightsec/management/api/proto/tenant/v1"
- \t"github.com/daylightsec/management/db/gen"
+ \tpb "github.com/northwind-labs/tenant-platform/api/proto/tenant/v1"
+ \t"github.com/northwind-labs/tenant-platform/db/gen"
 +\t"go.uber.org/mock/gomock"
 +\t"google.golang.org/grpc/codes"
 +\t"google.golang.org/grpc/status"
@@ -1362,7 +1362,7 @@ const comments: Comment[] = [
     side: 'RIGHT',
     hunkId: 'f7.h2',
     body: '**status.Error drops the sentinel.** Callers in `api/http` and `cmd/worker` compare against `ErrMissingProfile` with `errors.Is`. After this change the comparison always fails and both call sites fall through to their 500 branch.\n\nConsider wrapping the sentinel: `status.Error(codes.InvalidArgument, ...)` loses it, `fmt.Errorf("%w: %v", ErrMissingProfile, err)` keeps it.',
-    url: 'https://github.com/daylightsec/management/pull/1234#discussion_r1990001',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990001',
     createdAt: '2026-09-08T10:00:00Z',
     resolved: false,
     severity: 'medium',
@@ -1376,7 +1376,7 @@ const comments: Comment[] = [
     side: 'RIGHT',
     hunkId: 'f7.h2',
     body: 'The If-Match read happens outside the transaction that writes, so two concurrent updates can both pass the etag check. Do we need `SELECT ... FOR UPDATE` here, or is last-write-wins acceptable for profiles?',
-    url: 'https://github.com/daylightsec/management/pull/1234#discussion_r1990002',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990002',
     createdAt: '2026-09-08T10:22:00Z',
     resolved: false,
     severity: null,
@@ -1384,13 +1384,13 @@ const comments: Comment[] = [
   {
     id: 'c19',
     source: { kind: 'human', name: 'GitHub' },
-    author: 'zalts1',
+    author: 'jdoe',
     path: 'db/migrations/0042_tenant_profile_region.sql',
     line: 3,
     side: 'RIGHT',
     hunkId: 'f13.h1',
     body: 'Needs a default or a two-step migration. The staging table has 41k rows, so `ADD COLUMN region text NOT NULL` fails before the backfill on line 13 ever runs.',
-    url: 'https://github.com/daylightsec/management/pull/1234#discussion_r1990003',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990003',
     createdAt: '2026-09-08T10:31:00Z',
     resolved: false,
     severity: null,
@@ -1404,7 +1404,7 @@ const comments: Comment[] = [
     side: 'RIGHT',
     hunkId: 'f9.h1',
     body: 'An empty `update_mask` validates every path, which turns a partial update into a full one. Was that intended?',
-    url: 'https://github.com/daylightsec/management/pull/1234#discussion_r1990004',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990004',
     createdAt: '2026-09-07T16:10:00Z',
     resolved: true,
     severity: 'low',
@@ -1418,7 +1418,7 @@ const comments: Comment[] = [
     side: 'RIGHT',
     hunkId: null,
     body: '`listParams` does not clamp the page size, so a client can ask for the whole table in one call.',
-    url: 'https://github.com/daylightsec/management/pull/1234#discussion_r1989004',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1989004',
     createdAt: '2026-09-06T09:12:00Z',
     resolved: false,
     severity: 'low',
@@ -1430,35 +1430,35 @@ const checks: Check[] = [
     name: 'lint-and-test',
     app: 'github-actions',
     status: 'success',
-    url: 'https://github.com/daylightsec/management/pull/1234/checks?check_run_id=41001',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41001',
     completedAt: '2026-09-08T11:02:00Z',
   },
   {
     name: 'Wiz',
     app: 'wiz-io',
     status: 'success',
-    url: 'https://github.com/daylightsec/management/pull/1234/checks?check_run_id=41002',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41002',
     completedAt: '2026-09-08T11:04:00Z',
   },
   {
     name: 'Socket',
     app: 'socket-security',
     status: 'success',
-    url: 'https://github.com/daylightsec/management/pull/1234/checks?check_run_id=41003',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41003',
     completedAt: '2026-09-08T11:05:00Z',
   },
   {
     name: 'Analyze',
     app: 'github-code-scanning',
     status: 'failure',
-    url: 'https://github.com/daylightsec/management/pull/1234/checks?check_run_id=41004',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41004',
     completedAt: '2026-09-08T11:09:00Z',
   },
   {
     name: 'app-client',
     app: 'buildkite',
     status: 'pending',
-    url: 'https://buildkite.com/daylight/app-client/builds/8821',
+    url: 'https://buildkite.com/northwind/app-client/builds/8821',
     completedAt: null,
   },
 ];
@@ -1600,10 +1600,10 @@ const base: ReviewDocument = {
   generatedAt: GENERATED_AT,
   tool: { name: 'review-cockpit', version: '0.1.0' },
   pr: {
-    owner: 'daylightsec',
-    repo: 'management',
+    owner: 'northwind-labs',
+    repo: 'tenant-platform',
     number: 1234,
-    url: 'https://github.com/daylightsec/management/pull/1234',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234',
     title: 'Add tenant profile API',
     body: [
       '### What',
@@ -1613,26 +1613,26 @@ const base: ReviewDocument = {
       '',
       '### Why',
       '',
-      'PLA-329. The console needs per-region profiles, and the worker needs to page through them.',
+      'TP-329. The console needs per-region profiles, and the worker needs to page through them.',
       '',
       '### Notes',
       '',
       '- Migration 0042 adds the new columns. Run it before deploying the API.',
       '- The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.',
     ].join('\n'),
-    author: 'zalts1',
+    author: 'jdoe',
     draft: false,
     labels: ['backend', 'needs-migration'],
     base: { ref: 'main', sha: BASE_SHA },
-    head: { ref: 'PLA-329-tenant-profile-api', sha: HEAD_SHA },
+    head: { ref: 'TP-329-tenant-profile-api', sha: HEAD_SHA },
     additions: files.reduce((n, f) => n + f.additions, 0),
     deletions: files.reduce((n, f) => n + f.deletions, 0),
     changedFiles: files.length,
   },
   checkout: {
     mode: 'worktree',
-    path: '/Users/zalts/.cache/review-cockpit/daylightsec/management/pr-1234/worktree',
-    sourceRepo: '/Users/zalts/workspace/daylight/management',
+    path: '/Users/me/.cache/review-cockpit/northwind-labs/tenant-platform/pr-1234/worktree',
+    sourceRepo: '/Users/me/workspace/tenant-platform',
   },
   status: {
     files: ready(stage1At),
@@ -1703,13 +1703,13 @@ const emptyPr: ReviewDocument = {
   generatedAt: GENERATED_AT,
   tool: { name: 'review-cockpit', version: '0.1.0' },
   pr: {
-    owner: 'daylightsec',
-    repo: 'management',
+    owner: 'northwind-labs',
+    repo: 'tenant-platform',
     number: 1240,
-    url: 'https://github.com/daylightsec/management/pull/1240',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1240',
     title: 'Merge main into release-2026-09',
     body: 'Merge commit only. No textual changes.',
-    author: 'zalts1',
+    author: 'jdoe',
     draft: false,
     labels: [],
     base: { ref: 'release-2026-09', sha: BASE_SHA },
@@ -1720,8 +1720,8 @@ const emptyPr: ReviewDocument = {
   },
   checkout: {
     mode: 'worktree',
-    path: '/Users/zalts/.cache/review-cockpit/daylightsec/management/pr-1240/worktree',
-    sourceRepo: '/Users/zalts/workspace/daylight/management',
+    path: '/Users/me/.cache/review-cockpit/northwind-labs/tenant-platform/pr-1240/worktree',
+    sourceRepo: '/Users/me/workspace/tenant-platform',
   },
   status: {
     files: ready(stage1At),
@@ -1739,7 +1739,7 @@ const emptyPr: ReviewDocument = {
       name: 'lint-and-test',
       app: 'github-actions',
       status: 'success',
-      url: 'https://github.com/daylightsec/management/pull/1240/checks?check_run_id=41100',
+      url: 'https://github.com/northwind-labs/tenant-platform/pull/1240/checks?check_run_id=41100',
       completedAt: '2026-09-08T11:02:00Z',
     },
   ],

@@ -12,8 +12,8 @@ Light theme only, using GitHub's light palette: white page, `#f6f8fa` panels, gr
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│ management #1234  Add tenant record API                    [ Files ] [ Map ]    │
-│ zalts1 wants to merge PLA-329-tenant-record-api into main · d4e5f6              │
+│ tenant-platform #1234  Add tenant record API                    [ Files ] [ Map ]    │
+│ jdoe wants to merge TP-329-tenant-record-api into main · d4e5f6              │
 │ ✓ lint-and-test  ✓ Wiz  ✓ Socket  ✗ Analyze  ● app-client          3 drafts     │
 │                                                              [ Submit review ]  │
 ├──────────────┬──────────────────────────────────────────────────────────────────┤

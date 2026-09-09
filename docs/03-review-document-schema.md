@@ -62,17 +62,17 @@ Stage 2 and 3 sections are present from the first write, as empty arrays or obje
 
 ```jsonc
 "pr": {
-  "owner": "daylightsec",
-  "repo": "management",
+  "owner": "northwind-labs",
+  "repo": "tenant-platform",
   "number": 1234,
-  "url": "https://github.com/daylightsec/management/pull/1234",
+  "url": "https://github.com/northwind-labs/tenant-platform/pull/1234",
   "title": "Add tenant record API",
   "body": "Markdown body of the PR description",
-  "author": "zalts1",
+  "author": "jdoe",
   "draft": false,
   "labels": ["backend", "needs-migration"],
   "base": { "ref": "main", "sha": "a1b2c3..." },
-  "head": { "ref": "PLA-329-tenant-record-api", "sha": "d4e5f6..." },
+  "head": { "ref": "TP-329-tenant-record-api", "sha": "d4e5f6..." },
   "additions": 812,
   "deletions": 140,
   "changedFiles": 19
@@ -86,8 +86,8 @@ Stage 2 and 3 sections are present from the first write, as empty arrays or obje
 ```jsonc
 "checkout": {
   "mode": "worktree",                       // "worktree" | "clone"
-  "path": "/Users/me/.cache/review-cockpit/daylightsec/management/pr-1234/worktree",
-  "sourceRepo": "/Users/me/workspace/daylight/management"   // absent for "clone"
+  "path": "/Users/me/.cache/review-cockpit/northwind-labs/tenant-platform/pr-1234/worktree",
+  "sourceRepo": "/Users/me/workspace/tenant-platform"   // absent for "clone"
 }
 ```
 

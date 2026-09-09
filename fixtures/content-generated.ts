@@ -224,7 +224,7 @@ const descriptorPayload = [
   'GetTenantProfile',
   'ListTenantProfiles',
   'DeleteTenantProfile',
-  'github.com/daylightsec/management/api/proto/tenant/v1;tenantv1',
+  'github.com/northwind-labs/tenant-platform/api/proto/tenant/v1;tenantv1',
   'tenant.v1.TenantProfile.FeatureFlagsEntry',
   'TENANT_TIER_UNSPECIFIED',
   'TENANT_TIER_FREE',
