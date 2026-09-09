@@ -12,3 +12,11 @@ export * from './types.js';
 export * from './version.js';
 export { draftsSchema, judgmentSchema, reviewDocumentSchema } from './schemas.js';
 export type { JsonSchema } from './schemas.js';
+export {
+  REASON_MAX_LENGTH,
+  summaryCounts,
+  validateDocument,
+  validateDrafts,
+  validateJudgment,
+} from './validate.js';
+export type { Issue, ValidationResult } from './validate.js';
