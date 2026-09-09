@@ -8,12 +8,17 @@ blast-radius map of what the change touches.
 The design lives in `docs/`. Start with `docs/01-product-brief.md`, then
 `docs/02-architecture.md`.
 
-**This repository is at milestone M2** (`docs/06-milestones.md`): the review document is a
-checked contract. `packages/schema` holds the JSON Schema, the types generated from it, the
-validator and the merge that folds a judgment file into a document; `packages/cli` exposes
-both as `cockpit validate` and `cockpit merge`. The cockpit still renders hand-authored
-documents: there is no analyzer, no server and no GitHub write-back yet, and Submit shows a
-toast and posts nothing.
+**This repository is at milestone M3** (`docs/06-milestones.md`): a real pull request
+produces a real document. `packages/analyzer` resolves the pull request through `gh`, checks
+it out as a worktree on a local clone, parses the diff, measures git history and Go structure
+with tree-sitter, scores every hunk, and writes `review.json`; `packages/server` serves that
+document to the cockpit and pushes every rewrite of it over server-sent events;
+`packages/cli` drives all of it as `cockpit prepare`, `analyze`, `serve` and `clean`.
+
+What is not here yet: the judgment pass, so `groups`, `path` and `summary` stay `pending` and
+every hunk sits at its deterministic floor (M4); existing review comments and check runs, so
+`comments` and `checks` are empty (M5); and write-back, so Submit posts nothing and the
+drafts, submit and ask routes answer 501 (M6).
 
 ## Run it
 
@@ -49,8 +54,72 @@ npx serve packages/cockpit/dist        # or: python3 -m http.server -d packages/
 open http://localhost:8080/?fixture=pr-fake-1
 ```
 
-In M1 the fixtures ship next to the page. From M3 the local server serves the same
-`index.html` and the real `review.json` in place of them.
+Without a `?fixture` query the page asks the local server for `/api/document` instead, which
+is how `cockpit serve` uses the same `index.html`. Fixture mode needs no server beyond a
+static one.
+
+## Review a pull request
+
+```sh
+npm install
+npm run build                      # schema, analyzer, server, cli, cockpit
+
+# 123, owner/repo#123 or a pull request URL; a bare number needs a GitHub clone as cwd
+npx cockpit analyze 456
+npx cockpit serve   456 --open
+```
+
+`analyze` prints progress and timings per step to stderr and the path of `review.json` to
+stdout. `serve` prints the URL, serves the built cockpit at `/` and the document at
+`/api/document`, and pushes `{"type":"document"}` over `/api/events` every time the document
+is rewritten, so the page picks up the graph stage without a reload. When you are done:
+
+```sh
+npx cockpit clean 456              # stop the server, remove the worktree and the ref
+```
+
+`clean` keeps `review.json`. Nothing is ever written into your own clone but the objects a
+fetch brings in, one ref under `refs/review-cockpit/`, and the worktree registration, and
+`clean` removes both of those.
+
+| Command | What it does |
+|---|---|
+| `cockpit prepare <pr> [--cwd <dir>]` | Resolve and check out only. Prints the checkout as JSON. |
+| `cockpit analyze <pr> [--no-fold-generated] [--skip-graph] [--cwd <dir>]` | Stage 1 and stage 3 into `review.json`. |
+| `cockpit serve <pr> [--port <n>] [--open] [--cwd <dir>]` | Serve the cockpit and the document on 127.0.0.1. |
+| `cockpit clean <pr> [--cwd <dir>]` | Stop the server, remove the worktree and the ref, keep the document. |
+| `cockpit validate <file> [--as document\|judgment\|drafts]` | Schema and referential rules. |
+| `cockpit merge <document> <judgment> [--out <file>]` | Apply a judgment file to a document. |
+
+`--no-fold-generated` leaves generated files unfolded and scored, and still records the rule
+that matched them, so you can see what the fold was hiding. `--skip-graph` leaves stage 3
+`pending`.
+
+Everything lives under `~/.cache/review-cockpit/<owner>/<repo>/`: `pr-<n>/review.json`,
+`pr-<n>/worktree`, `pr-<n>/server.json`, and an `index/` of parsed Go symbols shared by every
+pull request of that repository. `docs/02-architecture.md` has the layout.
+
+### Configuration
+
+`~/.config/review-cockpit/config.json`, optional, one field:
+
+```json
+{ "workspaceRoots": ["/Users/me/workspace"] }
+```
+
+Each root is searched one level deep for a clone whose origin matches the pull request's
+repository. Without a match, the repository is cloned into the cache with full history.
+
+`.review-cockpit.json` at the root of the repository under review, all fields optional, adds
+to the built-in lists:
+
+```json
+{
+  "sensitivePaths": ["internal/tenancy/**"],
+  "generatedPatterns": ["api/gen/**"],
+  "hazardPatterns": { "go": ["unsafeQuery"] }
+}
+```
 
 ## Validate and merge
 
@@ -114,7 +183,9 @@ checked by the same rules. `docs/03-review-document-schema.md` lists them.
 
 ```
 packages/schema/      the contract: JSON Schema, generated types, validator, judgment merge
-packages/cli/         the cockpit command: validate, merge
+packages/analyzer/    diff, git history, tree-sitter, risk, the Go call graph, review.json
+packages/server/      node:http on 127.0.0.1: the cockpit, the document, its change events
+packages/cli/         the cockpit command: prepare, analyze, serve, clean, validate, merge
 packages/cockpit/     the React app: renders the review document and nothing else
 fixtures/             hand-authored review documents, their generator and their checker
 docs/                 the design: brief, architecture, schema, UX, risk model, milestones

@@ -11,7 +11,7 @@ A Claude Code skill named `review` turns a PR number into a running local web ap
 | Component | What it is | Runs where | Owns |
 |---|---|---|---|
 | **Skill** | `SKILL.md` plus a thin wrapper. Teaches Claude Code what `review <pr>` means and how to do the judgment pass. | Inside the Claude Code session | The conversation with the reviewer |
-| **CLI** (`cockpit`) | A Node program with subcommands: `prepare`, `analyze`, `serve`, `judge-merge`, `submit`, `clean`. | Spawned by the skill | Orchestration, checkout, process lifecycle |
+| **CLI** (`cockpit`) | A Node program with subcommands: `prepare`, `analyze`, `serve`, `clean`, `validate`, `merge`, and later `judge-merge` and `submit`. | Spawned by the skill | Orchestration, checkout, process lifecycle |
 | **Analyzer** | A library the CLI calls. Reads the local checkout and produces the deterministic part of the review document. | Inside the CLI process | Diff parsing, git signals, tree-sitter signals, generated-code detection |
 | **Schema package** | JSON Schema for the review document plus a validator and TypeScript types. | Imported by every other component | The contract |
 | **Server** | A small HTTP server. Serves the cockpit's static files, the review document, and a local API for drafts and submit. | Background process, one per review | Live state, write-back |
@@ -104,7 +104,12 @@ sequenceDiagram
 
 ### Step by step
 
-**1. Resolve the PR.** Accept `123`, `owner/repo#123`, or a full URL. With a bare number, the current directory must be inside a git clone with a GitHub remote. `gh pr view` fetches the head SHA, base SHA, title, body and labels.
+**1. Resolve the PR.** Accept `123`, `owner/repo#123`, or a full URL. With a bare number, the current directory must be inside a git clone with a GitHub remote. `gh pr view` fetches the head SHA, base SHA, title, body and labels, and the committer emails on the pull request's own commits, which are the author identities the history signals need.
+
+The diff and the history pass use the merge base of the base SHA and the head SHA rather
+than the base SHA itself, which is what `base...head` means to git. `pr.base.sha` in the
+document is still the SHA GitHub reported. On a merged pull request the two differ by
+everything that landed after it.
 
 **2. Checkout.** If a local clone of the repository is found, add a git worktree at the PR head under the cache directory. If not, clone into the cache directory with full history. The head SHA is recorded in the document; every comment posted later is bound to it.
 
@@ -112,11 +117,37 @@ Where to look for local clones: the current directory's repository first. Then a
 
 **3. Stage 1 analysis.** Parse the diff between base and head. For each changed file, compute git signals from history and structure signals from tree-sitter. Detect generated files by built-in patterns. Fetch existing review comments and check runs. Compute the deterministic risk per hunk. Write the document with stage 2 and 3 marked pending.
 
+At M3 `comments` and `checks` are written as empty arrays with status `ready`: ingestion is
+M5, and a section marked `pending` would make the cockpit render a placeholder for something
+nothing is going to deliver yet.
+
+`pr.additions`, `pr.deletions` and `pr.changedFiles` are recomputed from the parsed diff
+rather than taken from `gh`. GitHub counts a rename and a binary file differently, and the
+validator requires the totals to match the hunks in the document, which are the only lines
+the reviewer can actually see.
+
 **4. Serve and open.** Start the server on a free port. Print the URL. The skill opens the browser. The cockpit is usable from this moment, with the recommended order and the graph tab showing a loading state.
+
+The server reserves `POST /api/drafts`, `POST /api/submit` and `POST /api/ask` and answers
+501 on them until M6, so the route names cannot drift. It watches the directory holding
+`review.json`, not the file: the analyzer publishes by writing a temp file and renaming it,
+and a watch bound to the old inode goes quiet after the first write.
 
 **5. Judgment pass.** The CLI writes `compact.md` next to the document: one block per hunk with its id, file, enclosing symbol, signals, risk floor and the first lines of the change, and the full text of any hunk under 40 lines. A 4,500-line PR compacts to roughly a fifth of its size. The skill instructs the resident Claude session to read the compact view, open full hunks from the checkout only where it needs to, and produce `judgment.json` in the exact shape the schema demands. The CLI validates it, rejects anything that lowers a deterministically high-risk hunk, and merges the result into the document. The server pushes the change.
 
 **6. Graph stage.** The CLI builds the call graph for the changed Go functions: what they call and what calls them, one hop out, within the repository. Written as stage 3.
+
+At M3 the graph runs inside `cockpit analyze`, after stage 1 has been written, and rewrites
+the document when it is done. It is a second write rather than a background process: the
+server pushes the change to a cockpit that is already open, which is the behaviour the stage
+was for, and one process is one thing to fail. A pull request that changes no Go file gets an
+empty graph with status `ready`, not `failed`; there is nothing to draw and nothing went
+wrong. `--skip-graph` leaves stage 3 `pending`.
+
+Every Go file in the checkout is parsed once and cached under `index/<commit>.json`, keyed by
+file path and blob SHA, so the next pull request of the same repository reparses only the
+files whose content changed. Measured on a repository with 839 Go files in the checkout: 3.3
+seconds cold, 0.13 warm, and 794 of 852 files reused across two different pull requests.
 
 **7. Review.** The reviewer works in the browser. Drafts are saved to the server on every keystroke and stored beside the document, so a server restart loses nothing. Questions about the code go to Claude in the terminal, which still has the checkout and the document in context.
 
@@ -156,7 +187,9 @@ The server posts as the user's own `gh` identity. The tool never holds a token o
 ~/.cache/review-cockpit/
   <owner>/<repo>/
     repo/                  temp clone, only when no local clone was found
-    index/                 tree-sitter symbol index keyed by commit, reused across PRs of this repository
+    index/                 tree-sitter symbol index, one file per commit, keyed inside by
+                           path and blob sha; reused across PRs of this repository, three
+                           most recent kept
     pr-123/
       worktree/            git worktree at the PR head
       review.json          the document, all stages
@@ -174,6 +207,11 @@ An optional `~/.config/review-cockpit/config.json` holds workspace roots to sear
 - **Repository too large to clone in the budget:** the CLI reports progress and keeps going. The startup budget is a target, not a timeout.
 - **Judgment pass returns invalid JSON:** the CLI reports the validation error to the session, which retries once. If it fails again, stage 2 is marked failed and the cockpit works from deterministic risk alone, with a visible note.
 - **Graph stage fails or times out:** stage 3 is marked failed. The graph tab shows the message. Nothing else is affected.
+- **Nothing is written into the user's clone** but the objects a fetch brings in, one ref
+  under `refs/review-cockpit/`, and the worktree registration. `cockpit clean` removes both.
+  The analyzer does not run `git worktree prune`, which would drop registrations belonging to
+  other tools, except when its own worktree path is registered with no directory behind it
+  and prune is the only way to re-add it.
 - **PR head moved before submit:** submit is refused with a clear message. Drafts are kept. `review 123` again re-analyzes and re-attaches drafts whose file and line still exist, and lists the ones it could not place.
 - **Server dies:** `review 123` again finds the cached document and drafts and restarts the server without re-analyzing, unless the head SHA changed.
 

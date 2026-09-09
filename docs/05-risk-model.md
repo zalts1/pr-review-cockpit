@@ -1,6 +1,8 @@
 # 05 — Risk model
 
-Status: draft for review. Produces `risk` on every hunk in `03-review-document-schema.md`.
+Status: implemented in `packages/analyzer` at M3. Produces `risk` on every hunk in
+`03-review-document-schema.md`. Where the implementation had to differ from the first draft
+of this doc, the doc has been corrected in place and the reason is stated.
 
 ## What risk means here
 
@@ -15,16 +17,30 @@ Two layers produce it:
 
 ### File-level signals from git
 
-All three come from one `git log` pass over the base branch, so cost does not grow with the number of changed files.
+All three come from one `git log` pass over the base history, so cost does not grow with the number of changed files.
 
 ```
-git log <base.sha> --since=2.years --format='%H%x09%ae%x09%s' --name-only
+git log <merge-base(base, head)> --since=2.years --format='%H%x09%ct%x09%ae%x09%s' --name-only
 ```
+
+Three details the first draft left out:
+
+- The commit time `%ct` is in the format because the 90-day window has to be computed per
+  commit, and a second `git log --since=90.days` would be a second pass.
+- The pass starts at the merge base of the base branch and the head, not at the tip of the
+  base branch. On a merged pull request the tip is ahead of the review and includes the
+  pull request's own commits, which would count the author's work on the file as prior
+  experience with it.
+- Rename following (`-M`, `--follow`) is left out: it is the expensive part of a two-year
+  log, and the analyzer instead sums the history of the current path and, for a renamed
+  file, of its previous path. A file renamed earlier in the window reports the history of
+  its current name only, which under-reports churn. That is the wrong direction for a
+  safety-first model and is in `BACKLOG.md`.
 
 | Signal | Computation | Why it matters |
 |---|---|---|
 | `churnCommits90d` | Commits in the last 90 days that touched the file. | Files that change often are where bugs cluster. |
-| `bugfixCommits` | Of those, commits whose subject matches `\b(fix|fixes|fixed|bug|hotfix|revert|regression)\b`, case-insensitive. | A file that keeps needing fixes is a file people misunderstand. |
+| `bugfixCommits` | Of those 90-day commits, the ones whose subject matches `\b(fix|fixes|fixed|bug|hotfix|revert|regression)\b`, case-insensitive. | A file that keeps needing fixes is a file people misunderstand. |
 | `authorPriorCommits` | Commits in the two-year window by the PR author that touched the file, before this PR. The author's identities are the committer emails on the PR's own commits, taken from `gh pr view --json commits`. | An author's first touch on a file misses the unwritten rules of that file. |
 
 ### File-level signals from paths
@@ -41,10 +57,16 @@ Built-in sensitive globs:
 **/auth/**  **/authn/**  **/authz/**  **/rbac/**  **/permission*/**  **/session*/**
 **/payment*/**  **/billing/**  **/invoice*/**
 **/migrations/**  **/migration/**  **/*.sql
-**/infra/**  **/terraform/**  **/*.tf  **/helm/**  **/charts/**  **/k8s/**  **/*.yaml in deploy/ or infra/
+**/infra/**  **/terraform/**  **/*.tf  **/helm/**  **/charts/**  **/k8s/**
+deploy/**/*.yaml  **/deploy/**/*.yaml  infra/**/*.yaml  **/infra/**/*.yaml
 .github/workflows/**  Dockerfile*  **/Makefile
 **/crypto/**  **/secret*/**  **/*token*  **/*credential*
 ```
+
+A pattern with no slash matches the basename, as gitignore does, which is what makes
+`Dockerfile*` and the lock files below match at any depth. `**` spans path segments, `*` and
+`?` stay inside one. The first pattern that matches is the one reported, so a folded or
+floored file names a rule the reviewer can check.
 
 Built-in generated patterns:
 
@@ -60,13 +82,30 @@ A file is also treated as generated when its first five lines contain `Code gene
 
 ### Structure signals from tree-sitter
 
-Computed for Go in v1. TypeScript gets `fanIn` and `fanOut` from import edges only. Other languages report `null`.
+Computed for Go in v1: enclosing symbols, complexity and the call graph. TypeScript gets
+`fanIn` only, from the names its changed files export; it gets no symbols, no complexity and
+no `fanOut`, so a TypeScript hunk carries no enclosing symbol in the document and its file
+reports `complexityBefore` and `complexityAfter` as `null`. Other languages report `null` for
+all of them.
 
 | Signal | Computation |
 |---|---|
-| `complexityBefore`, `complexityAfter` | For each function that overlaps a hunk: 1 plus the count of `if`, `else if`, `for`, `case`, `select` case, `&&`, `||`, and `return` inside a loop or conditional. Summed over the file's changed functions, on the base side and on the head side. |
-| `fanIn` | Stage 1: `git grep -w -c <symbol>` across the repository for every function or method name defined in a changed function's file, minus occurrences in the defining file. Stage 3: the number of distinct functions whose bodies contain a call resolved to that symbol. `fanSource` says which. |
-| `fanOut` | Stage 1: `null`. Stage 3: distinct symbols called from the changed functions, excluding the standard library. |
+| `complexityBefore`, `complexityAfter` | For each function that overlaps a hunk: 1 plus the count of `if`, `else if`, `for`, `case`, `select` case, `&&`, `||`, and `return` inside a loop or conditional. Summed over the file's changed functions, on the base side and on the head side. `else` on its own is not a branch and is not counted; `default:` is not counted either, because it carries no condition. A function literal counts into the function that holds it, which is where a reviewer reads it. The head side names the changed functions; the base side is the same names in the base file, so a function that only moved contributes zero growth. |
+| `fanIn` | Stage 1: whole-word matches of the changed symbol names across the repository, minus occurrences in the defining file. Stage 3: the number of distinct functions whose bodies contain a call resolved to a symbol changed in this file. `fanSource` says which. |
+| `fanOut` | Stage 1: `null`. Stage 3: distinct symbols called from the changed functions, excluding the standard library and anything unresolved. |
+
+The stage 1 estimate is one `git grep -w -E` with every changed symbol in one alternation,
+not one `git grep` per symbol: on a repository of about ten thousand Go files, a pattern per
+symbol took 11 seconds and the single alternation takes 1.4 for the same matches. The matches
+are attributed per symbol afterwards by tokenising each matched line the way `-w` matched it.
+
+Generated files get no fan-in at all (`fanIn`, `fanOut` and `fanSource` are `null`). A
+generated file defines hundreds of same-named symbols — `Reset`, `String`, `GetId` — and
+counting their callers measures the generator, not the change: on a real protobuf file the
+estimate came to 21,991. Generated hunks are floored low anyway, so the number bought
+nothing and lied on hover.
+
+For TypeScript, stage 1 counts the same way over the names the changed files export.
 
 Method calls in Go resolve by name and, where the receiver type is known inside the same package, by type. Cross-package resolution follows imports one hop. Anything unresolved is counted by name alone, which over-counts. Over-counting raises risk, which is the safe direction.
 
@@ -78,10 +117,10 @@ Computed per hunk from its own lines. They are not stored as signals, only as fa
 |---|---|
 | `size` | Added plus deleted lines. |
 | `deleteRatio` | Deleted divided by added plus deleted. Deletions of logic are riskier than additions because nothing new is there to be tested. |
-| `kind` | `import` when every changed line is inside an import block. `whitespace-only` when changed lines differ only in whitespace. `comment-only` when every changed line is a comment. Otherwise `code`. Test files get `test`. |
-| `hazards` | Count of changed lines matching hazard patterns for the language. Go: `go func`, `sync.`, `atomic.`, `unsafe.`, `recover()`, `context.WithTimeout`, `time.Sleep`, `select {`, `chan `, `defer`, `panic(`, `os.Exit`, `exec.Command`, `sql.`, `Exec(`, `Query(`, `http.Client`, `tls.`, `rand.`. TypeScript: `eval(`, `dangerouslySetInnerHTML`, `innerHTML`, `child_process`, `fetch(`, `localStorage`, `setTimeout`, `Promise.race`, `as any`, `@ts-ignore`. |
+| `kind` | Decided in this order: `whitespace-only` when the changed lines differ only in whitespace, `comment-only` when every changed line is a comment, `import` when every changed line falls inside an import statement, `test` when the file is a test file, `code` otherwise. The trivial kinds come first so an import shuffle inside a test file is skimmable rather than measured as a test change. Import statements are found by scanning both sides of the file for import ranges, and a changed line counts against the side it belongs to; string lines alone never make a hunk an import hunk. |
+| `hazards` | Count of changed lines matching hazard patterns for the language. A line counts once however many patterns it matches. Go: `go func`, `sync.`, `atomic.`, `unsafe.`, `recover()`, `context.WithTimeout`, `time.Sleep`, `select {`, `chan `, `defer`, `panic(`, `os.Exit`, `exec.Command`, `sql.`, `Exec(`, `Query(`, `http.Client`, `tls.`, `rand.`. TypeScript: `eval(`, `dangerouslySetInnerHTML`, `innerHTML`, `child_process`, `fetch(`, `localStorage`, `setTimeout`, `Promise.race`, `as any`, `@ts-ignore`. |
 | `touchesErrorPath` | Any changed line matches `err != nil`, `return nil, `, `catch`, `throw`, `panic(`. Error handling is where reviewers skim and bugs hide. |
-| `touchesPublicSurface` | The enclosing function is exported (Go: capitalised name; TypeScript: `export`) or the hunk changes a struct or type definition. |
+| `touchesPublicSurface` | The enclosing function is exported (Go: capitalised name; TypeScript: `export`) or the hunk changes a struct or type definition. Never true in a test file: a Go test function is capitalised by convention and called by the test runner alone, so its name says nothing about blast radius. Counting it added 0.05 to every hunk of every test file, which was enough to push routine test edits from low to medium. |
 
 ## Scoring
 
@@ -95,7 +134,7 @@ Every signal becomes a number between 0 and 1. Unknown (`null`) signals become 0
 | `bugfixCommits` | `min(x / 4, 1)` |
 | `authorPriorCommits` | `1` when 0, `0.5` when 1 or 2, `0` when 3 or more |
 | `fanIn` | `min(log2(1 + x) / 6, 1)`, so 63 callers is 1 |
-| `complexity` | `min(max(after - before, 0) / 10, 1)`, growth only; plus `0.3` when `after >= 15` |
+| `complexity` | `min(max(after - before, 0) / 10, 1)`, growth only; plus `0.3` when `after >= 15`, the sum clamped to 1 |
 | `size` | `min(x / 120, 1)` |
 | `deleteRatio` | the ratio itself |
 | `hazards` | `min(x / 3, 1)` |
@@ -117,6 +156,11 @@ score = 0.18 * sensitivePath
 ```
 
 The weights sum to 1, so the score stays in 0 to 1. The three heaviest weights go to the signals with the clearest evidence in the literature and in practice: sensitive area, blast radius, and fix history.
+
+Each contribution is rounded to two decimals and the score is the sum of the rounded
+contributions. The reviewer sees the top three contributions on hover, and they have to add
+up to the number behind the heat; a score computed at full precision and rounded afterwards
+does not.
 
 ### Thresholds
 
@@ -140,6 +184,12 @@ Rules run after the score and can only push the floor up, with two named excepti
 | `kind` is `import`, `whitespace-only` or `comment-only` | floor **low**, score ignored |
 | `generated.is` is true | floor **low**, score ignored, file folded |
 
+The last two rules are the two named exceptions that push the floor down, and they run last
+and win over every rule above them, migrations included. A whitespace change inside a
+migration is a whitespace change. Stage 1's skim groups depend on this: the validator refuses
+a high-floor hunk in a skim group, and these rules are what guarantee that generated, import
+and whitespace hunks are never high.
+
 `mode` follows the level: `scrutinize` for high and medium, `skim` for low.
 
 ### Worked example
@@ -160,7 +210,17 @@ Rules run after the score and can only push the floor up, with two named excepti
 | size | 31 | 0.26 | 0.05 | 0.01 |
 | **score** | | | | **0.65 → high** |
 
-No floor rule fires. Floor is high from the score alone. The factors list carries the top three contributions so the hover text reads "5 fix commits in 90 days · 23 callers · first change by this author".
+No floor rule fires. Floor is high from the score alone. The factors list carries the top three contributions so the hover text reads "5 fix commits in 90 days · 23 callers · first change by this author". When a floor rule does fire, it takes the first of the three slots, with the rule and its effect as the detail, and the top two contributions follow.
+
+### Refinement in stage 3
+
+When the call graph lands, `fanIn` and `fanOut` are replaced by resolved counts and the hunk
+is scored again. The score and the factors always follow the new counts, so what the reviewer
+reads on hover agrees with the signals on the file. The floor only ever rises. The stage 1
+estimate over-counts by construction, so the graph usually lowers the count, and a floor that
+fell after the reviewer had already seen it would be a floor in name only. A floor kept above
+its recomputed level says so in its first factor: "kept at high from the stage 1 estimate of
+669 callers".
 
 ## The judgment layer
 
@@ -200,6 +260,15 @@ The v1 weights are priors, not measurements. To improve them without guessing:
 - A `cockpit calibrate` command, not in v1, will report how often high floors received comments and how often low floors did. Weights and thresholds are adjusted from that report, by hand, in one commit that explains why.
 
 The one number to watch from day one: how often a hunk with floor `low` receives a human comment on the real PR. If that is common, the thresholds are too permissive and "skim" is lying.
+
+The first three real pull requests say the opposite is the more likely problem. On a
+24-file backend change, 3 hunks came out high, 110 medium and 81 low, and 39 of the 46
+non-test code hunks were medium. In a repository where every touched file has 20 to 50
+commits in 90 days, `churnCommits90d`, `authorPriorCommits` and `touchesErrorPath` alone
+carry a hunk over 0.28, so "medium" describes the repository rather than the change. The
+weights are priors and this is the first measurement against them; the candidate fixes, in
+`BACKLOG.md`, are a higher medium threshold, normalising churn against the repository's own
+median rather than a fixed 15, and dropping `authorPriorCommits` to a tie-breaker.
 
 ## Repository overrides
 

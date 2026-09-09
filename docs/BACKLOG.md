@@ -10,3 +10,46 @@ Items that are agreed as worth doing but not scheduled in a milestone. Each line
 - Virtualisation for files over 1,500 diff lines. (M1 report)
 - Map layout in a web worker if a real repository's graph blocks the Files tab. (ADR-17)
 - User-reported rough edges from the M1 demo: to be listed.
+
+## Risk model calibration (from the M3 runs on three real pull requests)
+
+- The medium band is too wide on a high-churn repository: 39 of 46 non-test code hunks came
+  out medium on a 24-file backend change, so "medium" described the repository rather than
+  the change. Candidates: raise the medium threshold above 0.28, normalise `churnCommits90d`
+  against the repository's own median instead of a fixed 15, and demote
+  `authorPriorCommits` to a tie-breaker. To be settled by `cockpit calibrate` on cached
+  documents rather than by another guess. (M3 report, ADR-24)
+- Rename following is left out of the git log pass for speed, so a file renamed inside the
+  two-year window under-reports churn. `--follow` per changed file, or a rename map built
+  from one `--name-status -M` pass, would fix it. (docs/05, M3)
+- `coverageDelta` is always `null`: no coverage report is read. (M3)
+
+## Analyzer and graph (M3 leftovers)
+
+- TypeScript gets fan-in from a name grep and nothing else: no enclosing symbols, no
+  complexity, no fan-out, no call graph. On the frontend pull request every hunk showed
+  "(no symbol)", which weakens the walkthrough and the map. A second tree-sitter grammar
+  covers the first three; the graph is the post-v1 item already in `06-milestones.md`. (M3)
+- The 300-node cap was hit on a 24-file Go pull request (1,487 edges), so the map is
+  truncated exactly where it is most useful. Rank one-hop neighbours by their distance to a
+  changed hunk before cutting, or collapse a package's callers into its package node. (M3)
+- Unresolved calls with more than three same-named candidates are dropped rather than drawn,
+  which is a silent under-count in the graph's fan-in. (M3)
+- `cockpit clean` keeps the cached clone under `<cache>/<owner>/<repo>/repo`, on the
+  assumption that the next review of that repository wants it. Nothing garbage-collects it.
+  (M3)
+- Stage 3 runs inside `cockpit analyze`. Under the M7 skill it should be a background
+  process so `analyze` returns as soon as stage 1 is written. (M3)
+
+## Server and cockpit (M3 leftovers)
+
+- Drafts are only in browser storage: `POST /api/drafts` answers 501, so the promise in the
+  disconnected banner that "drafts are saved locally" is true and the replay on reconnect
+  from docs/04 does not exist yet. (M6)
+- The cockpit re-fetches the whole document on every event rather than patching it. At 0.9 MB
+  for a 24-file pull request that is fine; a 4,500-line pull request may need the patch.
+  (docs/04, M3)
+- `npm run dev` has no proxy for `/api`, so server mode is only reachable through the built
+  cockpit that the server itself serves. (M3)
+- When a rewritten walk contains neither the reviewer's hunk nor a group holding it, the
+  walkthrough position resets to step 0. (M3)

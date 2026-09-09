@@ -267,3 +267,96 @@ Status: accepted · 2026-09-09
 4. **`collapsedByDefault` alone controls expansion.** `mode` says how closely to read a group, `collapsedByDefault` says whether it starts open, and a renderer expands a group when, and only when, `collapsedByDefault` is `false`. A `scrutinize` group with `collapsedByDefault: true` is a contradiction: the validator reports it as an error and the merge expands it. The cockpit's `mode === 'scrutinize' || !collapsedByDefault` rule is gone.
 
 **Consequences.** Two of the four decisions made existing data invalid, which is the point of having a validator: the fixtures were wrong and were fixed. The judgment file gained one rule that the doc could not express, because a proposed group has no id yet: a `path` step for a new group names one of its hunks and the merge rewrites the step to the group. Every rule above has a failing test.
+
+---
+
+## ADR-20: tree-sitter through prebuilt wasm grammars, never a native build
+
+Status: accepted · 2026-09-09
+
+**Context.** M3 needs a Go parser inside a Node CLI that a reviewer installs once and forgets. Three ways to get one.
+
+**Options.**
+
+1. `tree-sitter` plus `tree-sitter-go`, the native bindings. Fastest, and a node-gyp build on install: a C toolchain on every machine, a rebuild on every Node major, and an install that fails in exactly the situation where the tool is meant to help.
+2. `web-tree-sitter` plus the grammar wasm from `tree-sitter-wasms`. Prebuilt for every language the project might add, no compiler, one asynchronous `init`.
+3. Ship our own compiled grammar wasm in the repository. No dependency on a third party's build, and a wasm binary in a public repository that nobody can review.
+
+**Decision.** Option 2. `goWasmPath()` resolves `tree-sitter-wasms/out/tree-sitter-go.wasm` through `createRequire`, and one lazy `Parser.init()` serves the whole process.
+
+**Consequences.** Parsing 839 Go files takes 3.3 seconds, which the index cache then hides (ADR-21). The grammar version is whatever `tree-sitter-wasms` pinned, which is older than the current Go grammar; nothing in the risk model needs a recent one, and moving to option 1 or 3 means changing one function. Adding TypeScript or Python to the structure signals is a second wasm from the same package.
+
+---
+
+## ADR-21: the symbol index is keyed by path and blob sha, stored per commit
+
+Status: accepted · 2026-09-09
+
+**Context.** Stage 3 parses every Go file in the checkout. On the backend repository that is 839 files and 3.3 seconds, paid again on every pull request of that repository, most of which touch a few dozen files.
+
+**Options.**
+
+1. Key the cache by commit sha alone. A hit is free and a miss reparses everything, so every new head is a full miss.
+2. Key each entry by file path and blob sha, and store the entries in a file named after the commit. A new head reuses every file whose content did not change.
+3. Content-addressed store: one file per blob sha. Perfect sharing, thousands of small files, and a garbage-collection problem.
+
+**Decision.** Option 2. `index/<commitSha>.json` holds `{ path: { blob, package, imports, functions } }`. A run loads the entry file for its own commit if it exists, otherwise the most recently written one, and reparses only the paths whose blob sha differs. The three most recent index files are kept.
+
+**Consequences.** Two pull requests of the same repository shared 794 of 852 files: 3.3 seconds became 1.4 for the second, and re-running the same pull request became 0.13. The index is a cache with no invalidation problem, because a blob sha cannot mean two contents. It is per repository, not per pull request, so it lives beside `repo/` rather than under `pr-<n>/`. Keeping three files bounds the directory at roughly a few megabytes per repository.
+
+---
+
+## ADR-22: stage 3 may raise a floor, never lower it, and always rewrites the score
+
+Status: accepted · 2026-09-09
+
+**Context.** `05-risk-model.md` says the deterministic layer "is refined in stage 3"; `03-review-document-schema.md` says `risk.floor` is "set in stage 1, never changes". Stage 1 estimates fan-in with a name grep that over-counts, and stage 3 resolves it, so the refined number is usually lower. Both statements cannot hold.
+
+**Options.**
+
+1. Update the signals and leave the risk alone. The document then shows 158 callers on the file and "669 callers" in the factor that set the heat.
+2. Rescore freely. A floor the reviewer already saw as high can fall to medium while they are reading, and the promise that a floor is a floor is gone.
+3. Rescore, but keep the floor at the maximum of the two, and say so where the two disagree.
+
+**Decision.** Option 3. The score and the factors always follow the resolved counts, so hover text and signals agree. The floor is `max(stage1, stage3)`. When the kept floor is above the recomputed level, the first factor reads "kept at high from the stage 1 estimate of 669 callers".
+
+**Consequences.** On the 24-file backend pull request, 6 hunks were raised and 66 floors were kept above their recomputed level, which is the honest shape of a grep estimate. The reviewer can see which heat came from an estimate and which from the graph. `applyGraphFan` is the only place that writes risk after stage 1.
+
+---
+
+## ADR-23: one grep for every symbol, and no fan-in for generated files
+
+Status: accepted · 2026-09-09
+
+**Context.** The doc specifies `git grep -w -c <symbol>` per changed symbol. On the backend repository, 127 symbols took 11.1 seconds, two thirds of the whole stage 1 budget. Separately, the estimate for a protobuf file came out at 21,991 callers.
+
+**Decision.** One `git grep -w -E` with all the symbols in a single alternation, in batches of 400, and the matches attributed per symbol afterwards by tokenising each matched line. Identical output, 1.4 seconds. Generated files are skipped entirely: `fanIn`, `fanOut` and `fanSource` are `null` for them.
+
+**Consequences.** Stage 1 on a 24-file pull request went from 16.7 seconds to 5.1. The generated skip loses nothing, because a generated hunk is floored low whatever its file signals say, and it removes a number that was measuring the code generator. A file whose changed lines are all outside a function (a struct or a const block) also reports `null` rather than 0: nothing was counted, and `fanSource` says `null` with it, which the validator requires.
+
+---
+
+## ADR-24: two corrections to the score, both found by running it on real pull requests
+
+Status: accepted · 2026-09-09
+
+**Context.** The first three real pull requests produced heat that was defensible at the top and mush in the middle: on a 24-file change, 39 of 46 non-test code hunks and 71 of 131 test hunks came out medium.
+
+**Decisions.**
+
+1. **Each contribution is rounded to two decimals before the score sums them.** The doc's worked example adds its own rounded column to 0.65 while full precision gives 0.66. The three factors on hover have to add up to the number behind the heat, so the rounded column is the definition and the worked example is a test.
+2. **Nothing in a test file counts as public surface.** A Go test function is capitalised because the test runner requires it, so `touchesPublicSurface` was true for every hunk of every test file, adding 0.05 and pushing routine test edits over the medium threshold.
+
+**Consequences.** Test hunks at medium fell from 71 to 60 on the same pull request. The remaining spread is a weights problem, not a bug: in a repository where every touched file has 20 to 50 commits in 90 days, churn, author history and the error path alone clear 0.28. That is a calibration item with real data behind it, now in `BACKLOG.md`, and `cockpit calibrate` is the command that should settle it rather than another guess.
+
+---
+
+## ADR-25: the analyzer never prunes worktrees it did not create
+
+Status: accepted · 2026-09-09
+
+**Context.** `checkout` and `clean` called `git worktree prune` to clear stale registrations before adding and after removing. During the M3 verification runs that pruned two registrations belonging to another tool, whose directories had already been deleted. Nothing was lost, and it was still the analyzer reaching into state it does not own.
+
+**Decision.** No `git worktree prune` on the normal path. `git worktree remove --force` handles our own worktree, and prune runs only in the recovery case where our own path is registered with no directory behind it and `worktree add` has already failed.
+
+**Consequences.** After the fix, `git worktree list` in the user's clone is byte-identical before and after a full analyze-and-clean cycle. A stale registration from an earlier crash of this tool is cleared on the next run of the same pull request, at the cost of also pruning other dead registrations at that moment; that is the one case where there is no narrower call.
