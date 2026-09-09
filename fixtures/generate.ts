@@ -19,14 +19,15 @@ import {
 import type {
   Check,
   Comment,
+  Language,
   FileSignals,
   Graph,
   Group,
   PathStep,
   ReviewDocument,
+  ReadySummary,
   ReviewFile,
-  Summary,
-} from '../packages/cockpit/src/types.ts';
+} from '@review-cockpit/schema';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -56,7 +57,7 @@ interface FileSpec {
   path: string;
   status?: ReviewFile['status'];
   previousPath?: string;
-  language: string;
+  language: Language;
   generated?: string;
   signals: FileSignals;
   hunks: HunkSpec[];
@@ -95,7 +96,7 @@ const renameFactors = [
 function renameFile(
   id: string,
   path: string,
-  language: string,
+  language: Language,
   bodies: Array<{ oldStart: number; newStart: number; header: string; symbols: string[]; body: string }>,
 ): ReviewFile {
   return buildFile({
@@ -154,7 +155,7 @@ const files: ReviewFile[] = [
     path: 'api/proto/tenant/v1/tenant.pb.go',
     language: 'go',
     generated: '**/*.pb.go',
-    signals: signals({ churnCommits90d: 9, fanIn: null, fanOut: null, complexityBefore: null, complexityAfter: null }),
+    signals: signals({ churnCommits90d: 9, fanIn: null, fanOut: null, fanSource: null, complexityBefore: null, complexityAfter: null }),
     hunks: [
       {
         oldStart: 26,
@@ -288,7 +289,7 @@ const files: ReviewFile[] = [
     path: 'api/proto/tenant/v1/tenant_grpc.pb.go',
     language: 'go',
     generated: '**/*_grpc.pb.go',
-    signals: signals({ fanIn: null, fanOut: null, complexityBefore: null, complexityAfter: null }),
+    signals: signals({ fanIn: null, fanOut: null, fanSource: null, complexityBefore: null, complexityAfter: null }),
     hunks: [
       {
         oldStart: 18,
@@ -853,7 +854,7 @@ const files: ReviewFile[] = [
     path: 'db/gen/tenant.sql.go',
     language: 'go',
     generated: '**/db/gen/**',
-    signals: signals({ fanIn: null, fanOut: null, complexityBefore: null, complexityAfter: null }),
+    signals: signals({ fanIn: null, fanOut: null, fanSource: null, complexityBefore: null, complexityAfter: null }),
     hunks: [
       {
         oldStart: 1,
@@ -1044,7 +1045,7 @@ const files: ReviewFile[] = [
     path: 'internal/mocks/tenant_store_mock.go',
     language: 'go',
     generated: '**/mocks/*_mock.go',
-    signals: signals({ fanIn: null, fanOut: null, testFile: false, complexityBefore: null, complexityAfter: null }),
+    signals: signals({ fanIn: null, fanOut: null, fanSource: null, testFile: false, complexityBefore: null, complexityAfter: null }),
     hunks: [
       {
         oldStart: 22,
@@ -1573,7 +1574,7 @@ const graph: Graph = {
 const allHunks = files.flatMap((f) => f.hunks);
 const groupedHunkIds = new Set(groups.flatMap((g) => g.hunkIds));
 
-const summary: Summary = {
+const summary: ReadySummary = {
   oneLiner:
     'Adds region, tier and retention to the tenant profile API with field-mask validation, and renames TenantRecord to TenantProfile across the service.',
   reviewFocus: [

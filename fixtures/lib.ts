@@ -5,7 +5,7 @@ import type {
   Risk,
   RiskFactor,
   RiskLevel,
-} from '../packages/cockpit/src/types.ts';
+} from '@review-cockpit/schema';
 
 export function diffLines(
   oldStart: number,

@@ -2,7 +2,7 @@
   "name": "review-cockpit",
   "private": true,
   "version": "0.1.0",
-  "description": "PR Review Cockpit — a local web app that renders a review document for one pull request.",
+  "description": "PR Review Cockpit \u2014 a local web app that renders a review document for one pull request.",
   "workspaces": [
     "packages/*"
   ],
@@ -13,8 +13,8 @@
     "dev": "npm run dev --workspace @review-cockpit/cockpit",
     "build": "npm run build --workspace @review-cockpit/cockpit",
     "typecheck": "npm run typecheck --workspace @review-cockpit/cockpit",
-    "fixtures:build": "tsx fixtures/generate.ts",
-    "fixtures:check": "tsx fixtures/check.ts",
+    "fixtures:build": "npm run build -w @review-cockpit/schema && tsx fixtures/generate.ts",
+    "fixtures:check": "npm run build -w @review-cockpit/schema && tsx fixtures/check.ts",
     "demo": "npm run build && (sleep 1 && open \"http://localhost:8080/?fixture=pr-fake-1\" &) && python3 -m http.server -d packages/cockpit/dist 8080",
     "lockfile:check": "node -e \"const l=require('./package-lock.json');const bad=Object.values(l.packages).map(p=>p.resolved).filter(r=>r&&r.includes('://')&&!r.startsWith('https://registry.npmjs.org/'));if(bad.length){console.error('package-lock.json has non-public resolved URLs:',bad.slice(0,3));process.exit(1)}\""
   },

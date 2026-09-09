@@ -272,7 +272,7 @@
         "authorPriorCommits": 4,
         "fanIn": null,
         "fanOut": null,
-        "fanSource": "grep",
+        "fanSource": null,
         "complexityBefore": null,
         "complexityAfter": null,
         "sensitivePath": {
@@ -5294,7 +5294,7 @@
         "authorPriorCommits": 4,
         "fanIn": null,
         "fanOut": null,
-        "fanSource": "grep",
+        "fanSource": null,
         "complexityBefore": null,
         "complexityAfter": null,
         "sensitivePath": {
@@ -9033,7 +9033,7 @@
         "authorPriorCommits": 4,
         "fanIn": null,
         "fanOut": null,
-        "fanSource": "grep",
+        "fanSource": null,
         "complexityBefore": null,
         "complexityAfter": null,
         "sensitivePath": {
@@ -11017,7 +11017,7 @@
         "authorPriorCommits": 4,
         "fanIn": null,
         "fanOut": null,
-        "fanSource": "grep",
+        "fanSource": null,
         "complexityBefore": null,
         "complexityAfter": null,
         "sensitivePath": {
