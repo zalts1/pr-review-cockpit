@@ -28,7 +28,6 @@ function isDirectory(path: string): boolean {
   }
 }
 
-/** The repository containing cwd first, then the workspace roots, one level deep. */
 export function findLocalClone(
   ref: PrRef,
   cwd: string,
@@ -87,7 +86,6 @@ function fetchPrHead(repo: string, ref: PrRef, headSha: string, baseSha: string,
 function addWorktree(repo: string, ref: PrRef, headSha: string): string {
   const path = worktreeDir(ref);
   mkdirSync(prDir(ref), { recursive: true });
-  git(repo, ['worktree', 'prune']);
 
   if (existsSync(path)) {
     const head = git(path, ['rev-parse', 'HEAD']);
@@ -100,6 +98,8 @@ function addWorktree(repo: string, ref: PrRef, headSha: string): string {
     gitOk(repo, ['worktree', 'add', '--detach', path, headSha]);
   } catch (error) {
     if (!(error instanceof CommandFailed)) throw error;
+    // Only reachable when our own path is registered without a directory, and
+    // prune is the only way out. It also drops other stale registrations.
     git(repo, ['worktree', 'prune']);
     rmSync(path, { recursive: true, force: true });
     gitOk(repo, ['worktree', 'add', '--detach', path, headSha]);

@@ -37,7 +37,6 @@ export function cleanCommand(prArg: string, cwd: string): number {
     rmSync(worktree, { recursive: true, force: true });
     done.push(removed.code === 0 ? `removed the worktree from ${host}` : `deleted ${worktree}`);
   }
-  git(host, ['worktree', 'prune']);
 
   const refName = prRefName(ref);
   if (git(host, ['rev-parse', '--verify', '--quiet', refName]).code === 0) {
