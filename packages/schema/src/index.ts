@@ -20,3 +20,5 @@ export {
   validateJudgment,
 } from './validate.js';
 export type { Issue, ValidationResult } from './validate.js';
+export { merge } from './merge.js';
+export type { MergeLogEntry, MergeOptions, MergeResult } from './merge.js';
