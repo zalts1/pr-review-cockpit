@@ -221,7 +221,8 @@ Status: accepted · 2026-09-08
 
 ## ADR-17: The blast-radius map is laid out with dagre in the main thread
 
-Status: accepted · 2026-09-08
+Status: accepted · 2026-09-08 · revised by ADR-26 and ADR-30: level 1 is still dagre, level 2 is
+placed directly, both from `packages/cockpit/src/lib/mapLayout.ts`, and the 300-node cap is gone
 
 **Context.** `04-cockpit-ux.md` asks for a layered left-to-right layout with package boxes, and says the layout should run in a web worker. M1 needs a layout library chosen before the Map tab can be built.
 
