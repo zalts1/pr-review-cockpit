@@ -63,3 +63,7 @@ Items that are agreed as worth doing but not scheduled in a milestone. Each line
   cockpit that the server itself serves. (M3)
 - When a rewritten walk contains neither the reviewer's hunk nor a group holding it, the
   walkthrough position resets to step 0. (M3)
+
+## Signals for M5 (from the first real PR)
+
+- Cursor Bugbot embeds a summary in the PR body between `<!-- CURSOR_SUMMARY -->` markers, with a risk level line (`[!NOTE] Medium Risk …`) and an overview. Parse it into a header chip and a summary section instead of leaving it inside the rendered body. (2026-09-09)
