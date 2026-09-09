@@ -11,8 +11,8 @@
   },
   "scripts": {
     "dev": "npm run dev --workspace @review-cockpit/cockpit",
-    "build": "npm run build -w @review-cockpit/schema && npm run build -w @review-cockpit/cli && npm run build -w @review-cockpit/cockpit",
-    "typecheck": "npm run typecheck -w @review-cockpit/schema && npm run typecheck -w @review-cockpit/cli && npm run typecheck -w @review-cockpit/cockpit && tsc",
+    "build": "npm run build -w @review-cockpit/schema && npm run build -w @review-cockpit/analyzer && npm run build -w @review-cockpit/server && npm run build -w @review-cockpit/cli && npm run build -w @review-cockpit/cockpit",
+    "typecheck": "npm run typecheck -w @review-cockpit/schema && npm run typecheck -w @review-cockpit/analyzer && npm run typecheck -w @review-cockpit/server && npm run typecheck -w @review-cockpit/cli && npm run typecheck -w @review-cockpit/cockpit && tsc",
     "fixtures:build": "npm run build -w @review-cockpit/schema && tsx fixtures/generate.ts",
     "fixtures:check": "npm run build -w @review-cockpit/schema && tsx fixtures/check.ts",
     "demo": "npm run build && (sleep 1 && open \"http://localhost:8080/?fixture=pr-fake-1\" &) && python3 -m http.server -d packages/cockpit/dist 8080",

@@ -1,0 +1,28 @@
+{
+  "name": "@review-cockpit/analyzer",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Deterministic analysis of one pull request: diff, git signals, tree-sitter structure, risk.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@review-cockpit/schema": "0.1.0",
+    "tree-sitter-wasms": "^0.1.12",
+    "web-tree-sitter": "^0.25.3"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
+  }
+}
