@@ -48,12 +48,27 @@ Order matters. M1 tests the thesis before anything expensive is built. M2 turns 
 
 **Done when.** The cockpit opens within about a minute for the backend PR using a local worktree, the heat is defensible to the user hunk by hunk, and stage 3 arrives without blocking anything.
 
+## M3b — Map redesign, markdown rendering, honest placeholders
+
+**Goal.** Fix the three things the first real PR showed to be wrong before the judgment pass builds on them.
+
+**Delivers.**
+- Two-level map per the revised section in `04-cockpit-ux.md`: package level by default, drill-down per changed package, wheel zoom around the cursor, drag pan, fit and back. Analyzer emits package `count` fields and folds neighbours beyond 40 per changed package instead of truncating the whole graph.
+- Markdown rendering for every body shown to a person: PR description, comments, draft previews, and the summary sections that M4 will fill.
+- Stage 2 placeholders say "Not analyzed" when no judgment pass is attached, and "Analyzing…" only when one is running. `cockpit analyze` gains `--expect-judgment` to set the intent; the skill in M7 always passes it.
+- Schema: package node `count`, and the new `summary` shape (fields optional until M4 fills them). Validator and fixtures updated.
+
+**Verify.** Re-run on the same backend PR. The map opens at package level on one screen. Drill into the store package and reach the high-risk method in two clicks. The PR body is readable.
+
+**Done when.** The user says the map is useful on that PR, and no placeholder claims work that is not happening.
+
 ## M4 — Judgment pass
 
 **Goal.** Groups, order, reasons and raises from the LLM, merged safely.
 
 **Delivers.**
 - `compact.md` generation in the analyzer.
+- The summary in the `pr-summary` shape: TL;DR, where it fits, before and after flow, one concrete example, watch-for bullets. The prompt tells the session to gather the same context that skill gathers: PR body, commits, and the code around the change, not only the diff.
 - `skill/SKILL.md` with the judgment prompt: the schema for the judgment file embedded, the floor rules stated, instructions to read the compact view and open files from the checkout only as needed.
 - `cockpit judge-merge <pr>`: validate, merge, write stage 2, with the one-retry loop returning errors to the session.
 - Logging of every dropped or clamped proposal.

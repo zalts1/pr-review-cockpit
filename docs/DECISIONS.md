@@ -360,3 +360,32 @@ Status: accepted · 2026-09-09
 **Decision.** No `git worktree prune` on the normal path. `git worktree remove --force` handles our own worktree, and prune runs only in the recovery case where our own path is registered with no directory behind it and `worktree add` has already failed.
 
 **Consequences.** After the fix, `git worktree list` in the user's clone is byte-identical before and after a full analyze-and-clean cycle. A stale registration from an earlier crash of this tool is cleared on the next run of the same pull request, at the cost of also pruning other dead registrations at that moment; that is the one case where there is no narrower call.
+
+---
+
+## ADR-26: The blast-radius map is package-level by default, with drill-down
+
+Status: accepted · 2026-09-09 · revises the Map section of `04-cockpit-ux.md`
+
+**Context.** On the first real PR (24 files, one store method with 158 callers) the function-level map hit the 300-node cap and dagre produced a strip several screens tall. The user's verdict: "awful", "HUGE", and zoom and pan were poor.
+
+**Options.**
+1. Keep function level, raise the cap, better layout engine. Still hundreds of nodes for any hot method.
+2. Package level by default; click a changed package to see its changed functions and one-hop neighbours, capped per package.
+3. Drop the map from v1.
+
+**Decision.** Option 2. The analyzer folds neighbours beyond 40 per changed package into a count on the package node instead of truncating the graph. Wheel zoom around the cursor, drag pan, fit, back.
+
+**Consequences.** Level 1 is always complete and small. Level 2 can be truncated per package, and says so. A schema addition: `count` on package nodes.
+
+---
+
+## ADR-27: The stage 2 summary follows the team's `pr-summary` brief
+
+Status: accepted · 2026-09-09 · revises the `summary` section of `03-review-document-schema.md`
+
+**Context.** The one-liner plus focus bullets looked thin on a real PR, and the PR body rendered as raw markdown. The user asked for a rendered, human-readable summary and pointed at the `pr-summary` skill, which already defines a brief the team trusts: TL;DR, where it fits, before and after flow, one concrete example, review path, watch for.
+
+**Decision.** Adopt that shape as the `summary` schema. The review path is derived from `path` in the cockpit, not stored twice. The M4 prompt instructs the session to gather the context the skill gathers: PR body, commits, surrounding code. Every body shown to a person renders as sanitised markdown.
+
+**Consequences.** M4's judgment pass produces more text per PR and needs more reading of the checkout, which is what makes the summary worth reading. The cockpit gains a markdown renderer dependency.

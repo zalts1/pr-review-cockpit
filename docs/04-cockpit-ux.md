@@ -60,7 +60,7 @@ Clicking a file scrolls to it. The current walkthrough step is highlighted in th
 
 ### Summary card
 
-Rendered from `summary`. Collapsed to one line after the reviewer has read it once. While stage 2 is pending it shows the PR description instead, with a "Analyzing…" label.
+Rendered from `summary`, in the shape of a short reviewer brief: a one-sentence TL;DR, two to four "where it fits" bullets, a before and after flow, one concrete example, the review path as a compact table derived from `path` (file, why here, what it does, capped at eight rows with the rest grouped), and optional "watch for" bullets. Collapsed to the TL;DR after the reviewer has read it once. While stage 2 is pending it shows the rendered PR description with an "Analyzing…" label. When no judgment pass is attached to the session it says "Not analyzed" instead, so a placeholder never claims work that is not happening.
 
 ### Group headers
 
@@ -143,13 +143,21 @@ Before stage 2 is ready, the bar reads "Recommended order: analyzing…" and Nex
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Nodes grouped by package into boxes. Changed nodes are filled and carry their heat colour on the border. Unchanged neighbours are muted.
-- Clicking a changed node switches to the Files tab and scrolls to its first hunk. Clicking an unchanged node opens the file at that symbol in the checkout, read-only, in a side drawer.
-- Hovering a node shows fan-in and fan-out and which hunks touch it.
-- Pan and zoom with the mouse. A **Fit** button resets the view.
-- When `truncated` is true, a note says so and offers a filter to show only high-risk nodes and their neighbours.
+### Revised after the first real PR
 
-The layout is computed in the browser from `graph` with a layered layout, left to right in call direction. No layout data is stored in the document.
+The function-level map above failed on real data. One changed store method had 158 callers, the document hit the 300-node cap, and the layered layout produced a strip several screens tall that nothing could read. The map is now two levels.
+
+**Level 1, the default: packages.** One node per package that the change touches or that calls into it. A changed package is filled and carries the highest heat among its changed hunks. Node size grows with the number of changed functions inside. One edge per pair of packages, thickness by the number of resolved calls. A package-level graph for a 24-file PR has ten to twenty nodes and fits on one screen.
+
+**Level 2, on click: inside one package.** Clicking a changed package replaces the view with its changed functions, their callers and callees one hop out, grouped by their own package, capped at 40 nodes with a "and N more callers in pkg X" summary node. A breadcrumb returns to level 1. Clicking a changed function scrolls to its first hunk, as before.
+
+**Navigation.** Wheel zooms around the cursor, drag pans, double-click fits, a Fit button and a Back button sit in the corner. The layout is computed per level, so it never has to place 300 nodes.
+
+**Analyzer side.** The document still carries function nodes for every changed function and package nodes for every package in play. Unchanged neighbours beyond the cap are folded into their package node with a `count`, not dropped, so the level 1 view is always complete even when level 2 is truncated. This is a schema change and is listed in `03-review-document-schema.md`.
+
+### Markdown rendering
+
+Every body the cockpit shows a person is rendered as markdown, not raw text: the PR description, the summary sections, existing comments and draft previews. Rendering is sanitised and supports headings, lists, emphasis, inline code, fenced code and links opening in a new tab. Raw markdown was shown at M1 and read as unfinished on a real PR.
 
 ## Screen 3: Submit review
 

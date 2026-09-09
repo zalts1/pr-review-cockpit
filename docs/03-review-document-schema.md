@@ -261,18 +261,29 @@ Merge rules: unknown ids and repeated steps are dropped and logged. A step that 
 
 ## Stage 2: `summary`
 
+The shape follows the reviewer brief the team already uses (the `pr-summary` skill): understanding first, coverage never. All string fields are markdown.
+
 ```jsonc
 "summary": {
-  "oneLiner": "Adds a tenant record API with validation, renames TenantRecord to TenantProfile across the service.",
-  "reviewFocus": [
-    "UpdateRecord changes error semantics from a sentinel to a gRPC status; check every caller that compared against ErrMissingID.",
-    "Migration 0042 adds a NOT NULL column without a default."
+  "tldr": "Lets a detection carry the tenants that asked for it, so it can be credited back to them.",
+  "whereItFits": [
+    "Detection management service, store and gRPC handler.",
+    "Triggered by the customer-attribution ticket; user-facing only through the derived `is_custom_for_tenant` flag."
+  ],
+  "flow": {
+    "before": "content sync → UpsertDetections → detections table",
+    "after":  "content sync → UpsertDetections → detections table + requested_by_tenants junction (full replace per upsert)"
+  },
+  "example": "An upsert with `requested_by_tenant_ids: []` clears the attribution but keeps the detection row.",
+  "watchFor": [
+    "Migration adds a NOT NULL column with no default.",
+    "The column is `requested_by_tenant_id`, not `tenant_id`, to stay clear of the tenant-scoping plugin."
   ],
   "counts": { "hunks": 23, "highRisk": 3, "skimmable": 12 }
 }
 ```
 
-`counts` is recomputed by the CLI at merge from the actual document, not taken from the LLM.
+The review path table in the cockpit is derived from `path`, not stored here, so the two can never disagree. `counts` is recomputed by the CLI at merge. `flow.before` and `flow.after` are short single lines; `example` and the bullets are markdown. Adopted after the first real PR made the earlier one-liner-plus-focus shape look thin next to the team's existing brief.
 
 ## Stage 3: `graph`
 
@@ -288,9 +299,11 @@ The blast-radius map. Nodes are functions and files touched by the change plus t
   "edges": [
     { "from": "n2", "to": "n1", "kind": "calls" }
   ],
-  "truncated": false               // true when the graph was cut to a node limit
+  "truncated": false               // true when level 2 detail was cut for some package
 }
 ```
+
+Package nodes carry `"count": { "changedFunctions": 3, "foldedNeighbours": 155 }` so the cockpit's package-level view is complete even when function-level neighbours were folded into their package instead of emitted. Function nodes are emitted for every changed function and for at most 40 neighbours per changed package; the rest are counted, not dropped. Edges between function nodes carry `"kind": "calls"`; the cockpit aggregates them into package edges with a `weight`. Revised after the first real PR hit the 300-node cap.
 
 `kind` for nodes is `function`, `file` or `package`. `hunkIds` is the click target: clicking a node scrolls to its first hunk. Unchanged neighbors have an empty list and are drawn muted.
 

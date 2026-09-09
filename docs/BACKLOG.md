@@ -9,8 +9,6 @@ Items that are agreed as worth doing but not scheduled in a milestone. Each line
 - `c` comments on the last hovered line; there is no keyboard line cursor. (M1 report)
 - Virtualisation for files over 1,500 diff lines. (M1 report)
 - Map layout in a web worker if a real repository's graph blocks the Files tab. (ADR-17)
-- Stage 2 placeholders read "Analyzing…" forever when no judgment pass is attached (M3-only runs). Distinguish "not started" from "in progress": either a `not-started` status value in the schema or a `message` on `pending` that the cockpit shows. (real-PR run, 2026-09-09)
-- The PR body in the summary card renders as raw markdown. Render it. (real-PR run, 2026-09-09)
 - User-reported rough edges from the M1 demo: to be listed.
 
 ## Risk model calibration (from the M3 runs on three real pull requests)
