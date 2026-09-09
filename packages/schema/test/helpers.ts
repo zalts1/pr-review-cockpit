@@ -3,6 +3,7 @@ import type {
   DraftsFile,
   Hunk,
   Judgment,
+  ReadySummary,
   ReviewDocument,
   ReviewFile,
   RiskLevel,
@@ -90,7 +91,7 @@ export function stage1Document(): ReviewDocument {
   const pending = { state: 'pending' as const, updatedAt: NOW };
   const ready = { state: 'ready' as const, updatedAt: NOW };
 
-  return {
+  const document: ReviewDocument = {
     schemaVersion: SCHEMA_VERSION,
     generatedAt: NOW,
     tool: { name: 'review-cockpit', version: '0.1.0' },
@@ -125,9 +126,11 @@ export function stage1Document(): ReviewDocument {
     checks: [],
     groups: [],
     path: [],
-    summary: {},
+    summary: { counts: { hunks: 0, highRisk: 0, skimmable: 0 } },
     graph: { nodes: [], edges: [], truncated: false },
   };
+  document.summary.counts = summaryCounts(document);
+  return document;
 }
 
 /** The same document with every section ready: a walk over all three hunks and matching counts. */
@@ -138,17 +141,28 @@ export function readyDocument(): ReviewDocument {
     { step: 2, ref: { kind: 'hunk', id: 'f1.h2' }, phase: 'core', note: 'the risky one' },
     { step: 3, ref: { kind: 'hunk', id: 'f2.h1' }, phase: 'callsites', note: null },
   ];
-  doc.summary = { oneLiner: 'Adds a record API.', reviewFocus: [], counts: summaryCounts(doc) };
+  doc.summary = { ...readySummaryText(), counts: summaryCounts(doc) };
   for (const section of ['groups', 'path', 'summary', 'graph'] as const) {
     doc.status[section] = { state: 'ready', updatedAt: NOW };
   }
   return doc;
 }
 
+/** The brief the ready fixtures and the judgment helper share, so a merge can be compared to it. */
+export function readySummaryText(): Omit<ReadySummary, 'counts'> {
+  return {
+    tldr: 'Adds a record API.',
+    whereItFits: ['The record service and its HTTP handler.'],
+    flow: { before: 'handler -> store', after: 'handler -> validate -> store' },
+    example: 'A request with no id now returns `InvalidArgument` instead of `ErrMissingID`.',
+    watchFor: ['The error contract changed for every caller that matched the sentinel.'],
+  };
+}
+
 export function judgment(over: Partial<Judgment> = {}): Judgment {
   return {
     schemaVersion: SCHEMA_VERSION,
-    summary: { oneLiner: 'Adds a record API.', reviewFocus: ['Check the error contract.'] },
+    summary: readySummaryText(),
     ...over,
   };
 }

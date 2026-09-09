@@ -84,13 +84,24 @@
 
     "JudgmentSummary": {
       "title": "JudgmentSummary",
-      "description": "counts are recomputed by the merge and are not part of the judgment.",
+      "description": "The reviewer brief. counts are recomputed by the merge and are not part of the judgment, and the review path table is derived from path. All string fields are markdown; watchFor may be empty.",
       "type": "object",
       "additionalProperties": true,
-      "required": ["oneLiner", "reviewFocus"],
+      "required": ["tldr", "whereItFits", "flow", "example"],
       "properties": {
-        "oneLiner": { "type": "string" },
-        "reviewFocus": { "type": "array", "items": { "type": "string" } }
+        "tldr": { "type": "string", "minLength": 1 },
+        "whereItFits": { "type": "array", "items": { "type": "string" } },
+        "flow": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["before", "after"],
+          "properties": {
+            "before": { "type": "string" },
+            "after": { "type": "string" }
+          }
+        },
+        "example": { "type": "string" },
+        "watchFor": { "type": "array", "items": { "type": "string" } }
       }
     }
   }

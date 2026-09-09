@@ -57,8 +57,11 @@ export function merge(
   applyReasons(judgment, hunkById, note);
 
   merged.summary = {
-    oneLiner: judgment.summary.oneLiner,
-    reviewFocus: [...judgment.summary.reviewFocus],
+    tldr: judgment.summary.tldr,
+    whereItFits: [...judgment.summary.whereItFits],
+    flow: { before: judgment.summary.flow.before, after: judgment.summary.flow.after },
+    example: judgment.summary.example,
+    watchFor: [...(judgment.summary.watchFor ?? [])],
     counts: summaryCounts(merged),
   };
 

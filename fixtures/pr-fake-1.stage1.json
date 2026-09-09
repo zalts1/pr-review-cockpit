@@ -11,7 +11,7 @@
     "number": 1234,
     "url": "https://github.com/northwind-labs/tenant-platform/pull/1234",
     "title": "Add tenant profile API",
-    "body": "### What\n\nReplaces the thin `TenantRecord` message with `TenantProfile`: region, tier, retention and\nsoft delete, plus field-mask driven validation on update.\n\n### Why\n\nTP-329. The console needs per-region profiles, and the worker needs to page through them.\n\n### Notes\n\n- Migration 0042 adds the new columns. Run it before deploying the API.\n- The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.",
+    "body": "## What\n\nReplaces the thin `TenantRecord` message with `TenantProfile`: `region`, `tier`, `retention`\nand soft delete, plus field-mask driven validation on update.\n\n### Why\n\nTP-329. The console needs per-region profiles, and the worker needs to page through them.\n\n### How to try it\n\n```bash\nbuf generate && go test ./api/... ./internal/store/...\ncurl -X PATCH localhost:8080/tenants/t-1 -d '{\"profile\":{\"region\":\"eu-west-1\"}}'\n```\n\n### Notes\n\n1. Migration `0042` adds the new columns. Run it **before** deploying the API.\n2. The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.\n3. `update_mask` is honoured on update, so a partial `PATCH` no longer clears the other fields.\n\n> The gRPC surface keeps the old field numbers, so old clients keep working.\n\n| Field | Type | Default |\n| --- | --- | --- |\n| `region` | string | none, `NOT NULL` after 0042 |\n| `tier` | enum | `TIER_STANDARD` |\n| `retention` | duration | 30d |",
     "author": "jdoe",
     "draft": false,
     "labels": [
@@ -12660,7 +12660,13 @@
     }
   ],
   "path": [],
-  "summary": {},
+  "summary": {
+    "counts": {
+      "hunks": 40,
+      "highRisk": 2,
+      "skimmable": 34
+    }
+  },
   "graph": {
     "nodes": [],
     "edges": [],

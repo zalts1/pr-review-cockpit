@@ -1,3 +1,4 @@
+import { isReadySummary } from '@review-cockpit/schema';
 import type {
   Comment,
   Group,
@@ -121,7 +122,7 @@ export function derive(doc: ReviewDocument): Derived {
   const pathReady = doc.status.path.state === 'ready' && doc.path.length > 0;
   const steps = pathReady ? doc.path : fallbackPath(doc.files, groupOfHunk);
 
-  const summaryReady = doc.status.summary.state === 'ready' && 'oneLiner' in doc.summary;
+  const summaryReady = doc.status.summary.state === 'ready' && isReadySummary(doc.summary);
 
   return {
     hunkById,

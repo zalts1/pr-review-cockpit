@@ -13,7 +13,7 @@ import type {
   SectionState,
   SectionStatus,
 } from '@review-cockpit/schema';
-import { SCHEMA_VERSION, validateDocument } from '@review-cockpit/schema';
+import { NOT_ATTACHED, SCHEMA_VERSION, summaryCounts, validateDocument } from '@review-cockpit/schema';
 import { TOOL_VERSION } from './version.js';
 
 export class DocumentInvalid extends Error {
@@ -42,6 +42,8 @@ export interface DocumentParts {
   graph?: Graph;
   graphStatus: SectionStatus;
   generatedAt: string;
+  /** False marks the stage 2 sections "not-attached", so no placeholder claims work nobody is doing. */
+  expectJudgment?: boolean;
 }
 
 /**
@@ -51,19 +53,20 @@ export interface DocumentParts {
 export function buildDocument(parts: DocumentParts): ReviewDocument {
   const at = parts.generatedAt;
   const ready = status('ready', at);
-  const pending = status('pending', at);
+  const stage2 =
+    parts.expectJudgment === true ? status('pending', at) : status('pending', at, NOT_ATTACHED);
 
   const documentStatus: DocumentStatus = {
     files: ready,
     comments: ready,
     checks: ready,
-    groups: pending,
-    path: pending,
-    summary: pending,
+    groups: stage2,
+    path: stage2,
+    summary: stage2,
     graph: parts.graphStatus,
   };
 
-  return {
+  const document: ReviewDocument = {
     schemaVersion: SCHEMA_VERSION,
     generatedAt: at,
     tool: { name: 'review-cockpit', version: TOOL_VERSION },
@@ -75,9 +78,12 @@ export function buildDocument(parts: DocumentParts): ReviewDocument {
     checks: parts.checks ?? [],
     groups: parts.groups,
     path: [],
-    summary: {},
+    summary: { counts: { hunks: 0, highRisk: 0, skimmable: 0 } },
     graph: parts.graph ?? { nodes: [], edges: [], truncated: false },
   };
+
+  document.summary.counts = summaryCounts(document);
+  return document;
 }
 
 /** Validated before it is written, and written by rename so a reader never sees half a document. */

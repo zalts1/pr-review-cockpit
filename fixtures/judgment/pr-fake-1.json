@@ -142,11 +142,21 @@
     }
   ],
   "summary": {
-    "oneLiner": "Adds region, tier and retention to the tenant profile API with field-mask validation, and renames TenantRecord to TenantProfile across the service.",
-    "reviewFocus": [
-      "UpdateRecord changes error semantics from sentinel errors to gRPC statuses; check every caller that compared against ErrMissingID or ErrMissingProfile.",
-      "Migration 0042 adds region as NOT NULL with no default and backfills afterwards, which fails on a table that already has rows.",
-      "validate now walks the update mask, so a request with an empty mask validates every field instead of the ones it sent."
+    "tldr": "Lets a tenant profile carry region, tier and retention, and validates an update against the field mask the caller sent.",
+    "whereItFits": [
+      "The tenant profile service, its store and the HTTP and gRPC handlers in front of it.",
+      "Triggered by the per-region console work; user-facing through the new `region` and `tier` fields on the profile.",
+      "The `TenantRecord` to `TenantProfile` rename runs through every package that names the message."
+    ],
+    "flow": {
+      "before": "PATCH /tenants/{id} -> Service.UpdateRecord -> store.UpdateTenantProfile -> tenant_profiles",
+      "after": "PATCH /tenants/{id} -> Service.UpdateRecord -> validate(update_mask) -> store.UpdateTenantProfile -> tenant_profiles + audit event"
+    },
+    "example": "A `PATCH` with `update_mask: {paths: [\"region\"]}` now validates only `region`, and an **empty** mask validates every field:\n\n```json\n{ \"profile\": { \"region\": \"eu-west-1\" }, \"update_mask\": { \"paths\": [\"region\"] } }\n```",
+    "watchFor": [
+      "The error contract moved from the `ErrMissingProfile` sentinel to a gRPC `InvalidArgument` status, so every `errors.Is` call site stops matching.",
+      "Migration 0042 adds `region` as `NOT NULL` with no default and backfills afterwards, which fails on a table that already has rows.",
+      "An empty `update_mask` validates every field instead of the ones the caller sent."
     ]
   }
 }

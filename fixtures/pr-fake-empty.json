@@ -76,8 +76,16 @@
   "groups": [],
   "path": [],
   "summary": {
-    "oneLiner": "Merge of main into the release branch. No file content changed.",
-    "reviewFocus": [],
+    "tldr": "Merge of main into the release branch. No file content changed.",
+    "whereItFits": [
+      "Release branch only: no package in the service is touched."
+    ],
+    "flow": {
+      "before": "release-2026-09",
+      "after": "release-2026-09 + main"
+    },
+    "example": "Nothing to read: `git diff` between the two heads is empty.",
+    "watchFor": [],
     "counts": {
       "hunks": 0,
       "highRisk": 0,

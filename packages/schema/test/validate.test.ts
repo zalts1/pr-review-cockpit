@@ -18,7 +18,7 @@ describe('a valid document', () => {
   it('accepts a document whose stage 2 is still pending', () => {
     const doc = readyDocument();
     doc.path = [];
-    doc.summary = {};
+    doc.summary = { counts: doc.summary.counts };
     for (const section of ['groups', 'path', 'summary'] as const) {
       doc.status[section] = { state: 'pending', updatedAt: '2026-09-08T12:00:00Z' };
     }
@@ -94,8 +94,17 @@ const breaks: Array<[rule: string, apply: (doc: ReviewDocument) => void]> = [
       doc.graph.edges = [{ from: 'n1', to: 'n9', kind: 'calls' }];
     },
   ],
-  ['summary-ready', (doc) => (doc.summary = { oneLiner: 'only this' })],
-  ['summary-counts', (doc) => (doc.summary.counts!.highRisk = 4)],
+  ['summary-ready', (doc) => (doc.summary = { tldr: 'only this', counts: doc.summary.counts })],
+  ['summary-counts', (doc) => (doc.summary.counts.highRisk = 4)],
+  [
+    'graph-package-count',
+    (doc) => (doc.graph.nodes = [{ ...node(), kind: 'package', file: null }]),
+  ],
+  [
+    'graph-package-count',
+    (doc) =>
+      (doc.graph.nodes = [{ ...node(), count: { changedFunctions: 1, foldedNeighbours: 0 } }]),
+  ],
 ];
 
 describe.each(breaks)('a document broken in one place (%s)', (rule, apply) => {

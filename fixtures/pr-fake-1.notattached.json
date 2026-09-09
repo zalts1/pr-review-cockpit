@@ -49,21 +49,24 @@
       "updatedAt": "2026-09-08T12:34:56Z"
     },
     "groups": {
-      "state": "ready",
-      "updatedAt": "2026-09-08T12:36:10Z"
+      "state": "pending",
+      "updatedAt": "2026-09-08T12:34:56Z",
+      "message": "not-attached"
     },
     "path": {
-      "state": "ready",
-      "updatedAt": "2026-09-08T12:36:10Z"
+      "state": "pending",
+      "updatedAt": "2026-09-08T12:34:56Z",
+      "message": "not-attached"
     },
     "summary": {
-      "state": "ready",
-      "updatedAt": "2026-09-08T12:36:10Z"
+      "state": "pending",
+      "updatedAt": "2026-09-08T12:34:56Z",
+      "message": "not-attached"
     },
     "graph": {
-      "state": "failed",
-      "updatedAt": "2026-09-08T12:37:44Z",
-      "message": "tree-sitter timed out after 120s while indexing 14 Go modules"
+      "state": "pending",
+      "updatedAt": "2026-09-08T12:34:56Z",
+      "message": "not-attached"
     }
   },
   "files": [
@@ -5267,7 +5270,7 @@
                 "detail": "6 commits in 90 days"
               }
             ],
-            "reason": "The wire contract changes: TenantRecord becomes TenantProfile and four RPCs are renamed. Any client built against the old service name breaks.",
+            "reason": null,
             "adjustedBy": null
           }
         }
@@ -7234,7 +7237,7 @@
                 "detail": "complexity 18 to 27"
               }
             ],
-            "reason": "Changes the error contract of UpdateRecord. Callers matching on ErrMissingID will silently stop matching, and the new If-Match branch reads the row before writing it.",
+            "reason": null,
             "adjustedBy": null
           }
         },
@@ -7448,7 +7451,7 @@
                 "detail": "error mapping moved into a helper"
               }
             ],
-            "reason": "GetRecord now hides soft-deleted rows. A caller that relied on reading a deleted profile gets NotFound instead.",
+            "reason": null,
             "adjustedBy": null
           }
         }
@@ -8585,7 +8588,7 @@
           ],
           "risk": {
             "floor": "medium",
-            "level": "high",
+            "level": "medium",
             "score": 0.58,
             "mode": "scrutinize",
             "factors": [
@@ -8605,12 +8608,8 @@
                 "detail": "9 callers"
               }
             ],
-            "reason": "Validation becomes field-mask driven, so a request with an empty mask now validates every field. An update that used to pass can start failing.",
-            "adjustedBy": {
-              "from": "medium",
-              "to": "high",
-              "why": "An empty update_mask silently switches the request from partial to full validation."
-            }
+            "reason": null,
+            "adjustedBy": null
           }
         },
         {
@@ -10550,7 +10549,7 @@
                 "detail": "down migration drops columns"
               }
             ],
-            "reason": "Adds region as NOT NULL with no default, so the migration fails on any table that already has rows. The backfill runs after the column is added, which is too late.",
+            "reason": null,
             "adjustedBy": null
           }
         }
@@ -12662,167 +12661,13 @@
       "mode": "skim",
       "collapsedByDefault": true,
       "producedBy": "stage1"
-    },
-    {
-      "id": "g2",
-      "kind": "mechanical-rename",
-      "title": "Rename TenantRecord to TenantProfile",
-      "description": "The same identifier replaced across 9 files: type, constructor, cache and audit event name. No logic change.",
-      "hunkIds": [
-        "f1.h1",
-        "f1.h2",
-        "f5.h1",
-        "f5.h2",
-        "f6.h1",
-        "f6.h2",
-        "f10.h1",
-        "f10.h2",
-        "f11.h1",
-        "f11.h2",
-        "f15.h1",
-        "f15.h2",
-        "f17.h1",
-        "f17.h2",
-        "f18.h1",
-        "f18.h2",
-        "f19.h1",
-        "f19.h2"
-      ],
-      "mode": "skim",
-      "collapsedByDefault": true,
-      "producedBy": "stage2"
     }
   ],
-  "path": [
-    {
-      "step": 1,
-      "ref": {
-        "kind": "hunk",
-        "id": "f3.h1"
-      },
-      "phase": "models",
-      "note": "The new wire contract: TenantProfile with region, tier and retention, and four renamed RPCs."
-    },
-    {
-      "step": 2,
-      "ref": {
-        "kind": "hunk",
-        "id": "f13.h1"
-      },
-      "phase": "models",
-      "note": "Migration 0042. Read the NOT NULL column and the order of the backfill."
-    },
-    {
-      "step": 3,
-      "ref": {
-        "kind": "hunk",
-        "id": "f14.h1"
-      },
-      "phase": "models",
-      "note": "The sqlc queries behind the new columns and the soft-delete filter."
-    },
-    {
-      "step": 4,
-      "ref": {
-        "kind": "hunk",
-        "id": "f7.h1"
-      },
-      "phase": "core",
-      "note": "Imports only: grpc status codes and the store package arrive here."
-    },
-    {
-      "step": 5,
-      "ref": {
-        "kind": "hunk",
-        "id": "f7.h2"
-      },
-      "phase": "core",
-      "note": "UpdateRecord now validates the id and returns a gRPC status instead of a sentinel error."
-    },
-    {
-      "step": 6,
-      "ref": {
-        "kind": "hunk",
-        "id": "f9.h1"
-      },
-      "phase": "core",
-      "note": "Validation is now driven by the update mask. Check what an empty mask does."
-    },
-    {
-      "step": 7,
-      "ref": {
-        "kind": "hunk",
-        "id": "f7.h3"
-      },
-      "phase": "core",
-      "note": "GetRecord hides soft-deleted rows and shares the new error mapping."
-    },
-    {
-      "step": 8,
-      "ref": {
-        "kind": "hunk",
-        "id": "f9.h2"
-      },
-      "phase": "core",
-      "note": null
-    },
-    {
-      "step": 9,
-      "ref": {
-        "kind": "group",
-        "id": "g2"
-      },
-      "phase": "callsites",
-      "note": "Mechanical rename, 9 files. Skim for anything that is not the identifier."
-    },
-    {
-      "step": 10,
-      "ref": {
-        "kind": "hunk",
-        "id": "f8.h1"
-      },
-      "phase": "tests",
-      "note": "The sentinel-error test becomes a table of InvalidArgument cases."
-    },
-    {
-      "step": 11,
-      "ref": {
-        "kind": "hunk",
-        "id": "f8.h2"
-      },
-      "phase": "tests",
-      "note": "New tests for If-Match and for the soft-delete path."
-    },
-    {
-      "step": 12,
-      "ref": {
-        "kind": "hunk",
-        "id": "f20.h1"
-      },
-      "phase": "tests",
-      "note": "Store tests cover the region filter and the deleted-row filter."
-    }
-  ],
+  "path": [],
   "summary": {
-    "tldr": "Lets a tenant profile carry region, tier and retention, and validates an update against the field mask the caller sent.",
-    "whereItFits": [
-      "The tenant profile service, its store and the HTTP and gRPC handlers in front of it.",
-      "Triggered by the per-region console work; user-facing through the new `region` and `tier` fields on the profile.",
-      "The `TenantRecord` to `TenantProfile` rename runs through every package that names the message."
-    ],
-    "flow": {
-      "before": "PATCH /tenants/{id} -> Service.UpdateRecord -> store.UpdateTenantProfile -> tenant_profiles",
-      "after": "PATCH /tenants/{id} -> Service.UpdateRecord -> validate(update_mask) -> store.UpdateTenantProfile -> tenant_profiles + audit event"
-    },
-    "example": "A `PATCH` with `update_mask: {paths: [\"region\"]}` now validates only `region`, and an **empty** mask validates every field:\n\n```json\n{ \"profile\": { \"region\": \"eu-west-1\" }, \"update_mask\": { \"paths\": [\"region\"] } }\n```",
-    "watchFor": [
-      "The error contract moved from the `ErrMissingProfile` sentinel to a gRPC `InvalidArgument` status, so every `errors.Is` call site stops matching.",
-      "Migration 0042 adds `region` as `NOT NULL` with no default and backfills afterwards, which fails on a table that already has rows.",
-      "An empty `update_mask` validates every field instead of the ones the caller sent."
-    ],
     "counts": {
       "hunks": 40,
-      "highRisk": 3,
+      "highRisk": 2,
       "skimmable": 34
     }
   },

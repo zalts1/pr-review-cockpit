@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Group, MergeLogEntry, ReviewDocument } from '../src/index.js';
 import { merge, validateDocument } from '../src/index.js';
-import { judgment, stage1Document } from './helpers.js';
+import { judgment, readySummaryText, stage1Document } from './helpers.js';
 
 const NOW = '2026-09-08T13:00:00Z';
 
@@ -421,14 +421,14 @@ describe('summary and status', () => {
       stage1Document(),
       judgment({
         riskAdjustments: [{ hunkId: 'f1.h1', level: 'high', why: 'Raised.' }],
-        summary: { oneLiner: 'Adds a record API.', reviewFocus: ['Check the callers.'] },
+        summary: { ...readySummaryText(), whereItFits: ['Check the callers.'] },
       }),
       { now: NOW },
     );
 
     expect(document.summary).toEqual({
-      oneLiner: 'Adds a record API.',
-      reviewFocus: ['Check the callers.'],
+      ...readySummaryText(),
+      whereItFits: ['Check the callers.'],
       counts: { hunks: 3, highRisk: 2, skimmable: 1 },
     });
     for (const section of ['groups', 'path', 'summary'] as const) {

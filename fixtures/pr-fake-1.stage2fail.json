@@ -11,7 +11,7 @@
     "number": 1234,
     "url": "https://github.com/northwind-labs/tenant-platform/pull/1234",
     "title": "Add tenant profile API",
-    "body": "### What\n\nReplaces the thin `TenantRecord` message with `TenantProfile`: region, tier, retention and\nsoft delete, plus field-mask driven validation on update.\n\n### Why\n\nTP-329. The console needs per-region profiles, and the worker needs to page through them.\n\n### Notes\n\n- Migration 0042 adds the new columns. Run it before deploying the API.\n- The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.",
+    "body": "## What\n\nReplaces the thin `TenantRecord` message with `TenantProfile`: `region`, `tier`, `retention`\nand soft delete, plus field-mask driven validation on update.\n\n### Why\n\nTP-329. The console needs per-region profiles, and the worker needs to page through them.\n\n### How to try it\n\n```bash\nbuf generate && go test ./api/... ./internal/store/...\ncurl -X PATCH localhost:8080/tenants/t-1 -d '{\"profile\":{\"region\":\"eu-west-1\"}}'\n```\n\n### Notes\n\n1. Migration `0042` adds the new columns. Run it **before** deploying the API.\n2. The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.\n3. `update_mask` is honoured on update, so a partial `PATCH` no longer clears the other fields.\n\n> The gRPC surface keeps the old field numbers, so old clients keep working.\n\n| Field | Type | Default |\n| --- | --- | --- |\n| `region` | string | none, `NOT NULL` after 0042 |\n| `tier` | enum | `TIER_STANDARD` |\n| `retention` | duration | 30d |",
     "author": "jdoe",
     "draft": false,
     "labels": [
@@ -12667,7 +12667,13 @@
     }
   ],
   "path": [],
-  "summary": {},
+  "summary": {
+    "counts": {
+      "hunks": 40,
+      "highRisk": 3,
+      "skimmable": 34
+    }
+  },
   "graph": {
     "nodes": [
       {
@@ -12966,7 +12972,11 @@
         "label": "google.golang.org/grpc/status",
         "file": null,
         "changed": false,
-        "hunkIds": []
+        "hunkIds": [],
+        "count": {
+          "changedFunctions": 0,
+          "foldedNeighbours": 0
+        }
       },
       {
         "id": "n33",
@@ -12977,7 +12987,11 @@
         "hunkIds": [
           "f2.h1",
           "f4.h1"
-        ]
+        ],
+        "count": {
+          "changedFunctions": 0,
+          "foldedNeighbours": 0
+        }
       },
       {
         "id": "n34",
@@ -12987,7 +13001,148 @@
         "changed": true,
         "hunkIds": [
           "f16.h1"
-        ]
+        ],
+        "count": {
+          "changedFunctions": 0,
+          "foldedNeighbours": 0
+        }
+      },
+      {
+        "id": "n35",
+        "kind": "package",
+        "label": "api/grpc",
+        "file": null,
+        "changed": false,
+        "hunkIds": [],
+        "count": {
+          "changedFunctions": 0,
+          "foldedNeighbours": 0
+        }
+      },
+      {
+        "id": "n36",
+        "kind": "package",
+        "label": "api/http",
+        "file": null,
+        "changed": true,
+        "hunkIds": [
+          "f1.h1",
+          "f1.h2"
+        ],
+        "count": {
+          "changedFunctions": 1,
+          "foldedNeighbours": 0
+        }
+      },
+      {
+        "id": "n37",
+        "kind": "package",
+        "label": "api/service/tenant",
+        "file": null,
+        "changed": true,
+        "hunkIds": [
+          "f7.h2",
+          "f7.h1",
+          "f7.h3",
+          "f9.h1",
+          "f9.h2",
+          "f6.h1",
+          "f6.h2",
+          "f5.h1",
+          "f5.h2"
+        ],
+        "count": {
+          "changedFunctions": 8,
+          "foldedNeighbours": 0
+        }
+      },
+      {
+        "id": "n38",
+        "kind": "package",
+        "label": "cmd/api",
+        "file": null,
+        "changed": true,
+        "hunkIds": [
+          "f10.h1"
+        ],
+        "count": {
+          "changedFunctions": 1,
+          "foldedNeighbours": 0
+        }
+      },
+      {
+        "id": "n39",
+        "kind": "package",
+        "label": "cmd/worker",
+        "file": null,
+        "changed": true,
+        "hunkIds": [
+          "f11.h1",
+          "f11.h2"
+        ],
+        "count": {
+          "changedFunctions": 1,
+          "foldedNeighbours": 0
+        }
+      },
+      {
+        "id": "n40",
+        "kind": "package",
+        "label": "db/gen",
+        "file": null,
+        "changed": true,
+        "hunkIds": [
+          "f12.h1",
+          "f12.h2"
+        ],
+        "count": {
+          "changedFunctions": 2,
+          "foldedNeighbours": 0
+        }
+      },
+      {
+        "id": "n41",
+        "kind": "package",
+        "label": "internal/audit",
+        "file": null,
+        "changed": true,
+        "hunkIds": [
+          "f15.h1",
+          "f15.h2"
+        ],
+        "count": {
+          "changedFunctions": 2,
+          "foldedNeighbours": 0
+        }
+      },
+      {
+        "id": "n42",
+        "kind": "package",
+        "label": "internal/store",
+        "file": null,
+        "changed": true,
+        "hunkIds": [
+          "f18.h2",
+          "f17.h2",
+          "f17.h1",
+          "f19.h2"
+        ],
+        "count": {
+          "changedFunctions": 4,
+          "foldedNeighbours": 118
+        }
+      },
+      {
+        "id": "n43",
+        "kind": "package",
+        "label": "internal/telemetry",
+        "file": null,
+        "changed": false,
+        "hunkIds": [],
+        "count": {
+          "changedFunctions": 0,
+          "foldedNeighbours": 0
+        }
       }
     ],
     "edges": [
@@ -13187,6 +13342,6 @@
         "kind": "imports"
       }
     ],
-    "truncated": false
+    "truncated": true
   }
 }

@@ -30,6 +30,7 @@ import type {
   ReviewFile,
   RiskAdjustment,
 } from '@review-cockpit/schema';
+import { NOT_ATTACHED } from '@review-cockpit/schema';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -1473,6 +1474,7 @@ interface NodeSpec {
   changed: boolean;
   hunkIds?: string[];
   kind?: 'function' | 'file' | 'package';
+  count?: { changedFunctions: number; foldedNeighbours: number };
 }
 
 const nodeSpecs: NodeSpec[] = [
@@ -1515,19 +1517,61 @@ const nodeSpecs: NodeSpec[] = [
   { id: 'n30', label: 'Server.UpdateTenantProfile', file: 'api/grpc/server.go', changed: false },
   { id: 'n31', label: 'Metrics.Observe', file: 'internal/telemetry/metrics.go', changed: false },
 
-  { id: 'n32', kind: 'package', label: 'google.golang.org/grpc/status', file: null, changed: false },
-  { id: 'n33', kind: 'package', label: 'api/proto/tenant/v1', file: null, changed: true, hunkIds: ['f2.h1', 'f4.h1'] },
-  { id: 'n34', kind: 'package', label: 'internal/mocks', file: null, changed: true, hunkIds: ['f16.h1'] },
+  { id: 'n32', kind: 'package', label: 'google.golang.org/grpc/status', file: null, changed: false, count: { changedFunctions: 0, foldedNeighbours: 0 } },
+  { id: 'n33', kind: 'package', label: 'api/proto/tenant/v1', file: null, changed: true, hunkIds: ['f2.h1', 'f4.h1'], count: { changedFunctions: 0, foldedNeighbours: 0 } },
+  { id: 'n34', kind: 'package', label: 'internal/mocks', file: null, changed: true, hunkIds: ['f16.h1'], count: { changedFunctions: 0, foldedNeighbours: 0 } },
 ];
 
+const FOLDED_NEIGHBOURS: Record<string, number> = { 'internal/store': 118 };
+
+function packageOf(file: string): string {
+  const slash = file.lastIndexOf('/');
+  return slash === -1 ? '' : file.slice(0, slash);
+}
+
+/**
+ * The analyzer emits one package node per package that has any node, so the
+ * fixtures carry them too: level 1 of the map reads nothing else.
+ */
+function packageNodes(specs: NodeSpec[]): NodeSpec[] {
+  const declared = new Set(specs.filter((n) => n.kind === 'package').map((n) => n.label));
+  const byPackage = new Map<string, NodeSpec[]>();
+  for (const spec of specs) {
+    if (spec.kind === 'package' || spec.file === null) continue;
+    const pkg = packageOf(spec.file);
+    if (declared.has(pkg)) continue;
+    byPackage.set(pkg, [...(byPackage.get(pkg) ?? []), spec]);
+  }
+
+  let next = specs.length + 1;
+  return [...byPackage.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([pkg, members]) => {
+    const hunkIds = [...new Set(members.flatMap((m) => m.hunkIds ?? []))];
+    return {
+      id: `n${next++}`,
+      kind: 'package' as const,
+      label: pkg === '' ? '(repository root)' : pkg,
+      file: null,
+      changed: hunkIds.length > 0,
+      hunkIds,
+      count: {
+        changedFunctions: members.filter((m) => m.changed && m.kind !== 'file').length,
+        foldedNeighbours: FOLDED_NEIGHBOURS[pkg] ?? 0,
+      },
+    };
+  });
+}
+
+const allNodeSpecs: NodeSpec[] = [...nodeSpecs, ...packageNodes(nodeSpecs)];
+
 const graph: Graph = {
-  nodes: nodeSpecs.map((n) => ({
+  nodes: allNodeSpecs.map((n) => ({
     id: n.id,
     kind: n.kind ?? 'function',
     label: n.label,
     file: n.file,
     changed: n.changed,
     hunkIds: n.hunkIds ?? [],
+    ...(n.kind === 'package' ? { count: n.count ?? { changedFunctions: 0, foldedNeighbours: 0 } } : {}),
   })),
   edges: [
     { from: 'n11', to: 'n1', kind: 'calls' },
@@ -1570,19 +1614,31 @@ const graph: Graph = {
     { from: 'n24', to: 'n33', kind: 'imports' },
     { from: 'n34', to: 'n21', kind: 'imports' },
   ],
-  truncated: false,
+  truncated: Object.values(FOLDED_NEIGHBOURS).some((n) => n > 0),
 };
 
 const allHunks = files.flatMap((f) => f.hunks);
 const groupedHunkIds = new Set(groups.flatMap((g) => g.hunkIds));
 
 const summary: ReadySummary = {
-  oneLiner:
-    'Adds region, tier and retention to the tenant profile API with field-mask validation, and renames TenantRecord to TenantProfile across the service.',
-  reviewFocus: [
-    'UpdateRecord changes error semantics from sentinel errors to gRPC statuses; check every caller that compared against ErrMissingID or ErrMissingProfile.',
-    'Migration 0042 adds region as NOT NULL with no default and backfills afterwards, which fails on a table that already has rows.',
-    'validate now walks the update mask, so a request with an empty mask validates every field instead of the ones it sent.',
+  tldr:
+    'Lets a tenant profile carry region, tier and retention, and validates an update against the field mask the caller sent.',
+  whereItFits: [
+    'The tenant profile service, its store and the HTTP and gRPC handlers in front of it.',
+    'Triggered by the per-region console work; user-facing through the new `region` and `tier` fields on the profile.',
+    'The `TenantRecord` to `TenantProfile` rename runs through every package that names the message.',
+  ],
+  flow: {
+    before: 'PATCH /tenants/{id} -> Service.UpdateRecord -> store.UpdateTenantProfile -> tenant_profiles',
+    after:
+      'PATCH /tenants/{id} -> Service.UpdateRecord -> validate(update_mask) -> store.UpdateTenantProfile -> tenant_profiles + audit event',
+  },
+  example:
+    'A `PATCH` with `update_mask: {paths: ["region"]}` now validates only `region`, and an **empty** mask validates every field:\n\n```json\n{ "profile": { "region": "eu-west-1" }, "update_mask": { "paths": ["region"] } }\n```',
+  watchFor: [
+    'The error contract moved from the `ErrMissingProfile` sentinel to a gRPC `InvalidArgument` status, so every `errors.Is` call site stops matching.',
+    'Migration 0042 adds `region` as `NOT NULL` with no default and backfills afterwards, which fails on a table that already has rows.',
+    'An empty `update_mask` validates every field instead of the ones the caller sent.',
   ],
   counts: {
     hunks: allHunks.length,
@@ -1593,6 +1649,11 @@ const summary: ReadySummary = {
 
 const ready = (updatedAt: string) => ({ state: 'ready' as const, updatedAt });
 const pending = (updatedAt: string) => ({ state: 'pending' as const, updatedAt });
+const notAnalyzed = (updatedAt: string) => ({
+  state: 'pending' as const,
+  updatedAt,
+  message: NOT_ATTACHED,
+});
 
 const stage1At = '2026-09-08T12:34:56Z';
 const stage2At = '2026-09-08T12:36:10Z';
@@ -1609,19 +1670,35 @@ const base: ReviewDocument = {
     url: 'https://github.com/northwind-labs/tenant-platform/pull/1234',
     title: 'Add tenant profile API',
     body: [
-      '### What',
+      '## What',
       '',
-      'Replaces the thin `TenantRecord` message with `TenantProfile`: region, tier, retention and',
-      'soft delete, plus field-mask driven validation on update.',
+      'Replaces the thin `TenantRecord` message with `TenantProfile`: `region`, `tier`, `retention`',
+      'and soft delete, plus field-mask driven validation on update.',
       '',
       '### Why',
       '',
       'TP-329. The console needs per-region profiles, and the worker needs to page through them.',
       '',
+      '### How to try it',
+      '',
+      '```bash',
+      'buf generate && go test ./api/... ./internal/store/...',
+      "curl -X PATCH localhost:8080/tenants/t-1 -d '{\"profile\":{\"region\":\"eu-west-1\"}}'",
+      '```',
+      '',
       '### Notes',
       '',
-      '- Migration 0042 adds the new columns. Run it before deploying the API.',
-      '- The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.',
+      '1. Migration `0042` adds the new columns. Run it **before** deploying the API.',
+      '2. The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.',
+      '3. `update_mask` is honoured on update, so a partial `PATCH` no longer clears the other fields.',
+      '',
+      '> The gRPC surface keeps the old field numbers, so old clients keep working.',
+      '',
+      '| Field | Type | Default |',
+      '| --- | --- | --- |',
+      '| `region` | string | none, `NOT NULL` after 0042 |',
+      '| `tier` | enum | `TIER_STANDARD` |',
+      '| `retention` | duration | 30d |',
     ].join('\n'),
     author: 'jdoe',
     draft: false,
@@ -1655,6 +1732,29 @@ const base: ReviewDocument = {
   graph,
 };
 
+const stage1Files: ReviewFile[] = files.map((file) => ({
+  ...file,
+  hunks: file.hunks.map((h) => ({
+    ...h,
+    risk: {
+      ...h.risk,
+      level: h.risk.floor,
+      mode: h.risk.floor === 'low' ? ('skim' as const) : ('scrutinize' as const),
+      reason: null,
+      adjustedBy: null,
+    },
+  })),
+}));
+
+function countsOf(of: ReviewFile[]): ReadySummary['counts'] {
+  const hunks = of.flatMap((file) => file.hunks);
+  return {
+    hunks: hunks.length,
+    highRisk: hunks.filter((h) => h.risk.level === 'high').length,
+    skimmable: hunks.filter((h) => h.risk.mode === 'skim').length,
+  };
+}
+
 const stage1: ReviewDocument = {
   ...base,
   status: {
@@ -1666,23 +1766,24 @@ const stage1: ReviewDocument = {
     summary: pending(stage1At),
     graph: pending(stage1At),
   },
-  files: files.map((file) => ({
-    ...file,
-    hunks: file.hunks.map((h) => ({
-      ...h,
-      risk: {
-        ...h.risk,
-        level: h.risk.floor,
-        mode: h.risk.floor === 'low' ? ('skim' as const) : ('scrutinize' as const),
-        reason: null,
-        adjustedBy: null,
-      },
-    })),
-  })),
+  files: stage1Files,
   groups: groups.filter((g) => g.producedBy === 'stage1'),
   path: [],
-  summary: {},
+  summary: { counts: countsOf(stage1Files) },
   graph: { nodes: [], edges: [], truncated: false },
+};
+
+// The same stage 1 document with no judgment pass attached to the session, so the
+// cockpit says "Not analyzed" instead of "Analyzing…".
+const notAttached: ReviewDocument = {
+  ...stage1,
+  status: {
+    ...stage1.status,
+    groups: notAnalyzed(stage1At),
+    path: notAnalyzed(stage1At),
+    summary: notAnalyzed(stage1At),
+    graph: notAnalyzed(stage1At),
+  },
 };
 
 // The judgment file that turns the stage 1 fixture into the ready one. A path
@@ -1718,7 +1819,13 @@ const judgment: Judgment = {
       level: (h.risk.adjustedBy as RiskAdjustment).to,
       why: (h.risk.adjustedBy as RiskAdjustment).why,
     })),
-  summary: { oneLiner: summary.oneLiner, reviewFocus: summary.reviewFocus },
+  summary: {
+    tldr: summary.tldr,
+    whereItFits: summary.whereItFits,
+    flow: summary.flow,
+    example: summary.example,
+    watchFor: summary.watchFor,
+  },
 };
 
 const graphFail: ReviewDocument = {
@@ -1747,7 +1854,7 @@ const stage2Fail: ReviewDocument = {
   },
   groups: groups.filter((g) => g.producedBy === 'stage1'),
   path: [],
-  summary: {},
+  summary: { counts: summary.counts },
 };
 
 const emptyPr: ReviewDocument = {
@@ -1798,8 +1905,11 @@ const emptyPr: ReviewDocument = {
   groups: [],
   path: [],
   summary: {
-    oneLiner: 'Merge of main into the release branch. No file content changed.',
-    reviewFocus: [],
+    tldr: 'Merge of main into the release branch. No file content changed.',
+    whereItFits: ['Release branch only: no package in the service is touched.'],
+    flow: { before: 'release-2026-09', after: 'release-2026-09 + main' },
+    example: 'Nothing to read: `git diff` between the two heads is empty.',
+    watchFor: [],
     counts: { hunks: 0, highRisk: 0, skimmable: 0 },
   },
   graph: { nodes: [], edges: [], truncated: false },
@@ -1814,6 +1924,7 @@ function write(name: string, doc: ReviewDocument): void {
 
 write('pr-fake-1', base);
 write('pr-fake-1.stage1', stage1);
+write('pr-fake-1.notattached', notAttached);
 write('pr-fake-1.graphfail', graphFail);
 write('pr-fake-1.stage2fail', stage2Fail);
 write('pr-fake-empty', emptyPr);

@@ -116,7 +116,7 @@
 
     "SectionStatus": {
       "title": "SectionStatus",
-      "description": "message is required when state is failed and is shown to the reviewer as written.",
+      "description": "message is required when state is failed and is shown to the reviewer as written. On a pending stage 2 section the message \"not-attached\" says no judgment pass is running, and the cockpit writes \"Not analyzed\" rather than \"Analyzing…\".",
       "type": "object",
       "additionalProperties": true,
       "required": ["state", "updatedAt"],
@@ -507,21 +507,49 @@
       }
     },
 
-    "Summary": {
-      "title": "Summary",
-      "description": "Empty until the judgment merge runs. The validator requires all three fields once status.summary is ready.",
+    "SummaryFlow": {
+      "title": "SummaryFlow",
+      "description": "One short line per side, rendered in monospace under \"before:\" and \"after:\".",
       "type": "object",
       "additionalProperties": true,
+      "required": ["before", "after"],
       "properties": {
-        "oneLiner": { "type": "string" },
-        "reviewFocus": { "type": "array", "items": { "type": "string" } },
+        "before": { "type": "string" },
+        "after": { "type": "string" }
+      }
+    },
+
+    "Summary": {
+      "title": "Summary",
+      "description": "The reviewer brief, in the shape of the pr-summary skill. counts is written by stage 1 and recomputed at merge; the text fields arrive with the judgment pass, and the validator requires tldr, whereItFits, flow, example and watchFor once status.summary is ready. All string fields are markdown. The review path table in the cockpit is derived from path, not stored here.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["counts"],
+      "properties": {
+        "tldr": { "type": "string" },
+        "whereItFits": { "type": "array", "items": { "type": "string" } },
+        "flow": { "$ref": "#/$defs/SummaryFlow" },
+        "example": { "type": "string" },
+        "watchFor": { "type": "array", "items": { "type": "string" } },
         "counts": { "$ref": "#/$defs/SummaryCounts" }
+      }
+    },
+
+    "GraphNodeCount": {
+      "title": "GraphNodeCount",
+      "description": "What a package node stands for: its changed functions, and the neighbours folded into it instead of being emitted as their own nodes.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["changedFunctions", "foldedNeighbours"],
+      "properties": {
+        "changedFunctions": { "type": "integer", "minimum": 0 },
+        "foldedNeighbours": { "type": "integer", "minimum": 0 }
       }
     },
 
     "GraphNode": {
       "title": "GraphNode",
-      "description": "hunkIds is the click target. Unchanged neighbours carry an empty list.",
+      "description": "hunkIds is the click target. Unchanged neighbours carry an empty list. count is required on a package node and absent on every other kind.",
       "type": "object",
       "additionalProperties": true,
       "required": ["id", "kind", "label", "file", "changed", "hunkIds"],
@@ -531,7 +559,8 @@
         "label": { "type": "string" },
         "file": { "type": ["string", "null"] },
         "changed": { "type": "boolean" },
-        "hunkIds": { "type": "array", "items": { "type": "string" } }
+        "hunkIds": { "type": "array", "items": { "type": "string" } },
+        "count": { "$ref": "#/$defs/GraphNodeCount" }
       }
     },
 
@@ -549,12 +578,12 @@
 
     "Graph": {
       "title": "Graph",
-      "description": "The blast-radius map. Capped at 300 nodes; truncated says the cap was hit.",
+      "description": "The blast-radius map. Function nodes cover every changed function and at most 40 neighbours per changed package; truncated says some package folded neighbours into its count instead.",
       "type": "object",
       "additionalProperties": true,
       "required": ["nodes", "edges", "truncated"],
       "properties": {
-        "nodes": { "type": "array", "maxItems": 300, "items": { "$ref": "#/$defs/GraphNode" } },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/GraphNode" } },
         "edges": { "type": "array", "items": { "$ref": "#/$defs/GraphEdge" } },
         "truncated": { "type": "boolean" }
       }

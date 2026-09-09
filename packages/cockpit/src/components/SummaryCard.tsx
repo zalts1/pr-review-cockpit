@@ -19,18 +19,34 @@ export function SummaryCard({ summary, status, prBody, collapsed, onToggle }: Pr
         <span>Summary</span>
         {pending && <span className="label-pending">Analyzing summary…</span>}
         {failed && <span className="label-pending">Summary unavailable</span>}
-        {collapsed && summary && <span className="summary-collapsed">{summary.oneLiner}</span>}
+        {collapsed && summary && <span className="summary-collapsed">{summary.tldr}</span>}
       </button>
 
       {!collapsed && (
         <>
           {summary ? (
             <>
-              <p className="summary-oneliner">{summary.oneLiner}</p>
-              {summary.reviewFocus.length > 0 && (
+              <p className="summary-oneliner">{summary.tldr}</p>
+              {summary.whereItFits.length > 0 && (
                 <ul className="summary-focus">
-                  {summary.reviewFocus.map((focus) => (
-                    <li key={focus}>{focus}</li>
+                  {summary.whereItFits.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="summary-flow">
+                <div>
+                  <span className="summary-flow-label">before:</span> {summary.flow.before}
+                </div>
+                <div>
+                  <span className="summary-flow-label">after:</span> {summary.flow.after}
+                </div>
+              </div>
+              <p className="summary-body">{summary.example}</p>
+              {summary.watchFor.length > 0 && (
+                <ul className="summary-focus">
+                  {summary.watchFor.map((line) => (
+                    <li key={line}>{line}</li>
                   ))}
                 </ul>
               )}

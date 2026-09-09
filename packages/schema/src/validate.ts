@@ -623,6 +623,21 @@ function checkGraph(
         `is ${node.changed} with ${node.hunkIds.length} hunk ids; a changed node carries the hunks it was changed by`,
       );
     }
+
+    if (node.kind === 'package' && node.count === undefined) {
+      issues.error(
+        'graph-package-count',
+        `${at}.count`,
+        'is missing on a package node, so the map cannot say how many changed functions and folded neighbours it stands for',
+      );
+    }
+    if (node.kind !== 'package' && node.count !== undefined) {
+      issues.error(
+        'graph-package-count',
+        `${at}.count`,
+        `is set on a ${node.kind} node, and only a package node stands for nodes that were folded away`,
+      );
+    }
   }
 
   for (const [i, edge] of document.graph.edges.entries()) {
@@ -649,32 +664,33 @@ export function summaryCounts(document: ReviewDocument): {
   };
 }
 
+const SUMMARY_BRIEF_FIELDS = ['tldr', 'whereItFits', 'flow', 'example', 'watchFor'] as const;
+
 function checkSummary(document: ReviewDocument, issues: Issues): void {
-  if (document.status.summary.state !== 'ready') return;
   const { summary } = document;
 
-  if (summary.oneLiner === undefined || summary.reviewFocus === undefined) {
+  if (summary.counts !== undefined) {
+    const expected = summaryCounts(document);
+    for (const key of ['hunks', 'highRisk', 'skimmable'] as const) {
+      if (summary.counts[key] !== expected[key]) {
+        issues.error(
+          'summary-counts',
+          `summary.counts.${key}`,
+          `is ${summary.counts[key]} but the document holds ${expected[key]}. Counts are recomputed at merge, not taken from the judgment.`,
+        );
+      }
+    }
+  }
+
+  if (document.status.summary.state !== 'ready') return;
+
+  const missing = SUMMARY_BRIEF_FIELDS.filter((field) => summary[field] === undefined);
+  if (missing.length > 0) {
     issues.error(
       'summary-ready',
       'summary',
-      'is missing oneLiner or reviewFocus while status.summary is ready',
+      `is missing ${missing.join(', ')} while status.summary is ready. watchFor may be empty, but it is written.`,
     );
-  }
-
-  if (summary.counts === undefined) {
-    issues.error('summary-ready', 'summary.counts', 'is missing while status.summary is ready');
-    return;
-  }
-
-  const expected = summaryCounts(document);
-  for (const key of ['hunks', 'highRisk', 'skimmable'] as const) {
-    if (summary.counts[key] !== expected[key]) {
-      issues.error(
-        'summary-counts',
-        `summary.counts.${key}`,
-        `is ${summary.counts[key]} but the document holds ${expected[key]}. Counts are recomputed at merge, not taken from the judgment.`,
-      );
-    }
   }
 }
 

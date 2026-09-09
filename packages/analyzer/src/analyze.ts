@@ -1,4 +1,5 @@
 import type { CheckoutInfo, PrInfo, ReviewDocument, RiskLevel } from '@review-cockpit/schema';
+import { summaryCounts } from '@review-cockpit/schema';
 import type { HunkFeatures } from './features.js';
 import { checkout } from './checkout.js';
 import { readUserConfig } from './config.js';
@@ -167,6 +168,7 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
       ...(onProgress ? { onProgress } : {}),
     });
     const refined = applyGraphFan(document, graph.fanByFile, stage1.featuresByHunk);
+    document.summary.counts = summaryCounts(document);
     document.graph = graph.graph;
     document.status.graph = status('ready', nowIso());
     writeDocument(documentPath, document);
