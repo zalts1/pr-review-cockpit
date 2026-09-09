@@ -33,6 +33,7 @@ export interface Stage1Options {
   checkout: CheckoutInfo;
   authorEmails: readonly string[];
   foldGenerated?: boolean;
+  expectJudgment?: boolean;
   now?: Date;
   onProgress?: (message: string) => void;
 }
@@ -340,6 +341,7 @@ export async function analyzeStage1(options: Stage1Options): Promise<Stage1Resul
     groups,
     graphStatus: status('pending', generatedAt),
     generatedAt,
+    expectJudgment: options.expectJudgment === true,
   });
 
   return { document, diffBase, goFilesByPath, featuresByHunk };

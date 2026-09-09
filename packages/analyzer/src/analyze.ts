@@ -17,6 +17,8 @@ export interface AnalyzeOptions {
   cwd: string;
   foldGenerated?: boolean;
   skipGraph?: boolean;
+  /** True when a judgment pass will follow, so stage 2 reads as running rather than absent. */
+  expectJudgment?: boolean;
   onProgress?: (message: string) => void;
 }
 
@@ -146,6 +148,7 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
     checkout: info,
     authorEmails: resolved.authorEmails,
     foldGenerated: options.foldGenerated ?? true,
+    expectJudgment: options.expectJudgment === true,
     ...(onProgress ? { onProgress } : {}),
   });
 

@@ -5,6 +5,7 @@ import { progress } from '../progress.js';
 export interface AnalyzeFlags {
   foldGenerated: boolean;
   skipGraph: boolean;
+  expectJudgment: boolean;
   cwd: string;
 }
 
@@ -23,6 +24,7 @@ export async function analyzeCommand(prArg: string, flags: AnalyzeFlags): Promis
     cwd: flags.cwd,
     foldGenerated: flags.foldGenerated,
     skipGraph: flags.skipGraph,
+    expectJudgment: flags.expectJudgment,
     onProgress: step,
   });
 
@@ -36,6 +38,9 @@ export async function analyzeCommand(prArg: string, flags: AnalyzeFlags): Promis
   );
   if (folded.length > 0) {
     step(`folded as generated: ${folded.map((file) => `${file.path} (${file.generated.rule})`).join(', ')}`);
+  }
+  if (!flags.expectJudgment) {
+    step('stage 2 marked "not-attached": no judgment pass is running, and the cockpit says so');
   }
   if (document.status.graph.state === 'failed') {
     step(`graph: ${document.status.graph.message ?? 'failed'}`);

@@ -288,6 +288,27 @@ func TestUpdateRecord(t *testing.T) {
     );
   });
 
+  it('says "not-attached" on stage 2 when no judgment pass is expected', async () => {
+    const alone = await analyzeStage1({
+      pr: pr(baseSha, headSha),
+      checkout: { mode: 'worktree', path: root, sourceRepo: root },
+      authorEmails: [AUTHOR],
+    });
+    const expected = await analyzeStage1({
+      pr: pr(baseSha, headSha),
+      checkout: { mode: 'worktree', path: root, sourceRepo: root },
+      authorEmails: [AUTHOR],
+      expectJudgment: true,
+    });
+
+    for (const section of ['groups', 'path', 'summary'] as const) {
+      expect(alone.document.status[section].message).toBe('not-attached');
+      expect(expected.document.status[section].message).toBeUndefined();
+      expect(expected.document.status[section].state).toBe('pending');
+    }
+    expect(alone.document.status.graph.message).toBeUndefined();
+  });
+
   it('marks stage 2 pending and stage 1 ready', () => {
     const { status } = stage1.document;
     expect(status.files.state).toBe('ready');

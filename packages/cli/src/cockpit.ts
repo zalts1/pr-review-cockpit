@@ -12,7 +12,7 @@ const usage = `cockpit — the PR review cockpit command line tool
 
 Usage:
   cockpit prepare  <pr> [--cwd <dir>]
-  cockpit analyze  <pr> [--no-fold-generated] [--skip-graph] [--cwd <dir>]
+  cockpit analyze  <pr> [--expect-judgment] [--no-fold-generated] [--skip-graph] [--cwd <dir>]
   cockpit serve    <pr> [--port <n>] [--open] [--cwd <dir>]
   cockpit clean    <pr> [--cwd <dir>]
   cockpit validate <file> [--as document|judgment|drafts]
@@ -30,6 +30,10 @@ analyze   Runs prepare, then stage 1 (diff, git signals, tree-sitter structure,
           cache directory. Progress and timings go to stderr, the document path
           to stdout. --no-fold-generated keeps generated files unfolded and
           scored, and still records the rule that matched them.
+          --expect-judgment says a judgment pass will follow, so the stage 2
+          sections read as pending. Without it they carry the message
+          "not-attached" and the cockpit says "Not analyzed" rather than
+          "Analyzing…". The review skill always passes it.
 
 serve     Serves the cockpit and the document on 127.0.0.1 and pushes every
           change to review.json over server-sent events. Prints the URL.
@@ -63,6 +67,7 @@ async function main(argv: string[]): Promise<number> {
         port: { type: 'string' },
         open: { type: 'boolean' },
         'no-fold-generated': { type: 'boolean' },
+        'expect-judgment': { type: 'boolean' },
         'skip-graph': { type: 'boolean' },
       },
     });
@@ -92,6 +97,7 @@ async function main(argv: string[]): Promise<number> {
         cwd,
         foldGenerated: values['no-fold-generated'] !== true,
         skipGraph: values['skip-graph'] === true,
+        expectJudgment: values['expect-judgment'] === true,
       });
     }
     if (command === 'serve') {
