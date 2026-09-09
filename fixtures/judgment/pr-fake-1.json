@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0.0",
+  "groups": [
+    {
+      "kind": "mechanical-rename",
+      "title": "Rename TenantRecord to TenantProfile",
+      "description": "The same identifier replaced across 9 files: type, constructor, cache and audit event name. No logic change.",
+      "hunkIds": [
+        "f1.h1",
+        "f1.h2",
+        "f5.h1",
+        "f5.h2",
+        "f6.h1",
+        "f6.h2",
+        "f10.h1",
+        "f10.h2",
+        "f11.h1",
+        "f11.h2",
+        "f15.h1",
+        "f15.h2",
+        "f17.h1",
+        "f17.h2",
+        "f18.h1",
+        "f18.h2",
+        "f19.h1",
+        "f19.h2"
+      ],
+      "mode": "skim",
+      "collapsedByDefault": true
+    }
+  ],
+  "path": [
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f3.h1"
+      },
+      "phase": "models",
+      "note": "The new wire contract: TenantProfile with region, tier and retention, and four renamed RPCs."
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f13.h1"
+      },
+      "phase": "models",
+      "note": "Migration 0042. Read the NOT NULL column and the order of the backfill."
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f14.h1"
+      },
+      "phase": "models",
+      "note": "The sqlc queries behind the new columns and the soft-delete filter."
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f7.h1"
+      },
+      "phase": "core",
+      "note": "Imports only: grpc status codes and the store package arrive here."
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f7.h2"
+      },
+      "phase": "core",
+      "note": "UpdateRecord now validates the id and returns a gRPC status instead of a sentinel error."
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f9.h1"
+      },
+      "phase": "core",
+      "note": "Validation is now driven by the update mask. Check what an empty mask does."
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f7.h3"
+      },
+      "phase": "core",
+      "note": "GetRecord hides soft-deleted rows and shares the new error mapping."
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f9.h2"
+      },
+      "phase": "core",
+      "note": null
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f1.h1"
+      },
+      "phase": "callsites",
+      "note": "Mechanical rename, 9 files. Skim for anything that is not the identifier."
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f8.h1"
+      },
+      "phase": "tests",
+      "note": "The sentinel-error test becomes a table of InvalidArgument cases."
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f8.h2"
+      },
+      "phase": "tests",
+      "note": "New tests for If-Match and for the soft-delete path."
+    },
+    {
+      "ref": {
+        "kind": "hunk",
+        "id": "f20.h1"
+      },
+      "phase": "tests",
+      "note": "Store tests cover the region filter and the deleted-row filter."
+    }
+  ],
+  "reasons": {
+    "f3.h1": "The wire contract changes: TenantRecord becomes TenantProfile and four RPCs are renamed. Any client built against the old service name breaks.",
+    "f7.h2": "Changes the error contract of UpdateRecord. Callers matching on ErrMissingID will silently stop matching, and the new If-Match branch reads the row before writing it.",
+    "f7.h3": "GetRecord now hides soft-deleted rows. A caller that relied on reading a deleted profile gets NotFound instead.",
+    "f9.h1": "Validation becomes field-mask driven, so a request with an empty mask now validates every field. An update that used to pass can start failing.",
+    "f13.h1": "Adds region as NOT NULL with no default, so the migration fails on any table that already has rows. The backfill runs after the column is added, which is too late."
+  },
+  "riskAdjustments": [
+    {
+      "hunkId": "f9.h1",
+      "level": "high",
+      "why": "An empty update_mask silently switches the request from partial to full validation."
+    }
+  ],
+  "summary": {
+    "oneLiner": "Adds region, tier and retention to the tenant profile API with field-mask validation, and renames TenantRecord to TenantProfile across the service.",
+    "reviewFocus": [
+      "UpdateRecord changes error semantics from sentinel errors to gRPC statuses; check every caller that compared against ErrMissingID or ErrMissingProfile.",
+      "Migration 0042 adds region as NOT NULL with no default and backfills afterwards, which fails on a table that already has rows.",
+      "validate now walks the update mask, so a request with an empty mask validates every field instead of the ones it sent."
+    ]
+  }
+}

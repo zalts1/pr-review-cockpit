@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hunk, lowRisk, risk } from './lib.ts';
@@ -19,6 +19,7 @@ import {
 import type {
   Check,
   Comment,
+  Judgment,
   Language,
   FileSignals,
   Graph,
@@ -27,6 +28,7 @@ import type {
   ReviewDocument,
   ReadySummary,
   ReviewFile,
+  RiskAdjustment,
 } from '@review-cockpit/schema';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -1664,10 +1666,59 @@ const stage1: ReviewDocument = {
     summary: pending(stage1At),
     graph: pending(stage1At),
   },
-  groups: [],
+  files: files.map((file) => ({
+    ...file,
+    hunks: file.hunks.map((h) => ({
+      ...h,
+      risk: {
+        ...h.risk,
+        level: h.risk.floor,
+        mode: h.risk.floor === 'low' ? ('skim' as const) : ('scrutinize' as const),
+        reason: null,
+        adjustedBy: null,
+      },
+    })),
+  })),
+  groups: groups.filter((g) => g.producedBy === 'stage1'),
   path: [],
   summary: {},
   graph: { nodes: [], edges: [], truncated: false },
+};
+
+// The judgment file that turns the stage 1 fixture into the ready one. A path
+// step for a stage 2 group names one of its hunks, because the merge is what
+// assigns group ids.
+const judgment: Judgment = {
+  schemaVersion: '1.0.0',
+  groups: groups
+    .filter((g) => g.producedBy === 'stage2')
+    .map(({ kind, title, description, hunkIds, mode, collapsedByDefault }) => ({
+      kind,
+      title,
+      description,
+      hunkIds,
+      mode,
+      collapsedByDefault,
+    })),
+  path: path.map((step) => {
+    const group = groups.find((g) => g.id === step.ref.id && g.producedBy === 'stage2');
+    const ref =
+      step.ref.kind === 'group' && group
+        ? { kind: 'hunk' as const, id: group.hunkIds[0] as string }
+        : step.ref;
+    return { ref, phase: step.phase, note: step.note };
+  }),
+  reasons: Object.fromEntries(
+    allHunks.filter((h) => h.risk.reason !== null).map((h) => [h.id, h.risk.reason as string]),
+  ),
+  riskAdjustments: allHunks
+    .filter((h) => h.risk.adjustedBy !== null)
+    .map((h) => ({
+      hunkId: h.id,
+      level: (h.risk.adjustedBy as RiskAdjustment).to,
+      why: (h.risk.adjustedBy as RiskAdjustment).why,
+    })),
+  summary: { oneLiner: summary.oneLiner, reviewFocus: summary.reviewFocus },
 };
 
 const graphFail: ReviewDocument = {
@@ -1766,6 +1817,14 @@ write('pr-fake-1.stage1', stage1);
 write('pr-fake-1.graphfail', graphFail);
 write('pr-fake-1.stage2fail', stage2Fail);
 write('pr-fake-empty', emptyPr);
+
+mkdirSync(resolve(here, 'judgment'), { recursive: true });
+const judgmentFile = resolve(here, 'judgment', 'pr-fake-1.json');
+writeFileSync(judgmentFile, `${JSON.stringify(judgment, null, 2)}\n`, 'utf8');
+console.log(
+  `judgment/pr-fake-1.json  ${judgment.groups?.length ?? 0} groups  ${judgment.path?.length ?? 0} steps  ` +
+    `${Object.keys(judgment.reasons ?? {}).length} reasons  ${judgment.riskAdjustments?.length ?? 0} adjustments`,
+);
 
 const ungrouped = allHunks.filter((h) => !groupedHunkIds.has(h.id));
 console.log(

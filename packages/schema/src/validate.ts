@@ -183,6 +183,7 @@ export function validateDocument(doc: unknown): ValidationResult {
     }
   }
 
+  const stage2Ready = document.status.summary.state === 'ready';
   const hunks = new Map<string, HunkIndex>();
   const fileIds = new Set<string>();
   let additions = 0;
@@ -214,7 +215,7 @@ export function validateDocument(doc: unknown): ValidationResult {
       hunks.set(hunk.id, { hunk, file, path: hunkAt });
 
       checkHunkLines(hunk, hunkAt, issues);
-      checkRisk(hunk, hunkAt, issues);
+      checkRisk(hunk, hunkAt, stage2Ready, issues);
 
       fileAdds += hunk.lines.filter((l) => l.type === 'add').length;
       fileDels += hunk.lines.filter((l) => l.type === 'del').length;
@@ -333,7 +334,7 @@ function checkHunkLines(hunk: Hunk, at: string, issues: Issues): void {
   }
 }
 
-function checkRisk(hunk: Hunk, at: string, issues: Issues): void {
+function checkRisk(hunk: Hunk, at: string, stage2Ready: boolean, issues: Issues): void {
   const { risk } = hunk;
   if (levelRank[risk.level] < levelRank[risk.floor]) {
     issues.error(
@@ -376,7 +377,7 @@ function checkRisk(hunk: Hunk, at: string, issues: Issues): void {
     }
   }
 
-  if (risk.level === 'high' && !risk.reason) {
+  if (stage2Ready && risk.level === 'high' && !risk.reason) {
     issues.warn(
       'risk-reason-missing',
       `${at}.risk.reason`,

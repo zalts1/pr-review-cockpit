@@ -42,7 +42,7 @@
         },
         "title": { "type": "string", "minLength": 1 },
         "description": { "type": "string" },
-        "hunkIds": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "hunkIds": { "type": "array", "items": { "type": "string" } },
         "mode": { "enum": ["skim", "scrutinize"] },
         "collapsedByDefault": { "type": "boolean" }
       }

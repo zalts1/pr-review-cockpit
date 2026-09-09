@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { checkVersion, validateDocument } from '../src/index.js';
-import { fixture, fixtureNames } from './helpers.js';
+import { checkVersion, merge, validateDocument, validateJudgment } from '../src/index.js';
+import { fixture, fixtureNames, judgmentFixture } from './helpers.js';
 
 describe.each(fixtureNames())('%s', (name) => {
   it('validates with no errors and no warnings', () => {
@@ -11,6 +11,35 @@ describe.each(fixtureNames())('%s', (name) => {
 
   it('carries a supported major version', () => {
     expect(checkVersion(fixture(name)).ok).toBe(true);
+  });
+});
+
+describe('the judgment fixture', () => {
+  it('validates with no errors', () => {
+    expect(validateJudgment(judgmentFixture('pr-fake-1.json')).errors).toEqual([]);
+  });
+
+  it('turns the stage 1 fixture into the ready one', () => {
+    const { document, log } = merge(
+      fixture('pr-fake-1.stage1.json'),
+      judgmentFixture('pr-fake-1.json'),
+      { now: '2026-09-08T12:36:10Z' },
+    );
+    const ready = fixture('pr-fake-1.json');
+
+    expect(document.groups).toEqual(ready.groups);
+    expect(document.path).toEqual(ready.path);
+    expect(document.summary).toEqual(ready.summary);
+    expect(document.files).toEqual(ready.files);
+    expect(document.status.groups).toEqual(ready.status.groups);
+    expect(log).toEqual([
+      {
+        rule: 'path-hunk-in-group',
+        hunkId: 'f1.h1',
+        detail: 'walked as group g2, which holds it',
+      },
+    ]);
+    expect(validateDocument(document).errors).toEqual([]);
   });
 });
 

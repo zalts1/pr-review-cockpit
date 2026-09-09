@@ -21,6 +21,10 @@ export function fixture(name: string): ReviewDocument {
   return JSON.parse(readFileSync(new URL(name, FIXTURES), 'utf8')) as ReviewDocument;
 }
 
+export function judgmentFixture(name: string): Judgment {
+  return JSON.parse(readFileSync(new URL(`judgment/${name}`, FIXTURES), 'utf8')) as Judgment;
+}
+
 export function makeHunk(id: string, floor: RiskLevel = 'low', start = 10): Hunk {
   return {
     id,
