@@ -1,0 +1,17 @@
+{
+  "name": "@review-cockpit/cli",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The cockpit command line tool.",
+  "type": "module",
+  "bin": {
+    "cockpit": "./dist/cockpit.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@review-cockpit/schema": "0.1.0"
+  }
+}
