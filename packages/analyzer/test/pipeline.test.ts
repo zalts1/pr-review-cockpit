@@ -6,11 +6,21 @@ import { validateDocument } from '@review-cockpit/schema';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { applyGraphFan } from '../src/analyze.js';
 import { gitOk, run } from '../src/exec.js';
-import { buildGoGraph } from '../src/graph.js';
+import { buildGoGraph, NEIGHBOUR_CAP } from '../src/graph.js';
 import type { Stage1Result } from '../src/stage1.js';
 import { analyzeStage1 } from '../src/stage1.js';
 
 const AUTHOR = 'contributor@example.test';
+
+/** More callers of one changed function than the neighbour cap, so folding has something to fold. */
+const CALLER_COUNT = 45;
+
+const fanoutCallers = `package fanout
+
+import "example.test/app/tenant"
+
+${Array.from({ length: CALLER_COUNT }, (_, i) => `func Check${i}(id string) error {\n\treturn tenant.Validate(id)\n}`).join('\n\n')}
+`;
 
 function write(root: string, path: string, content: string): void {
   const file = join(root, path);
@@ -54,13 +64,13 @@ func (s *Service) UpdateRecord(id string) (string, error) {
 	if id == "" {
 		return "", fmt.Errorf("id is required")
 	}
-	if err := validate(id); err != nil {
+	if err := Validate(id); err != nil {
 		return "", err
 	}
 	return s.store.Load(id)
 }
 
-func validate(id string) error {
+func Validate(id string) error {
 	if len(id) > 64 {
 		return fmt.Errorf("id too long")
 	}
@@ -91,7 +101,7 @@ func (s *Service) UpdateRecord(id string) (string, error) {
 	if id == "" {
 		return "", fmt.Errorf("id is required")
 	}
-	if err := validate(id); err != nil {
+	if err := Validate(id); err != nil {
 		return "", err
 	}
 	s.mu.Lock()
@@ -106,9 +116,12 @@ func (s *Service) UpdateRecord(id string) (string, error) {
 	return value, nil
 }
 
-func validate(id string) error {
+func Validate(id string) error {
 	if len(id) > 64 {
 		return fmt.Errorf("id too long")
+	}
+	if id == "-" {
+		return fmt.Errorf("id is reserved")
 	}
 	return nil
 }
@@ -140,6 +153,7 @@ func (s *Store) Load(id string) (string, error) {
 `,
     );
     write(root, 'tenant/service.go', baseService);
+    write(root, 'fanout/callers.go', fanoutCallers);
     write(
       root,
       'cmd/app/main.go',
@@ -387,7 +401,6 @@ func TestUpdateRecord(t *testing.T) {
       expect(labels).toContain('Service.UpdateRecord');
       expect(labels).toContain('main');
       expect(labels).toContain('tenant');
-      expect(cold.graph.truncated).toBe(false);
 
       const updateRecord = cold.graph.nodes.find((node) => node.label === 'Service.UpdateRecord');
       const main = cold.graph.nodes.find((node) => node.label === 'main');
@@ -426,16 +439,87 @@ func TestUpdateRecord(t *testing.T) {
       expect(result.graph.nodes.some((node) => node.label === 'api/gen')).toBe(false);
     });
 
-    it('caps the graph and says it was cut', async () => {
+    it('emits one package node per package that has a node, and counts its changed functions', async () => {
+      const result = await buildGoGraph({
+        worktree: root,
+        headSha,
+        files: stage1.document.files,
+        indexDirectory,
+      });
+
+      const packages = result.graph.nodes.filter((node) => node.kind === 'package');
+      const labels = packages.map((node) => node.label).sort();
+      expect(labels).toEqual(['cmd/app', 'fanout', 'tenant']);
+
+      const withNodes = new Set(
+        result.graph.nodes
+          .filter((node) => node.kind !== 'package' && node.file !== null)
+          .map((node) => (node.file as string).split('/').slice(0, -1).join('/')),
+      );
+      for (const directory of withNodes) expect(labels).toContain(directory);
+
+      const tenant = packages.find((node) => node.label === 'tenant');
+      const changedInTenant = result.graph.nodes.filter(
+        (node) => node.kind === 'function' && node.changed && node.file?.startsWith('tenant/'),
+      );
+      expect(tenant?.count?.changedFunctions).toBe(changedInTenant.length);
+      expect(changedInTenant.map((node) => node.label)).toContain('Service.UpdateRecord');
+      expect(tenant?.changed).toBe(true);
+      expect(packages.find((node) => node.label === 'fanout')?.count).toEqual({
+        changedFunctions: 0,
+        foldedNeighbours: 0,
+      });
+    });
+
+    it('folds the neighbours past the cap instead of dropping them', async () => {
+      const neighboursOf = (graph: Awaited<ReturnType<typeof buildGoGraph>>['graph']): number =>
+        graph.nodes.filter((node) => node.kind === 'function' && !node.changed).length;
+
+      const whole = await buildGoGraph({
+        worktree: root,
+        headSha,
+        files: stage1.document.files,
+        indexDirectory,
+        neighbourCap: CALLER_COUNT * 2,
+      });
       const capped = await buildGoGraph({
         worktree: root,
         headSha,
         files: stage1.document.files,
         indexDirectory,
-        nodeCap: 1,
       });
-      expect(capped.graph.nodes).toHaveLength(1);
+
+      expect(neighboursOf(whole.graph)).toBeGreaterThan(CALLER_COUNT);
+      expect(neighboursOf(capped.graph)).toBe(NEIGHBOUR_CAP);
+      const folded = capped.graph.nodes
+        .filter((node) => node.kind === 'package')
+        .reduce((total, node) => total + (node.count?.foldedNeighbours ?? 0), 0);
+      expect(neighboursOf(capped.graph) + folded).toBe(neighboursOf(whole.graph));
       expect(capped.graph.truncated).toBe(true);
+
+      const changed = capped.graph.nodes.filter(
+        (node) => node.changed && node.kind === 'function',
+      );
+      expect(changed.map((node) => node.label)).toEqual(
+        whole.graph.nodes
+          .filter((node) => node.changed && node.kind === 'function')
+          .map((node) => node.label),
+      );
+      expect(changed.map((node) => node.label)).toContain('Validate');
+    });
+
+    it('folds nothing, and says so, when every neighbour fits', async () => {
+      const roomy = await buildGoGraph({
+        worktree: root,
+        headSha,
+        files: stage1.document.files,
+        indexDirectory,
+        neighbourCap: CALLER_COUNT + 10,
+      });
+      expect(roomy.graph.truncated).toBe(false);
+      for (const node of roomy.graph.nodes) {
+        if (node.kind === 'package') expect(node.count?.foldedNeighbours).toBe(0);
+      }
     });
 
     it('raises risk from the graph but never lowers it, and still validates', async () => {

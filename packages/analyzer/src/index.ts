@@ -36,7 +36,7 @@ export {
   listGoFiles,
   loadIndex,
   modulePathOf,
-  NODE_CAP,
+  NEIGHBOUR_CAP,
   resolveCall,
   saveIndex,
   symbolTable,

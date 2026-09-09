@@ -336,7 +336,7 @@ export interface GraphOptions {
   headSha: string;
   files: readonly ReviewFile[];
   indexDirectory: string;
-  nodeCap?: number;
+  neighbourCap?: number;
   onProgress?: (message: string) => void;
 }
 
@@ -351,7 +351,12 @@ export interface GraphResult {
   stats: { goFiles: number; parsed: number; reused: number; symbols: number; ms: number };
 }
 
-export const NODE_CAP = 300;
+/**
+ * Neighbours emitted per changed package. A hot method can have 150 callers,
+ * and past this many nodes the level 2 view is unreadable, so the rest are
+ * counted on the package node instead of drawn.
+ */
+export const NEIGHBOUR_CAP = 40;
 
 function hunkRangeOf(hunk: { newStart: number; newLines: number }): [number, number] {
   const start = Math.max(hunk.newStart, 1);
@@ -360,7 +365,7 @@ function hunkRangeOf(hunk: { newStart: number; newLines: number }): [number, num
 
 export async function buildGoGraph(options: GraphOptions): Promise<GraphResult> {
   const started = Date.now();
-  const cap = options.nodeCap ?? NODE_CAP;
+  const cap = options.neighbourCap ?? NEIGHBOUR_CAP;
 
   const tree = listGoFiles(options.worktree, options.headSha);
   const cached = loadIndex(options.indexDirectory, options.headSha);
@@ -409,24 +414,63 @@ export async function buildGoGraph(options: GraphOptions): Promise<GraphResult> 
     fanByFile.set(file.path, { fanIn: callerSet.size, fanOut: calleeSet.size });
   }
 
-  const neighbours = new Set<string>();
+  const changedByPackage = new Map<string, string[]>();
   for (const id of changedIds) {
-    for (const caller of callers.get(id) ?? []) if (!changedIds.has(caller)) neighbours.add(caller);
-    for (const callee of callees.get(id) ?? []) if (!changedIds.has(callee)) neighbours.add(callee);
+    const path = pathOfSymbol.get(id);
+    if (path === undefined) continue;
+    push(changedByPackage, directoryOf(path), id);
+  }
+
+  const fanInOf = (id: string): number => callers.get(id)?.size ?? 0;
+
+  // Callers first, then callees, each by fan-in: the nodes a reviewer asks
+  // about first are the ones that call into the change.
+  const rankNeighbours = (ids: readonly string[]): string[] => {
+    const asCaller = new Set<string>();
+    const asCallee = new Set<string>();
+    for (const id of ids) {
+      for (const caller of callers.get(id) ?? []) if (!changedIds.has(caller)) asCaller.add(caller);
+      for (const callee of callees.get(id) ?? []) {
+        if (!changedIds.has(callee) && !asCaller.has(callee)) asCallee.add(callee);
+      }
+    }
+    const order = (id: string, caller: boolean): [number, number, string] => [
+      caller ? 0 : 1,
+      -fanInOf(id),
+      id,
+    ];
+    return [
+      ...[...asCaller].map((id) => order(id, true)),
+      ...[...asCallee].map((id) => order(id, false)),
+    ]
+      .sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2].localeCompare(b[2]))
+      .map(([, , id]) => id);
+  };
+
+  const packages = [...changedByPackage.keys()].sort((a, b) => a.localeCompare(b));
+  const rankedByPackage = new Map<string, string[]>();
+  const keptNeighbours = new Set<string>();
+  for (const directory of packages) {
+    const ranked = rankNeighbours(changedByPackage.get(directory) ?? []);
+    rankedByPackage.set(directory, ranked);
+    for (const id of ranked.slice(0, cap)) keptNeighbours.add(id);
+  }
+
+  // A neighbour past one package's cap is only folded away if no other package
+  // kept it, so "and N more" never counts a node that is on the screen.
+  const foldedByPackage = new Map<string, number>();
+  for (const [directory, ranked] of rankedByPackage) {
+    foldedByPackage.set(
+      directory,
+      ranked.slice(cap).filter((id) => !keptNeighbours.has(id)).length,
+    );
   }
 
   const nodes: GraphNode[] = [];
   const nodeIdOfSymbol = new Map<string, string>();
-  let truncated = false;
-
-  const room = (): boolean => {
-    if (nodes.length < cap) return true;
-    truncated = true;
-    return false;
-  };
+  const changedFunctionsByPackage = new Map<string, number>();
 
   const addFunction = (symbol: GoSymbol, changed: boolean): void => {
-    if (!room()) return;
     const id = `n${nodes.length + 1}`;
     nodeIdOfSymbol.set(symbol.id, id);
     nodes.push({
@@ -437,13 +481,22 @@ export async function buildGoGraph(options: GraphOptions): Promise<GraphResult> 
       changed,
       hunkIds: changed ? (hunksOfSymbol.get(symbol.id) ?? []) : [],
     });
+    if (changed) {
+      const directory = directoryOf(symbol.path);
+      changedFunctionsByPackage.set(directory, (changedFunctionsByPackage.get(directory) ?? 0) + 1);
+    }
   };
 
-  const changedSymbols = [...changedIds]
-    .map((id) => table.byId.get(id))
-    .filter((symbol): symbol is GoSymbol => symbol !== undefined)
-    .sort((a, b) => a.path.localeCompare(b.path) || a.fn.startLine - b.fn.startLine);
-  for (const symbol of changedSymbols) addFunction(symbol, true);
+  const byPathAndLine = (a: GoSymbol, b: GoSymbol): number =>
+    a.path.localeCompare(b.path) || a.fn.startLine - b.fn.startLine;
+  const symbolsOf = (ids: Iterable<string>): GoSymbol[] =>
+    [...ids]
+      .map((id) => table.byId.get(id))
+      .filter((symbol): symbol is GoSymbol => symbol !== undefined)
+      .sort(byPathAndLine);
+
+  for (const symbol of symbolsOf(changedIds)) addFunction(symbol, true);
+  for (const symbol of symbolsOf(keptNeighbours)) addFunction(symbol, false);
 
   const packageHunks = new Map<string, string[]>();
   for (const file of changedGoFiles) {
@@ -453,22 +506,10 @@ export async function buildGoGraph(options: GraphOptions): Promise<GraphResult> 
       ...file.hunks.map((hunk) => hunk.id),
     ]);
   }
-  for (const [directory, hunkIds] of [...packageHunks].sort(([a], [b]) => a.localeCompare(b))) {
-    if (!room()) break;
-    nodes.push({
-      id: `n${nodes.length + 1}`,
-      kind: 'package',
-      label: directory === '' ? '(repository root)' : directory,
-      file: null,
-      changed: hunkIds.length > 0,
-      hunkIds,
-    });
-  }
 
   for (const file of changedGoFiles) {
     const covered = [...changedIds].some((id) => pathOfSymbol.get(id) === file.path);
     if (covered || file.hunks.length === 0) continue;
-    if (!room()) break;
     nodes.push({
       id: `n${nodes.length + 1}`,
       kind: 'file',
@@ -479,13 +520,27 @@ export async function buildGoGraph(options: GraphOptions): Promise<GraphResult> 
     });
   }
 
-  const ranked = [...neighbours]
-    .map((id) => ({ id, degree: (callers.get(id)?.size ?? 0) + (callees.get(id)?.size ?? 0) }))
-    .sort((a, b) => b.degree - a.degree || a.id.localeCompare(b.id));
-  for (const { id } of ranked) {
-    const symbol = table.byId.get(id);
-    if (symbol) addFunction(symbol, false);
+  const directories = new Set<string>([...packageHunks.keys(), ...changedByPackage.keys()]);
+  for (const node of nodes) {
+    if (node.file !== null) directories.add(directoryOf(node.file));
   }
+  for (const directory of [...directories].sort((a, b) => a.localeCompare(b))) {
+    const hunkIds = packageHunks.get(directory) ?? [];
+    nodes.push({
+      id: `n${nodes.length + 1}`,
+      kind: 'package',
+      label: directory === '' ? '(repository root)' : directory,
+      file: null,
+      changed: hunkIds.length > 0,
+      hunkIds,
+      count: {
+        changedFunctions: changedFunctionsByPackage.get(directory) ?? 0,
+        foldedNeighbours: foldedByPackage.get(directory) ?? 0,
+      },
+    });
+  }
+
+  const truncated = [...foldedByPackage.values()].some((folded) => folded > 0);
 
   const edges: GraphEdge[] = [];
   const seen = new Set<string>();
