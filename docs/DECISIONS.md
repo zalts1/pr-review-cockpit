@@ -474,3 +474,5 @@ the Files tab and the walkthrough remain the complete list, and the map is a com
 which is the trade ADR-26 already made for neighbours. The ordering rule means a changed test can
 be summarised while a rarely-called production function is drawn; fan-in decides, and tests sort
 last.
+
+**Amended 2026-09-09.** HTML comments render to nothing, and `sup`, `sub`, `kbd`, `br`, `details`, `summary` pass through to the sanitiser. The first real PR body carried a bot summary wrapped in `<!-- … -->` markers and `<sup>` attribution, both shown as literal text under the original rule. GitHub `[!NOTE]`-style alerts render as a blockquote with a bold label.

@@ -164,7 +164,7 @@ The columns are placed directly rather than by dagre: a layered layout gives eve
 
 ### Markdown rendering
 
-Every body the cockpit shows a person is rendered as markdown, not raw text: the PR description, the summary sections, existing comments, drafts on their line and the dry-run list in the submit modal. `marked` parses and `DOMPurify` sanitises, both bundled into the single file. Headings, lists, emphasis, inline code, fenced code, tables and blockquotes are styled in GitHub's light palette; links open in a new tab with `rel="noopener noreferrer"`; raw HTML in a body is escaped and shown as the text it was written as, never parsed. Fenced code is not syntax highlighted. Raw markdown was shown at M1 and read as unfinished on a real PR.
+Every body the cockpit shows a person is rendered as markdown, not raw text: the PR description, the summary sections, existing comments, drafts on their line and the dry-run list in the submit modal. `marked` parses and `DOMPurify` sanitises, both bundled into the single file. Headings, lists, emphasis, inline code, fenced code, tables and blockquotes are styled in GitHub's light palette; links open in a new tab with `rel="noopener noreferrer"`; HTML comments are dropped, a few inline tags GitHub bodies rely on (`sup`, `sub`, `kbd`, `br`, `details`, `summary`) pass through the sanitiser, GitHub alert blockquotes such as `[!NOTE]` render with a bold label, and any other raw HTML is escaped and shown as the text it was written as. Bot summaries wrapped in HTML comment markers otherwise show the markers as text. Fenced code is not syntax highlighted. Raw markdown was shown at M1 and read as unfinished on a real PR.
 
 ## Screen 3: Submit review
 

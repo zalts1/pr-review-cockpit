@@ -29,6 +29,11 @@ const ALLOWED_TAGS = [
   'th',
   'td',
   'span',
+  'sup',
+  'sub',
+  'kbd',
+  'details',
+  'summary',
 ];
 
 // No class: a body must not be able to borrow the cockpit's own styles.
@@ -42,14 +47,43 @@ function escapeHtml(raw: string): string {
     .replace(/"/g, '&quot;');
 }
 
-// A body can come from a bot, a PR description or a judgment pass, so raw HTML
-// is shown as the text it was written as and never parsed as markup.
+const HTML_COMMENT = /^\s*<!--[\s\S]*?-->\s*$/;
+const PASSTHROUGH_HTML = /^<\/?(sup|sub|kbd|br|details|summary)\b[^>]*>$/i;
+const ALERT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i;
+
+const ALERT_LABEL: Record<string, string> = {
+  NOTE: 'Note',
+  TIP: 'Tip',
+  IMPORTANT: 'Important',
+  WARNING: 'Warning',
+  CAUTION: 'Caution',
+};
+
+// Bots wrap their sections in HTML comments, and GitHub bodies use a few inline
+// tags; those pass to the sanitiser. Any other raw HTML is shown as the text it
+// was written as, never parsed as markup.
 marked.use({
   gfm: true,
   breaks: false,
   renderer: {
     html(token) {
+      if (HTML_COMMENT.test(token.raw)) return '';
+      if (PASSTHROUGH_HTML.test(token.raw.trim())) return token.raw;
       return escapeHtml(token.raw);
+    },
+    blockquote({ tokens }) {
+      const first = tokens[0];
+      if (first?.type === 'paragraph') {
+        const match = ALERT.exec(first.text);
+        if (match && match[1] !== undefined) {
+          const label = ALERT_LABEL[match[1].toUpperCase()] ?? match[1];
+          const rest = this.parser.parse(tokens.slice(1));
+          const lead = first.text.replace(ALERT, '').trim();
+          const leadHtml = lead ? `<p>${marked.parseInline(lead, { async: false })}</p>` : '';
+          return `<blockquote><p><strong>${label}</strong></p>${leadHtml}${rest}</blockquote>`;
+        }
+      }
+      return `<blockquote>${this.parser.parse(tokens)}</blockquote>`;
     },
   },
 });
