@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:review-cockpit:schema:judgment:1",
+  "title": "Judgment",
+  "description": "What the judgment pass produces. A separate file from the review document, so the LLM cannot touch stage 1 data. groups, path, reasons and riskAdjustments may be omitted when there is nothing to say; the merge treats a missing section as empty.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "summary"],
+  "properties": {
+    "schemaVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "groups": { "type": "array", "items": { "$ref": "#/$defs/JudgmentGroup" } },
+    "path": { "type": "array", "items": { "$ref": "#/$defs/JudgmentPathStep" } },
+    "reasons": {
+      "description": "One plain sentence per hunk id, capped at 200 characters by the merge.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "riskAdjustments": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/JudgmentRiskAdjustment" }
+    },
+    "summary": { "$ref": "#/$defs/JudgmentSummary" }
+  },
+  "$defs": {
+    "JudgmentGroup": {
+      "title": "JudgmentGroup",
+      "description": "A proposed group without id or producedBy; the merge assigns both. collapsedByDefault defaults to false for a scrutinize group and true for a skim group.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["kind", "title", "hunkIds", "mode"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "generated",
+            "import",
+            "whitespace",
+            "mechanical-rename",
+            "formatting",
+            "test-update",
+            "semantic"
+          ]
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "hunkIds": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "mode": { "enum": ["skim", "scrutinize"] },
+        "collapsedByDefault": { "type": "boolean" }
+      }
+    },
+
+    "JudgmentPathStep": {
+      "title": "JudgmentPathStep",
+      "description": "A step without a number; the order in the array is the order. A group ref names a stage 1 group id. A proposed group is placed where the first of its hunks is referenced.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["ref", "phase"],
+      "properties": {
+        "ref": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": { "enum": ["hunk", "group"] },
+            "id": { "type": "string", "minLength": 1 }
+          }
+        },
+        "phase": { "enum": ["models", "core", "callsites", "tests", "config", "other"] },
+        "note": { "type": ["string", "null"] }
+      }
+    },
+
+    "JudgmentRiskAdjustment": {
+      "title": "JudgmentRiskAdjustment",
+      "description": "A proposed level for one hunk. A level at or below the hunk's floor is dropped and logged.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["hunkId", "level", "why"],
+      "properties": {
+        "hunkId": { "type": "string", "minLength": 1 },
+        "level": { "enum": ["low", "medium", "high"] },
+        "why": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "JudgmentSummary": {
+      "title": "JudgmentSummary",
+      "description": "counts are recomputed by the merge and are not part of the judgment.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["oneLiner", "reviewFocus"],
+      "properties": {
+        "oneLiner": { "type": "string" },
+        "reviewFocus": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

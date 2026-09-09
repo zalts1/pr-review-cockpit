@@ -1,0 +1,35 @@
+{
+  "name": "@review-cockpit/schema",
+  "private": true,
+  "version": "0.1.0",
+  "description": "JSON Schema, generated types, validator and judgment merge for the review document.",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./version": {
+      "types": "./dist/version.d.ts",
+      "default": "./dist/version.js"
+    },
+    "./schemas/*": "./schemas/*"
+  },
+  "scripts": {
+    "generate": "node scripts/generate-types.mjs",
+    "build": "npm run generate && tsc -p tsconfig.build.json",
+    "typecheck": "npm run generate && tsc -p tsconfig.json",
+    "test": "npm run generate && vitest run"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "^15.0.4",
+    "vitest": "^3.2.7"
+  }
+}

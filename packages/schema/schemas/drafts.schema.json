@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:review-cockpit:schema:drafts:1",
+  "title": "DraftsFile",
+  "description": "The reviewer's unsent comments and verdict, stored as drafts.json beside the review document. Every field is in GitHub review API terms from the first keystroke.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "pr", "verdict", "summaryBody", "drafts"],
+  "properties": {
+    "schemaVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "pr": { "$ref": "#/$defs/DraftsPr" },
+    "verdict": {
+      "description": "The review event to post, or null while the reviewer has not chosen one.",
+      "type": ["string", "null"],
+      "enum": ["COMMENT", "REQUEST_CHANGES", "APPROVE", null]
+    },
+    "summaryBody": { "type": "string" },
+    "drafts": { "type": "array", "items": { "$ref": "#/$defs/Draft" } }
+  },
+  "$defs": {
+    "DraftsPr": {
+      "title": "DraftsPr",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["owner", "repo", "number"],
+      "properties": {
+        "owner": { "type": "string", "minLength": 1 },
+        "repo": { "type": "string", "minLength": 1 },
+        "number": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "Draft": {
+      "title": "Draft",
+      "description": "One unsent review comment. startLine and startSide are both set for a multi-line comment and both null otherwise. commitId is the head SHA the comment is bound to.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "path",
+        "line",
+        "side",
+        "startLine",
+        "startSide",
+        "body",
+        "commitId",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "line": { "type": "integer", "minimum": 1 },
+        "side": { "enum": ["LEFT", "RIGHT"] },
+        "startLine": { "type": ["integer", "null"], "minimum": 1 },
+        "startSide": { "type": ["string", "null"], "enum": ["LEFT", "RIGHT", null] },
+        "body": { "type": "string" },
+        "commitId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
