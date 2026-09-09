@@ -1,159 +1,25 @@
-import { useMemo, useRef, useState } from 'react';
-import * as dagreModule from '@dagrejs/dagre';
-import type { Graph, GraphNode, RiskLevel, SectionStatus } from '@review-cockpit/schema';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Graph, RiskLevel, SectionStatus } from '@review-cockpit/schema';
+import type { MapLayout, PlacedNode } from '../lib/mapLayout';
+import { functionLevel, packageLevel } from '../lib/mapLayout';
 
-// dagre ships CommonJS, and Node's ESM interop exposes only some of its named
-// exports, so reach through the default binding when the bundler provides one.
-const dagre =
-  (dagreModule as { default?: typeof dagreModule }).default ?? dagreModule;
-const { graphlib, layout } = dagre;
-
-const NODE_HEIGHT = 26;
-const CHAR_WIDTH = 6.4;
-const NODE_PADDING = 24;
-
-interface Placed {
-  node: GraphNode;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  heat: RiskLevel;
-  fanIn: number;
-  fanOut: number;
-}
-
-interface Cluster {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface EdgeLine {
-  key: string;
-  kind: 'calls' | 'imports';
-  points: Array<{ x: number; y: number }>;
-}
-
-interface Layout {
-  nodes: Placed[];
-  clusters: Cluster[];
-  edges: EdgeLine[];
-  width: number;
-  height: number;
-}
-
-function packageOf(node: GraphNode): string {
-  if (node.kind === 'package') return node.label;
-  if (!node.file) return '(external)';
-  const slash = node.file.lastIndexOf('/');
-  return slash === -1 ? '(root)' : node.file.slice(0, slash);
-}
-
-function computeLayout(
-  graph: Graph,
-  heatOf: (hunkIds: string[]) => RiskLevel,
-  onlyHigh: boolean,
-): Layout {
-  const heatByNode = new Map(graph.nodes.map((n) => [n.id, heatOf(n.hunkIds)] as const));
-
-  let nodes = graph.nodes;
-  if (onlyHigh) {
-    const seeds = new Set(
-      graph.nodes.filter((n) => heatByNode.get(n.id) === 'high').map((n) => n.id),
-    );
-    const keep = new Set(seeds);
-    for (const edge of graph.edges) {
-      if (seeds.has(edge.from)) keep.add(edge.to);
-      if (seeds.has(edge.to)) keep.add(edge.from);
-    }
-    nodes = graph.nodes.filter((n) => keep.has(n.id));
-  }
-
-  const present = new Set(nodes.map((n) => n.id));
-  const edges = graph.edges.filter((e) => present.has(e.from) && present.has(e.to));
-
-  const fanIn = new Map<string, number>();
-  const fanOut = new Map<string, number>();
-  for (const edge of graph.edges) {
-    fanOut.set(edge.from, (fanOut.get(edge.from) ?? 0) + 1);
-    fanIn.set(edge.to, (fanIn.get(edge.to) ?? 0) + 1);
-  }
-
-  const g = new graphlib.Graph({ compound: true, multigraph: true });
-  g.setGraph({ rankdir: 'LR', nodesep: 14, ranksep: 70, marginx: 24, marginy: 24 });
-  g.setDefaultEdgeLabel(() => ({}));
-
-  const clusters = new Map<string, string>();
-  for (const node of nodes) {
-    const pkg = packageOf(node);
-    const clusterId = `cluster:${pkg}`;
-    if (!clusters.has(clusterId)) {
-      clusters.set(clusterId, pkg);
-      g.setNode(clusterId, { label: pkg, clusterLabelPos: 'top' });
-    }
-    g.setNode(node.id, {
-      width: Math.min(280, node.label.length * CHAR_WIDTH + NODE_PADDING),
-      height: NODE_HEIGHT,
-    });
-    g.setParent(node.id, clusterId);
-  }
-  for (const [i, edge] of edges.entries()) {
-    g.setEdge(edge.from, edge.to, {}, `e${i}`);
-  }
-
-  layout(g);
-
-  const placed: Placed[] = nodes.map((node) => {
-    const laid = g.node(node.id);
-    return {
-      node,
-      x: laid.x - laid.width / 2,
-      y: laid.y - laid.height / 2,
-      width: laid.width,
-      height: laid.height,
-      heat: heatByNode.get(node.id) ?? 'low',
-      fanIn: fanIn.get(node.id) ?? 0,
-      fanOut: fanOut.get(node.id) ?? 0,
-    };
-  });
-
-  const boxes: Cluster[] = [...clusters.entries()].map(([id, label]) => {
-    const laid = g.node(id);
-    return {
-      id,
-      label,
-      x: laid.x - laid.width / 2,
-      y: laid.y - laid.height / 2,
-      width: laid.width,
-      height: laid.height,
-    };
-  });
-
-  const lines: EdgeLine[] = edges.map((edge, i) => ({
-    key: `${edge.from}-${edge.to}-${i}`,
-    kind: edge.kind,
-    points: g.edge(edge.from, edge.to, `e${i}`).points,
-  }));
-
-  const info = g.graph();
-  return {
-    nodes: placed,
-    clusters: boxes,
-    edges: lines,
-    width: info.width ?? 1000,
-    height: info.height ?? 600,
-  };
-}
+const MIN_ZOOM = 0.15;
+const MAX_ZOOM = 3;
+const FIT_ZOOM = 1.4;
 
 const heatColor: Record<RiskLevel, string> = {
   high: 'var(--high)',
   medium: 'var(--medium)',
   low: 'var(--link)',
 };
+
+type Level = { kind: 'packages' } | { kind: 'package'; id: string };
+
+interface View {
+  x: number;
+  y: number;
+  k: number;
+}
 
 interface Props {
   graph: Graph;
@@ -163,21 +29,64 @@ interface Props {
   onJumpToHunk(hunkId: string): void;
 }
 
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value));
+}
+
 export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: Props) {
-  const [onlyHigh, setOnlyHigh] = useState(false);
-  const [view, setView] = useState({ x: 0, y: 0, k: 1 });
-  const [hovered, setHovered] = useState<Placed | null>(null);
-  const [drawer, setDrawer] = useState<GraphNode | null>(null);
-  const panning = useRef<{ x: number; y: number } | null>(null);
+  const [level, setLevel] = useState<Level>({ kind: 'packages' });
+  const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 });
+  const [hovered, setHovered] = useState<PlacedNode | null>(null);
+  const [panning, setPanning] = useState(false);
+  const dragFrom = useRef<{ x: number; y: number } | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
 
-  const laid = useMemo(
-    () =>
-      status.state === 'ready' && graph.nodes.length > 0
-        ? computeLayout(graph, heatOfHunks, onlyHigh)
-        : null,
-    [graph, status.state, heatOfHunks, onlyHigh],
-  );
+  const ready = status.state === 'ready' && graph.nodes.length > 0;
+
+  const openPackage = level.kind === 'package' ? graph.nodes.find((n) => n.id === level.id) : null;
+
+  const laid: MapLayout | null = useMemo(() => {
+    if (!ready) return null;
+    return openPackage === null || openPackage === undefined
+      ? packageLevel(graph, heatOfHunks)
+      : functionLevel(graph, openPackage.id, heatOfHunks);
+  }, [ready, graph, heatOfHunks, openPackage]);
+
+  const fit = useCallback(() => {
+    const box = canvas.current?.getBoundingClientRect();
+    if (!box || !laid || laid.width === 0 || laid.height === 0) return;
+    const k = clamp(Math.min(box.width / laid.width, box.height / laid.height), MIN_ZOOM, FIT_ZOOM);
+    setView({ x: (box.width - laid.width * k) / 2, y: (box.height - laid.height * k) / 2, k });
+  }, [laid]);
+
+  // Each level lays out on its own scale, so the view is fitted when one opens
+  // and left alone after that: refitting on every document event would undo the
+  // reviewer's zoom.
+  const levelKey = level.kind === 'packages' ? 'packages' : level.id;
+  const fitted = useRef<string | null>(null);
+  useEffect(() => {
+    if (laid === null || fitted.current === levelKey) return;
+    fitted.current = levelKey;
+    fit();
+  }, [laid, levelKey, fit]);
+
+  useEffect(() => {
+    const element = canvas.current;
+    if (element === null) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const box = element.getBoundingClientRect();
+      const px = event.clientX - box.left;
+      const py = event.clientY - box.top;
+      setView((current) => {
+        const k = clamp(current.k * (event.deltaY < 0 ? 1.1 : 1 / 1.1), MIN_ZOOM, MAX_ZOOM);
+        const ratio = k / current.k;
+        return { k, x: px - (px - current.x) * ratio, y: py - (py - current.y) * ratio };
+      });
+    };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, []);
 
   if (status.state === 'pending') {
     return (
@@ -204,94 +113,117 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
     );
   }
 
-  if (!laid || laid.nodes.length === 0) {
+  if (laid === null || laid.nodes.length === 0) {
     return (
       <div className="map">
         <div className="map-message">
-          <p>No call graph nodes for this PR.</p>
+          <p>
+            {graph.nodes.length === 0
+              ? 'No call graph nodes for this PR.'
+              : 'This package has no changed function to show.'}
+          </p>
+          {level.kind === 'package' && (
+            <button className="btn btn-small" onClick={() => setLevel({ kind: 'packages' })}>
+              Back to all packages
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
-  const fit = () => {
-    const box = canvas.current?.getBoundingClientRect();
-    if (!box) return;
-    const k = Math.min(box.width / laid.width, box.height / laid.height, 1.4);
-    setView({
-      x: (box.width - laid.width * k) / 2,
-      y: (box.height - laid.height * k) / 2,
-      k,
-    });
-  };
+  const packages = level.kind === 'packages';
+  const counts = laid.counts;
 
   return (
     <div className="map">
       <div className="map-toolbar">
-        <span>
-          Showing {laid.nodes.length} of {graph.nodes.length} nodes. Click a changed node to jump
-          to its diff.
+        <span className="map-crumbs">
+          {packages ? (
+            <strong>All packages</strong>
+          ) : (
+            <>
+              <button className="btn-link" onClick={() => setLevel({ kind: 'packages' })}>
+                All packages
+              </button>
+              <span aria-hidden="true">›</span>
+              <strong title={openPackage?.label}>{openPackage?.label}</strong>
+            </>
+          )}
         </span>
-        <div className="map-legend">
-          <span className="legend-item">
-            <span className="legend-swatch is-changed" /> changed in this PR
-          </span>
-          <span className="legend-item">
-            <span className="legend-swatch" /> unchanged caller or callee
-          </span>
-          <span className="legend-item">
-            <span className="legend-line" /> calls
-          </span>
-          <span className="legend-item">
-            <span className="legend-line is-import" /> imports
-          </span>
-        </div>
+        <span className="map-count">
+          {packages
+            ? `${counts.nodes} packages · ${counts.changedFunctions} changed functions · click a changed package`
+            : `${counts.changedFunctions} changed functions · ${counts.neighbours} neighbours${counts.folded > 0 ? ` · ${counts.folded} callers folded` : ''}`}
+        </span>
         <div className="header-spacer" />
-        <label className="file-viewed">
-          <input
-            type="checkbox"
-            checked={onlyHigh}
-            onChange={(e) => setOnlyHigh(e.target.checked)}
-          />
-          only high-risk nodes and neighbours
-        </label>
+        <div className="map-legend">
+          {packages ? (
+            <>
+              <span className="legend-item">
+                <span className="legend-swatch is-changed" /> has a changed function
+              </span>
+              <span className="legend-item">
+                <span className="legend-swatch" /> caller or callee only
+              </span>
+              <span className="legend-item">
+                <span className="legend-line is-thick" /> more calls
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="legend-item">
+                <span className="legend-swatch is-changed" /> changed in this PR
+              </span>
+              <span className="legend-item">
+                <span className="legend-swatch" /> unchanged caller or callee
+              </span>
+              <span className="legend-item">
+                <span className="legend-line is-import" /> folded callers
+              </span>
+            </>
+          )}
+        </div>
+        {!packages && (
+          <button className="btn btn-small" onClick={() => setLevel({ kind: 'packages' })}>
+            Back
+          </button>
+        )}
         <button className="btn btn-small" onClick={fit}>
           Fit
         </button>
       </div>
 
-      {graph.truncated && (
+      {packages && graph.truncated && (
         <div className="banner">
-          ⚠ The graph was cut to a node limit, so some neighbours are missing. Filter to the
-          high-risk nodes to see the part that matters.
+          ⚠ Some packages have more callers than the map draws. Open one to see how many were
+          folded into it.
         </div>
       )}
 
       <div
-        className={`map-canvas${panning.current ? ' is-panning' : ''}`}
+        className={`map-canvas${panning ? ' is-panning' : ''}`}
         ref={canvas}
-        onMouseDown={(e) => {
-          panning.current = { x: e.clientX - view.x, y: e.clientY - view.y };
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          dragFrom.current = { x: e.clientX - view.x, y: e.clientY - view.y };
+          setPanning(true);
         }}
-        onMouseMove={(e) => {
-          if (!panning.current) return;
-          setView((v) => ({
-            ...v,
-            x: e.clientX - (panning.current?.x ?? 0),
-            y: e.clientY - (panning.current?.y ?? 0),
-          }));
+        onPointerMove={(e) => {
+          const from = dragFrom.current;
+          if (from === null) return;
+          setView((current) => ({ ...current, x: e.clientX - from.x, y: e.clientY - from.y }));
         }}
-        onMouseUp={() => {
-          panning.current = null;
+        onPointerUp={() => {
+          dragFrom.current = null;
+          setPanning(false);
         }}
-        onMouseLeave={() => {
-          panning.current = null;
+        onPointerCancel={() => {
+          dragFrom.current = null;
+          setPanning(false);
         }}
-        onWheel={(e) => {
-          e.preventDefault();
-          const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-          setView((v) => ({ ...v, k: Math.min(3, Math.max(0.2, v.k * factor)) }));
-        }}
+        onDoubleClick={fit}
       >
         <svg width="100%" height="100%" role="img" aria-label="Blast radius map">
           <defs>
@@ -307,7 +239,7 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
               <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fg-muted)" />
             </marker>
             <marker
-              id="arrow-imports"
+              id="arrow-folded"
               viewBox="0 0 10 10"
               refX="9"
               refY="5"
@@ -320,25 +252,26 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
           </defs>
 
           <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
-            {laid.clusters.map((cluster) => (
-              <g key={cluster.id}>
+            {laid.boxes.map((box) => (
+              <g key={box.id}>
                 <rect
-                  x={cluster.x}
-                  y={cluster.y}
-                  width={cluster.width}
-                  height={cluster.height}
+                  x={box.x}
+                  y={box.y}
+                  width={box.width}
+                  height={box.height}
                   rx={8}
                   fill="var(--panel)"
                   stroke="var(--border)"
                 />
                 <text
-                  x={cluster.x + 8}
-                  y={cluster.y + 14}
+                  x={box.x + 8}
+                  y={box.y + 14}
                   fontSize={11}
                   fill="var(--fg-muted)"
                   fontFamily="var(--mono)"
                 >
-                  {cluster.label}
+                  {box.label}
+                  <title>{box.title}</title>
                 </text>
               </g>
             ))}
@@ -348,44 +281,50 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
                 key={edge.key}
                 points={edge.points.map((p) => `${p.x},${p.y}`).join(' ')}
                 fill="none"
-                stroke={edge.kind === 'calls' ? 'var(--fg-muted)' : 'var(--fg-subtle)'}
-                strokeWidth={edge.kind === 'calls' ? 1.4 : 1}
-                strokeDasharray={edge.kind === 'imports' ? '4 3' : undefined}
-                markerEnd={`url(#arrow-${edge.kind})`}
+                stroke={edge.folded ? 'var(--fg-subtle)' : 'var(--fg-muted)'}
+                strokeWidth={edge.width}
+                strokeDasharray={edge.folded ? '4 3' : undefined}
+                markerEnd={`url(#arrow-${edge.folded ? 'folded' : 'calls'})`}
               />
             ))}
 
-            {laid.nodes.map((placed) => (
+            {laid.nodes.map((node) => (
               <g
-                key={placed.node.id}
-                onMouseEnter={() => setHovered(placed)}
+                key={node.id}
+                onMouseEnter={() => setHovered(node)}
                 onMouseLeave={() => setHovered(null)}
                 onClick={() => {
-                  const first = placed.node.hunkIds[0];
-                  if (placed.node.changed && first) onJumpToHunk(first);
-                  else setDrawer(placed.node);
+                  if (!node.clickable) return;
+                  if (node.kind === 'package') {
+                    setLevel({ kind: 'package', id: node.id });
+                    return;
+                  }
+                  const first = node.hunkIds[0];
+                  if (first !== undefined) onJumpToHunk(first);
                 }}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: node.clickable ? 'pointer' : 'default' }}
               >
                 <rect
-                  x={placed.x}
-                  y={placed.y}
-                  width={placed.width}
-                  height={placed.height}
+                  x={node.x}
+                  y={node.y}
+                  width={node.width}
+                  height={node.height}
                   rx={6}
-                  fill={placed.node.changed ? '#ddf4ff' : 'var(--page)'}
-                  stroke={placed.node.changed ? heatColor[placed.heat] : 'var(--border)'}
-                  strokeWidth={placed.node.changed ? 2 : 1}
+                  fill={node.filled ? '#ddf4ff' : 'var(--page)'}
+                  stroke={node.changed ? heatColor[node.heat] : 'var(--border)'}
+                  strokeWidth={node.changed ? 2 : 1}
+                  strokeDasharray={node.kind === 'folded' ? '4 3' : undefined}
                 />
                 <text
-                  x={placed.x + 8}
-                  y={placed.y + 17}
+                  x={node.x + 8}
+                  y={node.y + node.height / 2 + 4}
                   fontSize={11}
                   fontFamily="var(--mono)"
-                  fill={placed.node.changed ? 'var(--fg)' : 'var(--fg-muted)'}
+                  fill={node.changed ? 'var(--fg)' : 'var(--fg-muted)'}
                 >
-                  {placed.node.changed ? '■ ' : '□ '}
-                  {placed.node.label}
+                  {node.kind === 'folded' ? '' : node.filled ? '■ ' : '□ '}
+                  {node.label}
+                  <title>{node.title}</title>
                 </text>
               </g>
             ))}
@@ -394,34 +333,33 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
 
         {hovered && (
           <div className="map-hover">
-            <div className="map-hover-title">{hovered.node.label}</div>
-            <div>{hovered.node.file ?? hovered.node.kind}</div>
-            <div>
-              fan-in {hovered.fanIn} · fan-out {hovered.fanOut}
-            </div>
-            <div>
-              {hovered.node.changed
-                ? `hunks: ${hovered.node.hunkIds.join(', ')} · ${hovered.heat} risk`
-                : 'unchanged'}
-            </div>
+            <div className="map-hover-title">{hovered.title}</div>
+            {hovered.kind === 'package' ? (
+              <>
+                <div>
+                  {hovered.changedFunctions} changed functions · {hovered.foldedNeighbours} callers
+                  folded
+                </div>
+                <div>
+                  calls in {hovered.fanIn} · calls out {hovered.fanOut}
+                </div>
+                <div>{hovered.changed ? `${hovered.heat} risk` : 'unchanged'}</div>
+              </>
+            ) : hovered.kind === 'folded' ? (
+              <div>Callers counted on the package node instead of drawn.</div>
+            ) : (
+              <>
+                <div>
+                  fan-in {hovered.fanIn} · fan-out {hovered.fanOut}
+                </div>
+                <div>
+                  {hovered.changed
+                    ? `hunks: ${hovered.hunkIds.join(', ')} · ${hovered.heat} risk`
+                    : 'unchanged'}
+                </div>
+              </>
+            )}
           </div>
-        )}
-
-        {drawer && (
-          <aside className="drawer">
-            <div className="pin-open-head">
-              <strong>{drawer.label}</strong>
-              <div className="header-spacer" />
-              <button className="btn-link" onClick={() => setDrawer(null)}>
-                close
-              </button>
-            </div>
-            <p className="node-label">{drawer.file ?? drawer.kind}</p>
-            <p className="empty">
-              This symbol is unchanged in this PR. Reading it from the checkout needs the local
-              server, which M1 does not run.
-            </p>
-          </aside>
         )}
       </div>
     </div>

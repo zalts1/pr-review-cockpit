@@ -1255,6 +1255,7 @@ tr:hover .plus {
   overflow: hidden;
   background: var(--page);
   cursor: grab;
+  touch-action: none;
 }
 
 .map-canvas.is-panning {
@@ -1264,6 +1265,8 @@ tr:hover .plus {
 .map-message {
   flex: 1;
   display: flex;
+  flex-direction: column;
+  gap: 12px;
   align-items: center;
   justify-content: center;
   text-align: center;
@@ -1308,6 +1311,26 @@ tr:hover .plus {
 
 .legend-line.is-import {
   border-top-style: dashed;
+}
+
+.legend-line.is-thick {
+  border-top-width: 4px;
+}
+
+.map-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.map-crumbs strong {
+  color: var(--fg);
+  font-family: var(--mono);
+}
+
+.map-count {
+  color: var(--fg-muted);
 }
 
 .map-hover {
