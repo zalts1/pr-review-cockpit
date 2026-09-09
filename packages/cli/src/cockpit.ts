@@ -2,6 +2,9 @@
 import { parseArgs } from 'node:util';
 import { analyzeCommand } from './commands/analyze.js';
 import { cleanCommand } from './commands/clean.js';
+import { compactCommand } from './commands/compact.js';
+import { judgeMergeCommand } from './commands/judgeMerge.js';
+import { judgePromptCommand } from './commands/judgePrompt.js';
 import { mergeCommand } from './commands/merge.js';
 import { prepareCommand } from './commands/prepare.js';
 import { serveCommand } from './commands/serve.js';
@@ -13,6 +16,9 @@ const usage = `cockpit — the PR review cockpit command line tool
 Usage:
   cockpit prepare  <pr> [--cwd <dir>]
   cockpit analyze  <pr> [--expect-judgment] [--no-fold-generated] [--skip-graph] [--cwd <dir>]
+  cockpit compact  <pr> [--cwd <dir>]
+  cockpit judge-prompt <pr> [--cwd <dir>]
+  cockpit judge-merge  <pr> [--judgment <file>] [--cwd <dir>]
   cockpit serve    <pr> [--port <n>] [--open] [--cwd <dir>]
   cockpit clean    <pr> [--cwd <dir>]
   cockpit validate <file> [--as document|judgment|drafts]
@@ -34,6 +40,24 @@ analyze   Runs prepare, then stage 1 (diff, git signals, tree-sitter structure,
           sections read as pending. Without it they carry the message
           "not-attached" and the cockpit says "Not analyzed" rather than
           "Analyzing…". The review skill always passes it.
+
+compact   Rewrites compact.md next to review.json: the whole pull request as
+          text for the judgment pass, at a fraction of the diff. analyze
+          writes it too, so this is for regenerating it on its own.
+
+judge-prompt
+          Prints the complete judgment prompt for the pull request to stdout:
+          the instructions, the judgment schema, the floor and merge rules, the
+          shape of the summary, and the compact view at the end. The prompt
+          says where to write judgment.json.
+
+judge-merge
+          Reads judgment.json next to review.json, validates it, merges it into
+          the document and writes the document back, so an open cockpit picks
+          it up. Prints what the merge dropped or clamped and appends it to
+          log.txt. On a rejection nothing is written, the file is kept as
+          judgment.rejected.json, and the first five errors are printed.
+          --judgment reads the judgment from somewhere else.
 
 serve     Serves the cockpit and the document on 127.0.0.1 and pushes every
           change to review.json over server-sent events. Prints the URL.
@@ -64,6 +88,7 @@ async function main(argv: string[]): Promise<number> {
         as: { type: 'string' },
         out: { type: 'string' },
         cwd: { type: 'string' },
+        judgment: { type: 'string' },
         port: { type: 'string' },
         open: { type: 'boolean' },
         'no-fold-generated': { type: 'boolean' },
@@ -87,7 +112,17 @@ async function main(argv: string[]): Promise<number> {
 
   const cwd = values.cwd ?? process.cwd();
 
-  if (command === 'prepare' || command === 'analyze' || command === 'serve' || command === 'clean') {
+  const prCommands = [
+    'prepare',
+    'analyze',
+    'compact',
+    'judge-prompt',
+    'judge-merge',
+    'serve',
+    'clean',
+  ];
+
+  if (prCommands.includes(command)) {
     const [prArg] = rest;
     if (prArg === undefined) return fail(`${command} needs a pull request`);
 
@@ -98,6 +133,14 @@ async function main(argv: string[]): Promise<number> {
         foldGenerated: values['no-fold-generated'] !== true,
         skipGraph: values['skip-graph'] === true,
         expectJudgment: values['expect-judgment'] === true,
+      });
+    }
+    if (command === 'compact') return compactCommand(prArg, cwd);
+    if (command === 'judge-prompt') return judgePromptCommand(prArg, cwd);
+    if (command === 'judge-merge') {
+      return judgeMergeCommand(prArg, {
+        cwd,
+        ...(values.judgment === undefined ? {} : { judgment: values.judgment }),
       });
     }
     if (command === 'serve') {
