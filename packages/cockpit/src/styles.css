@@ -390,6 +390,15 @@ a:hover {
   margin-bottom: 12px;
 }
 
+.banner-offline {
+  border-bottom: 1px solid var(--high);
+  background: var(--high-wash);
+  color: var(--high);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .card {
   border: 1px solid var(--border);
   border-radius: 6px;

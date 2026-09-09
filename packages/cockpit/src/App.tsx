@@ -2,6 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReviewDocument, RiskLevel } from '@review-cockpit/schema';
 import { checkVersion } from '@review-cockpit/schema/version';
 import { derive, levelRank } from './lib/derive';
+import {
+  documentSource,
+  documentUrlOf,
+  storageSourceOf,
+  useDocumentSource,
+} from './lib/documentSource';
 import type { CockpitDraft } from './lib/drafts';
 import { draftsFileOf, draftsKey, loadDrafts, preview, saveDrafts } from './lib/drafts';
 import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
@@ -20,39 +26,25 @@ import { SubmitModal } from './components/SubmitModal';
 import type { Verdict } from './components/SubmitModal';
 import { SummaryCard } from './components/SummaryCard';
 
-const fixtureName =
-  new URLSearchParams(window.location.search).get('fixture') ?? 'pr-fake-1';
-
-type Load =
-  | { kind: 'loading' }
-  | { kind: 'error'; message: string }
-  | { kind: 'ready'; doc: ReviewDocument };
+const fixture = documentSource.mode === 'fixture' ? documentSource.fixture : null;
 
 export function App() {
-  const [load, setLoad] = useState<Load>({ kind: 'loading' });
-
-  useEffect(() => {
-    const url = `./fixtures/${fixtureName}.json`;
-    fetch(url)
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-        return (await response.json()) as ReviewDocument;
-      })
-      .then((doc) => setLoad({ kind: 'ready', doc }))
-      .catch((error: unknown) =>
-        setLoad({
-          kind: 'error',
-          message: `${url}: ${error instanceof Error ? error.message : String(error)}`,
-        }),
-      );
-  }, []);
+  const { load, disconnected } = useDocumentSource(documentSource);
 
   if (load.kind === 'loading') {
     return (
       <div className="centered">
         <h1>Loading the review document…</h1>
         <p className="empty">
-          Fixture <code>{fixtureName}</code>
+          {fixture !== null ? (
+            <>
+              Fixture <code>{fixture}</code>
+            </>
+          ) : (
+            <>
+              From the local server at <code>{documentUrlOf(documentSource)}</code>
+            </>
+          )}
         </p>
       </div>
     );
@@ -64,7 +56,16 @@ export function App() {
         <h1>The review document could not be loaded</h1>
         <p>{load.message}</p>
         <p className="empty">
-          Pick a fixture with <code>?fixture=pr-fake-1</code>.
+          {fixture !== null ? (
+            <>
+              Pick a fixture with <code>?fixture=pr-fake-1</code>.
+            </>
+          ) : (
+            <>
+              The analysis may still be running. This page loads the document as soon as the
+              server has it.
+            </>
+          )}
         </p>
       </div>
     );
@@ -87,21 +88,31 @@ export function App() {
     );
   }
 
-  return <Cockpit doc={load.doc} />;
+  return <Cockpit doc={load.doc} disconnected={disconnected} />;
 }
 
-export function Cockpit({ doc }: { doc: ReviewDocument }) {
+interface CockpitProps {
+  doc: ReviewDocument;
+  disconnected: boolean;
+}
+
+export function Cockpit({ doc, disconnected }: CockpitProps) {
   const derived = useMemo(() => derive(doc), [doc]);
-  const storageKey = draftsKey(doc.pr, fixtureName);
+  const storageKey = draftsKey(doc.pr, storageSourceOf(documentSource));
+
+  const seedCollapsed = useMemo(
+    () => doc.files.filter((f) => f.generated.is).map((f) => f.id),
+    [doc.files],
+  );
+  const seedExpanded = useMemo(
+    () => doc.groups.filter((g) => !g.collapsedByDefault).map((g) => g.id),
+    [doc.groups],
+  );
 
   const [tab, setTab] = useState<Tab>('files');
   const [viewed, setViewed] = useState<Set<string>>(new Set());
-  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(
-    () => new Set(doc.files.filter((f) => f.generated.is).map((f) => f.id)),
-  );
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    () => new Set(doc.groups.filter((g) => !g.collapsedByDefault).map((g) => g.id)),
-  );
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set(seedCollapsed));
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(seedExpanded));
   const [stepIndex, setStepIndex] = useState(-1);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
@@ -122,6 +133,45 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
   const hunkEls = useRef(new Map<string, HTMLElement>());
   const fileEls = useRef(new Map<string, HTMLElement>());
   const groupEls = useRef(new Map<string, HTMLElement>());
+  const seededCollapsed = useRef(new Set(seedCollapsed));
+  const seededExpanded = useRef(new Set(seedExpanded));
+  const stepId = useRef<string | null>(null);
+
+  // The analyzer rewrites the document under a live cockpit, so each id is seeded once:
+  // folding the whole seed back in would undo every fold the reviewer has toggled since.
+  useEffect(() => {
+    const added = seedCollapsed.filter((id) => !seededCollapsed.current.has(id));
+    if (added.length === 0) return;
+    for (const id of added) seededCollapsed.current.add(id);
+    setCollapsedFiles((current) => new Set([...current, ...added]));
+  }, [seedCollapsed]);
+
+  useEffect(() => {
+    const added = seedExpanded.filter((id) => !seededExpanded.current.has(id));
+    if (added.length === 0) return;
+    for (const id of added) seededExpanded.current.add(id);
+    setExpandedGroups((current) => new Set([...current, ...added]));
+  }, [seedExpanded]);
+
+  // A new walkthrough puts the same hunk at a different index, so the step follows its id.
+  // A rewritten path can also fold that hunk into a group step, or split the group the
+  // reviewer was on back into hunks, and then the nearest step carrying it takes over.
+  useEffect(() => {
+    const id = stepId.current;
+    if (id === null) return;
+    const at = derived.steps.findIndex((step) => step.ref.id === id);
+    if (at >= 0) {
+      setStepIndex(at);
+      return;
+    }
+    const groupId = derived.groupOfHunk.get(id)?.id;
+    const hunkIds = derived.groupById.get(id)?.hunkIds ?? [];
+    const nearest = derived.steps.findIndex(
+      (step) => step.ref.id === groupId || hunkIds.includes(step.ref.id),
+    );
+    setStepIndex(nearest);
+    stepId.current = derived.steps[nearest]?.ref.id ?? null;
+  }, [derived.steps, derived.groupOfHunk, derived.groupById]);
 
   useEffect(
     () => saveDrafts(storageKey, draftsFileOf(doc.pr, drafts)),
@@ -192,6 +242,7 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
       if (!step) return;
       setTab('files');
       setStepIndex(index);
+      stepId.current = step.ref.id;
       setSummaryCollapsed(true);
 
       if (step.ref.kind === 'hunk') {
@@ -430,6 +481,12 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
 
   return (
     <div className="app">
+      {disconnected && (
+        <div className="banner-offline" role="alert">
+          Disconnected from the local server. Drafts are saved locally.
+        </div>
+      )}
+
       <Header
         pr={doc.pr}
         checks={doc.checks}
