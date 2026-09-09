@@ -117,6 +117,12 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
   const [stepIndex, setStepIndex] = useState(-1);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
+  const summaryAutoCollapse = useRef<'armed' | 'spent' | 'user'>('armed');
+  const autoCollapseSummary = useCallback(() => {
+    if (summaryAutoCollapse.current !== 'armed') return;
+    summaryAutoCollapse.current = 'spent';
+    setSummaryCollapsed(true);
+  }, []);
   const [drafts, setDrafts] = useState<CockpitDraft[]>(() => loadDrafts(storageKey));
   const [editor, setEditor] = useState<EditorTarget | null>(null);
   const [drag, setDrag] = useState<DragRange | null>(null);
@@ -244,7 +250,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
       setTab('files');
       setStepIndex(index);
       stepId.current = step.ref.id;
-      setSummaryCollapsed(true);
+      autoCollapseSummary();
 
       if (step.ref.kind === 'hunk') {
         const location = derived.hunkById.get(step.ref.id);
@@ -552,7 +558,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
               className="pane"
               ref={paneRef}
               onScroll={(e) => {
-                if (e.currentTarget.scrollTop > 160) setSummaryCollapsed(true);
+                if (e.currentTarget.scrollTop > 160) autoCollapseSummary();
               }}
             >
               <StatusBanner doc={doc} />
@@ -563,7 +569,10 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
                 prBody={doc.pr.body}
                 path={path}
                 collapsed={summaryCollapsed}
-                onToggle={() => setSummaryCollapsed((current) => !current)}
+                onToggle={() => {
+                  summaryAutoCollapse.current = 'user';
+                  setSummaryCollapsed((current) => !current);
+                }}
               />
 
               {doc.files.length === 0 && (
