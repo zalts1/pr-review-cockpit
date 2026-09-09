@@ -10,7 +10,7 @@ const LEGEND = `Legend
 - Every block starts with a heading. \`## PR\`, \`## Files\`, \`## Groups\`, \`## Comments\` appear once each; \`## <hunk id>\` once per hunk.
 - A file line reads: file id, status, language, added and deleted lines, hunk count, path. \`generated: <rule>\` at the end marks a file the analyzer folded, with the rule that matched it.
 - A group line reads: group id, kind, mode, hunk count, title. Its hunk ids follow on the next line.
-- In a hunk block: \`path\` is the file; \`symbols\` are the functions enclosing the change on the head side, \`-\` when none were parsed; \`kind\` is code, import, test, comment-only or whitespace-only.
+- In a hunk block: \`path\` is the file; \`symbols\` are the functions enclosing the change on the head side, and falls back to the diff header for a language the analyzer does not parse; \`kind\` is code, import, test, comment-only or whitespace-only, followed by the size of the change and the lines it covers in the head file.
 - \`floor\` is the deterministic risk floor and the score behind it, then the signals that carried it, largest first. You may raise a hunk above its floor. You may never put it below.
 - \`text\` says how much of the change follows: \`full\` for a hunk under ${FULL_TEXT_MAX_CHANGED_LINES} changed lines, \`first ${PREVIEW_CHANGED_LINES} changed lines\` otherwise.
 - The change text is a unified diff inside a backtick fence: \`+\` added, \`-\` deleted, a space for context. \`… N more lines\` at the end counts the lines of that hunk left out. The fence grows longer than three backticks when the change text itself contains backticks.
@@ -86,18 +86,25 @@ function groupBlock(group: Group): string {
   return lines.join('\n');
 }
 
+/**
+ * The parsed symbols when there are any, and otherwise the diff header, which is
+ * all a language without tree-sitter support gives. One key either way, so the
+ * block stays regular.
+ */
+function symbolText(hunk: Hunk): string {
+  if (hunk.symbols.length > 0) return hunk.symbols.join(', ');
+  return hunk.header === '' ? '-' : `- · diff header: ${hunk.header}`;
+}
+
 function hunkBlock(file: ReviewFile, hunk: Hunk): string {
   const { body, note } = changeText(hunk);
-  const symbols = hunk.symbols.length === 0 ? '-' : hunk.symbols.join(', ');
-  const header = hunk.header === '' ? '-' : hunk.header;
+  const lastLine = hunk.newStart + Math.max(hunk.newLines - 1, 0);
   return [
     `## ${hunk.id}`,
     `path: ${file.path}`,
-    `symbols: ${symbols}`,
-    `header: ${header}`,
-    `kind: ${hunk.kind}`,
+    `symbols: ${symbolText(hunk)}`,
+    `kind: ${hunk.kind} · ${changedLineCount(hunk)} changed lines · head lines ${hunk.newStart}-${lastLine}`,
     `floor: ${hunk.risk.floor} · score ${hunk.risk.score.toFixed(2)} · ${factorText(hunk)}`,
-    `range: -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} · ${changedLineCount(hunk)} changed lines`,
     `text: ${note}`,
     fenced(body, 'diff'),
   ].join('\n');

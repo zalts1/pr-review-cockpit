@@ -52,6 +52,9 @@ reviewer needs the system. Before you write a single reason or the summary:
   value is read from.
 - Read the pull request body and the commit subjects for the intent. If a ticket is
   referenced, the body usually says what and the ticket says why; use whatever you can reach.
+- Check the body against the code. A body written days ago often describes an earlier commit:
+  a limitation it admits may already be fixed, a shape it describes may have changed. Where
+  they disagree, the code wins, and the disagreement itself is worth a note on that hunk.
 - For a hunk shown as a preview, open the file and read the whole change before you judge it.
 
 Do this for the changes that carry the pull request. You do not have to open every file: a
@@ -73,6 +76,12 @@ of `generated`, `import`, `whitespace`, `mechanical-rename`, `formatting`, `test
 Group only what is genuinely one change. Two hunks in the same file are not a group because
 they are near each other. A group of one hunk is pointless: drop it and let the hunk stand on
 its own.
+
+**`kind: generated` folds a group out of the walk entirely.** Its hunks get no step and the
+reviewer never walks them, so use it only for output nobody reads: a file whose own header
+says it is generated but which the analyzer's patterns did not match. Say the header in the
+description, so the reviewer can check the call. For anything a person wrote, pick another
+kind and let the group take its step in the walk.
 
 The tool enforces:
 
@@ -109,6 +118,9 @@ The tool enforces:
 - **Every hunk is walked exactly once**, either on its own or through the group that holds it.
   Anything you leave out is appended at the end under phase `other` with no note, and logged.
   A hunk in a generated group is never walked.
+- **Every group is walked once too, the stage 1 ones included.** Give the import and
+  whitespace groups a step by naming their id, or they are appended at the end with no note.
+  A generated group is the one exception: leave it out.
 - A step naming a hunk or group that does not exist is dropped and logged.
 - A second step for something already walked is dropped and logged.
 
@@ -215,8 +227,9 @@ Judgment notes, in order of importance:
 
 ## Before you write the file, check
 
-1. Every non-generated hunk in the compact view appears once in `path`, on its own or through
-   one of your groups. There are {{walkHunkCount}} of them.
+1. Every hunk that is not in a generated group appears once in `path`, on its own or through
+   one of your groups. The compact view lists {{walkHunkCount}} such hunks before you fold
+   anything of your own.
 2. No hunk appears in two of your groups, and none of your groups claims a hunk a stage 1
    group already owns.
 3. Every high-floor hunk listed above, plus every hunk you raised to high, has a reason.
