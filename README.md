@@ -8,12 +8,15 @@ blast-radius map of what the change touches.
 The design lives in `docs/`. Start with `docs/01-product-brief.md`, then
 `docs/02-architecture.md`.
 
-**This repository is at milestone M3** (`docs/06-milestones.md`): a real pull request
+**This repository is at milestone M3b** (`docs/06-milestones.md`): a real pull request
 produces a real document. `packages/analyzer` resolves the pull request through `gh`, checks
 it out as a worktree on a local clone, parses the diff, measures git history and Go structure
 with tree-sitter, scores every hunk, and writes `review.json`; `packages/server` serves that
 document to the cockpit and pushes every rewrite of it over server-sent events;
 `packages/cli` drives all of it as `cockpit prepare`, `analyze`, `serve` and `clean`.
+
+The map reads the graph at two levels, packages first and one package's functions on click,
+and every body the cockpit shows is rendered as sanitised markdown.
 
 What is not here yet: the judgment pass, so `groups`, `path` and `summary` stay `pending` and
 every hunk sits at its deterministic floor (M4); existing review comments and check runs, so
@@ -34,7 +37,8 @@ npm run dev --workspace @review-cockpit/cockpit
 The fixture is chosen by the `fixture` query parameter and defaults to `pr-fake-1`:
 
 - <http://localhost:5173/?fixture=pr-fake-1> — every stage ready
-- <http://localhost:5173/?fixture=pr-fake-1.stage1> — stage 2 and 3 pending
+- <http://localhost:5173/?fixture=pr-fake-1.stage1> — stage 2 and 3 pending, a judgment pass running
+- <http://localhost:5173/?fixture=pr-fake-1.notattached> — stage 2 and 3 pending with nothing attached
 - <http://localhost:5173/?fixture=pr-fake-1.graphfail> — the call graph failed
 - <http://localhost:5173/?fixture=pr-fake-1.stage2fail> — the judgment pass failed
 - <http://localhost:5173/?fixture=pr-fake-empty> — a merge-only PR with no textual changes
@@ -85,7 +89,7 @@ fetch brings in, one ref under `refs/review-cockpit/`, and the worktree registra
 | Command | What it does |
 |---|---|
 | `cockpit prepare <pr> [--cwd <dir>]` | Resolve and check out only. Prints the checkout as JSON. |
-| `cockpit analyze <pr> [--no-fold-generated] [--skip-graph] [--cwd <dir>]` | Stage 1 and stage 3 into `review.json`. |
+| `cockpit analyze <pr> [--expect-judgment] [--no-fold-generated] [--skip-graph] [--cwd <dir>]` | Stage 1 and stage 3 into `review.json`. |
 | `cockpit serve <pr> [--port <n>] [--open] [--cwd <dir>]` | Serve the cockpit and the document on 127.0.0.1. |
 | `cockpit clean <pr> [--cwd <dir>]` | Stop the server, remove the worktree and the ref, keep the document. |
 | `cockpit validate <file> [--as document\|judgment\|drafts]` | Schema and referential rules. |
@@ -93,7 +97,9 @@ fetch brings in, one ref under `refs/review-cockpit/`, and the worktree registra
 
 `--no-fold-generated` leaves generated files unfolded and scored, and still records the rule
 that matched them, so you can see what the fold was hiding. `--skip-graph` leaves stage 3
-`pending`.
+`pending`. `--expect-judgment` says a judgment pass will follow: without it the stage 2
+sections are marked `not-attached` and the cockpit shows "Not analyzed" instead of
+"Analyzing…".
 
 Everything lives under `~/.cache/review-cockpit/<owner>/<repo>/`: `pr-<n>/review.json`,
 `pr-<n>/worktree`, `pr-<n>/server.json`, and an `index/` of parsed Go symbols shared by every

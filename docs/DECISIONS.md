@@ -389,3 +389,87 @@ Status: accepted · 2026-09-09 · revises the `summary` section of `03-review-do
 **Decision.** Adopt that shape as the `summary` schema. The review path is derived from `path` in the cockpit, not stored twice. The M4 prompt instructs the session to gather the context the skill gathers: PR body, commits, surrounding code. Every body shown to a person renders as sanitised markdown.
 
 **Consequences.** M4's judgment pass produces more text per PR and needs more reading of the checkout, which is what makes the summary worth reading. The cockpit gains a markdown renderer dependency.
+
+---
+
+## ADR-28: A pending stage 2 section says whether anything is running
+
+Status: accepted · 2026-09-09
+
+**Context.** Before the judgment pass exists, the cockpit showed "Analyzing summary…" over a
+document nothing was analyzing. On the first real pull request that read as a promise the tool
+was not keeping. The state is genuinely `pending` — no judgment has been merged — but pending
+means two different things: a pass is running, or none is attached.
+
+**Options.**
+1. A fourth `state`, `not-analyzed`. Every rule and every fixture written against three states
+   has to be revisited, and `pending` loses its meaning as "not ready".
+2. A convention on the existing `message`: `"not-attached"` on a pending section.
+3. A flag on the document, outside `status`.
+
+**Decision.** Option 2. `cockpit analyze` writes `pending` with `message: "not-attached"` unless
+`--expect-judgment` says a pass will follow. The cockpit reads that one string and writes "Not
+analyzed" instead of "Analyzing…", in the summary card, the group list and the autopilot bar.
+
+**Consequences.** M2's validator rules stay intact: `message` is still required only when the
+state is `failed`, and free otherwise. The convention is documented in `03-review-document-schema.md`
+and shared as `NOT_ATTACHED` from the schema package, so the CLI and the cockpit cannot spell it
+differently. Nothing enforces it: a producer that writes another pending message gets "Analyzing…",
+which is the safe reading.
+
+---
+
+## ADR-29: Markdown is rendered with marked and DOMPurify
+
+Status: accepted · 2026-09-09
+
+**Context.** Every body the cockpit shows a person is markdown: the PR description, comments,
+drafts, and the summary the judgment pass will write. M1 rendered a hand-written subset, bold
+and inline code, and the first real PR body came out as a wall of `###` and fences.
+
+**Options.**
+1. Keep hand-rolling. Tables, fences, nested lists and links each cost more code and each is a
+   place to get escaping wrong.
+2. `marked` for parsing plus `DOMPurify` for sanitising.
+3. `markdown-it` with HTML disabled, no sanitiser.
+
+**Decision.** Option 2. `marked` parses, a renderer override escapes raw HTML to the text it was
+written as, and DOMPurify sanitises the result against a tag whitelist with a hook that gives
+every link `target="_blank" rel="noopener noreferrer"`. `class` is not an allowed attribute, so a
+body cannot borrow the cockpit's styles.
+
+**Consequences.** Two dependencies, both bundled into the single file, which grew by about 10 kB
+gzipped. Two layers rather than one: the parser is configured not to emit raw HTML and the
+sanitiser would remove it anyway. No syntax highlighting; a highlighter is a third dependency and
+a much larger bundle, and is in the backlog.
+
+---
+
+## ADR-30: Level 2 of the map is placed in columns, and caps its changed functions
+
+Status: accepted · 2026-09-09 · extends ADR-26
+
+**Context.** ADR-26 folded neighbours beyond 40 per changed package and left level 2 to dagre. On
+the verification pull request one package held 110 changed functions, most of them tests, and
+dagre laid them out 5,242 px tall: a layered layout gives every long edge a slot of its own, so
+80 nodes and 180 edges cost the height of 110. That is the strip ADR-26 was written to kill, one
+level down.
+
+**Options.**
+1. Keep dagre and zoom out. At the fitted scale the labels are 4 px tall.
+2. Place level 2 directly: callers, the open package, callees as three columns of boxed lists.
+3. Cap the changed functions as well, and keep dagre.
+
+**Decision.** Options 2 and 3 together. Level 2 is placed by a small pure function: one column per
+side, one box per package, one row per function, edges routed as three-segment lines. It draws at
+most 40 changed functions of the open package, tests and least-called last, and adds an "and N
+more changed functions" node for the rest, next to the "and N more callers" node for what the
+analyzer folded. The same package now lays out at 780 × 1,478. Level 1 stays on dagre, where a
+dozen package nodes and their aggregated edges are what it is good at.
+
+**Consequences.** Two layout paths to keep, both pure functions in `lib/mapLayout.ts` and both
+measurable outside a browser. Level 2 no longer shows every changed function of a large package;
+the Files tab and the walkthrough remain the complete list, and the map is a comprehension aid,
+which is the trade ADR-26 already made for neighbours. The ordering rule means a changed test can
+be summarised while a rarely-called production function is drawn; fan-in decides, and tests sort
+last.

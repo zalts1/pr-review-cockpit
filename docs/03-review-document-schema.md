@@ -40,7 +40,7 @@ The document has two producers with different trust levels. Stage 1 comes from c
 }
 ```
 
-Stage 2 and 3 sections are present from the first write, as empty arrays or objects, so the cockpit never has to check for a missing key. It checks `status` instead.
+Stage 2 and 3 sections are present from the first write, as empty arrays or objects, so the cockpit never has to check for a missing key. It checks `status` instead. The one exception is `summary.counts`, which stage 1 can compute and writes from the first version, so the card can show the numbers before any judgment pass has run.
 
 ### `status`
 
@@ -49,14 +49,16 @@ Stage 2 and 3 sections are present from the first write, as empty arrays or obje
   "files":    { "state": "ready",   "updatedAt": "..." },
   "comments": { "state": "ready",   "updatedAt": "..." },
   "checks":   { "state": "ready",   "updatedAt": "..." },
-  "groups":   { "state": "pending", "updatedAt": "..." },
-  "path":     { "state": "pending", "updatedAt": "..." },
-  "summary":  { "state": "pending", "updatedAt": "..." },
+  "groups":   { "state": "pending", "updatedAt": "...", "message": "not-attached" },
+  "path":     { "state": "pending", "updatedAt": "...", "message": "not-attached" },
+  "summary":  { "state": "pending", "updatedAt": "...", "message": "not-attached" },
   "graph":    { "state": "failed",  "updatedAt": "...", "message": "tree-sitter timed out after 120s" }
 }
 ```
 
 `state` is one of `pending`, `ready`, `failed`. `message` is required when `state` is `failed` and is shown to the reviewer as written.
+
+On a **pending** stage 2 section the message says whether anything is running. `"not-attached"` means no judgment pass is attached to this session, and the cockpit writes "Not analyzed"; no message means one is running, and the cockpit writes "Analyzing…". `cockpit analyze` writes `"not-attached"` unless it is given `--expect-judgment`. This is a message convention rather than a fourth state, so every rule written against `pending`, `ready` and `failed` still holds.
 
 ### `pr`
 
@@ -283,7 +285,7 @@ The shape follows the reviewer brief the team already uses (the `pr-summary` ski
 }
 ```
 
-The review path table in the cockpit is derived from `path`, not stored here, so the two can never disagree. `counts` is recomputed by the CLI at merge. `flow.before` and `flow.after` are short single lines; `example` and the bullets are markdown. Adopted after the first real PR made the earlier one-liner-plus-focus shape look thin next to the team's existing brief.
+The review path table in the cockpit is derived from `path`, not stored here, so the two can never disagree. `counts` is written by stage 1 and recomputed by the CLI at merge; it is the one field of `summary` that is always present. `flow.before` and `flow.after` are short single lines; `example` and the bullets are markdown. Adopted after the first real PR made the earlier one-liner-plus-focus shape look thin next to the team's existing brief.
 
 ## Stage 3: `graph`
 
@@ -294,18 +296,21 @@ The blast-radius map. Nodes are functions and files touched by the change plus t
   "nodes": [
     { "id": "n1", "kind": "function", "label": "Service.UpdateRecord", "file": "api/service/tenant/record.go", "changed": true,  "hunkIds": ["f3.h2"] },
     { "id": "n2", "kind": "function", "label": "Handler.PatchTenant",  "file": "api/http/tenant.go",           "changed": false, "hunkIds": [] },
-    { "id": "n3", "kind": "package",  "label": "api/service/tenant",   "file": null,                           "changed": true,  "hunkIds": ["f2.h1", "f3.h1", "f3.h2"] }
+    { "id": "n3", "kind": "package",  "label": "api/service/tenant",   "file": null,                           "changed": true,  "hunkIds": ["f2.h1", "f3.h1", "f3.h2"],
+      "count": { "changedFunctions": 3, "foldedNeighbours": 155 } }
   ],
   "edges": [
     { "from": "n2", "to": "n1", "kind": "calls" }
   ],
-  "truncated": false               // true when level 2 detail was cut for some package
+  "truncated": true                // true when some package folded neighbours away
 }
 ```
 
 Package nodes carry `"count": { "changedFunctions": 3, "foldedNeighbours": 155 }` so the cockpit's package-level view is complete even when function-level neighbours were folded into their package instead of emitted. Function nodes are emitted for every changed function and for at most 40 neighbours per changed package; the rest are counted, not dropped. Edges between function nodes carry `"kind": "calls"`; the cockpit aggregates them into package edges with a `weight`. Revised after the first real PR hit the 300-node cap.
 
-`kind` for nodes is `function`, `file` or `package`. `hunkIds` is the click target: clicking a node scrolls to its first hunk. Unchanged neighbors have an empty list and are drawn muted.
+`kind` for nodes is `function`, `file` or `package`. `hunkIds` is the click target: clicking a node scrolls to its first hunk. Unchanged neighbors have an empty list and are drawn muted. `count` is required on a package node and absent on every other kind.
+
+The fold, per changed package: rank the one-hop neighbours callers first, then callees, each by fan-in, emit the first 40 as function nodes, and count the rest in `foldedNeighbours`. A neighbour past one package's cap that another package kept is drawn, not counted twice. `truncated` is true when any package folded something, and nothing else sets it. A package node is emitted for every package that has any node, changed or not, so the cockpit's level 1 is always the whole picture.
 
 ## The judgment file
 
@@ -323,7 +328,13 @@ What the LLM produces. It is a separate file, never the document itself, so the 
   "riskAdjustments": [
     { "hunkId": "f6.h1", "level": "high", "why": "Migration is destructive on existing rows." }
   ],
-  "summary": { "oneLiner": "...", "reviewFocus": ["..."] }
+  "summary": {
+    "tldr": "...",
+    "whereItFits": ["..."],
+    "flow": { "before": "...", "after": "..." },
+    "example": "...",
+    "watchFor": ["..."]
+  }
 }
 ```
 
@@ -373,7 +384,7 @@ The reviewer's unsent comments, stored as `drafts.json` beside the document. Wri
 
 ## Size
 
-A 4,500-line PR produces a document of roughly 1 to 2 MB, most of it diff lines. This is fine for a local server and one browser tab. The graph is capped at 300 nodes and marked `truncated` beyond that.
+A 4,500-line PR produces a document of roughly 1 to 2 MB, most of it diff lines. This is fine for a local server and one browser tab. The graph has no global node cap: the per-package fold bounds it at 40 neighbours per changed package plus one node per changed function and one per package. A 24-file Go pull request measured 190 nodes and 500 edges.
 
 ## What the validator checks, beyond types
 
@@ -387,6 +398,7 @@ Referential:
 - Every hunk appears at most once across all groups.
 - Comments have a `line` inside the referenced hunk's line range on the given `side` and a `path` matching that hunk's file, or `hunkId: null`.
 - `graph` edges reference nodes that exist, and a node is `changed` exactly when it carries hunk ids.
+- A `graph` node carries `count` when it is a package node, and does not when it is not.
 
 Risk:
 
@@ -403,7 +415,8 @@ Walk and groups:
 
 Counts and consistency:
 
-- `summary.counts` matches the document, and all three fields are present, when `status.summary` is `ready`.
+- `summary.counts` matches the document, whatever the state of `status.summary`.
+- `summary` carries `tldr`, `whereItFits`, `flow`, `example` and `watchFor` when `status.summary` is `ready`. `watchFor` may be empty, but it is written.
 - `file.additions` and `file.deletions` match the hunk lines, and `pr.additions`, `pr.deletions` and `pr.changedFiles` match the files.
 - A hunk's `oldLines` and `newLines` match its line list, and the line numbers run consecutively from `oldStart` and `newStart`.
 - `status.<section>.message` is present when `state` is `failed`.

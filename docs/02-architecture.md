@@ -133,6 +133,11 @@ The server reserves `POST /api/drafts`, `POST /api/submit` and `POST /api/ask` a
 `review.json`, not the file: the analyzer publishes by writing a temp file and renaming it,
 and a watch bound to the old inode goes quiet after the first write.
 
+`cockpit analyze --expect-judgment` says that step 5 will follow. Without the flag the stage
+2 sections are written `pending` with the message `not-attached`, and the cockpit says "Not
+analyzed" rather than "Analyzing…", so a placeholder never claims work that no process is
+doing. The `review` skill always passes it, because it always runs the judgment pass.
+
 **5. Judgment pass.** The CLI writes `compact.md` next to the document: one block per hunk with its id, file, enclosing symbol, signals, risk floor and the first lines of the change, and the full text of any hunk under 40 lines. A 4,500-line PR compacts to roughly a fifth of its size. The skill instructs the resident Claude session to read the compact view, open full hunks from the checkout only where it needs to, and produce `judgment.json` in the exact shape the schema demands. The CLI validates it, rejects anything that lowers a deterministically high-risk hunk, and merges the result into the document. The server pushes the change.
 
 **6. Graph stage.** The CLI builds the call graph for the changed Go functions: what they call and what calls them, one hop out, within the repository. Written as stage 3.

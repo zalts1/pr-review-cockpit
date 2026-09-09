@@ -4,11 +4,22 @@ Items that are agreed as worth doing but not scheduled in a milestone. Each line
 
 ## UI polish (from the M1 walkthrough, to be done after M3 on real data)
 
-- Unchanged-node side drawer in the Map shows a note instead of file content; needs the server to read the checkout. (M1 report)
 - Summary card collapses on first Next or on scroll rather than strictly after first view. (M1 report)
 - `c` comments on the last hovered line; there is no keyboard line cursor. (M1 report)
 - Virtualisation for files over 1,500 diff lines. (M1 report)
 - Map layout in a web worker if a real repository's graph blocks the Files tab. (ADR-17)
+- Level 2 of the map draws at most 40 of a package's changed functions and summarises the
+  rest; there is no way to page through them or to filter to non-test functions. On the
+  verification PR that hid 70 of 110. (ADR-30)
+- The map's "only high-risk nodes and neighbours" filter was dropped with the two-level
+  rewrite. A heat filter at package level may be worth rebuilding once the user has used
+  the new map. (M3b)
+- The map has no side drawer for an unchanged node any more: level 2 shows its package,
+  fan-in and fan-out on hover, and reading its source still needs the server. (M3b)
+- Fan-in and fan-out in the level 2 hover are counted from the document's edges, so a
+  function whose callers were folded away reads lower there than on its package node. (M3b)
+- Fenced code in a rendered body is not syntax highlighted; a highlighter is a third
+  dependency and a much larger bundle. (ADR-29)
 - User-reported rough edges from the M1 demo: to be listed.
 
 ## Risk model calibration (from the M3 runs on three real pull requests)
@@ -30,9 +41,6 @@ Items that are agreed as worth doing but not scheduled in a milestone. Each line
   complexity, no fan-out, no call graph. On the frontend pull request every hunk showed
   "(no symbol)", which weakens the walkthrough and the map. A second tree-sitter grammar
   covers the first three; the graph is the post-v1 item already in `06-milestones.md`. (M3)
-- The 300-node cap was hit on a 24-file Go pull request (1,487 edges), so the map is
-  truncated exactly where it is most useful. Rank one-hop neighbours by their distance to a
-  changed hunk before cutting, or collapse a package's callers into its package node. (M3)
 - Unresolved calls with more than three same-named candidates are dropped rather than drawn,
   which is a silent under-count in the graph's fan-in. (M3)
 - `cockpit clean` keeps the cached clone under `<cache>/<owner>/<repo>/repo`, on the

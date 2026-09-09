@@ -60,7 +60,7 @@ Clicking a file scrolls to it. The current walkthrough step is highlighted in th
 
 ### Summary card
 
-Rendered from `summary`, in the shape of a short reviewer brief: a one-sentence TL;DR, two to four "where it fits" bullets, a before and after flow, one concrete example, the review path as a compact table derived from `path` (file, why here, what it does, capped at eight rows with the rest grouped), and optional "watch for" bullets. Collapsed to the TL;DR after the reviewer has read it once. While stage 2 is pending it shows the rendered PR description with an "Analyzing…" label. When no judgment pass is attached to the session it says "Not analyzed" instead, so a placeholder never claims work that is not happening.
+Rendered from `summary`, in the shape of a short reviewer brief: a one-sentence TL;DR, two to four "where it fits" bullets, the flow as two labelled lines `before:` and `after:` in monospace, one concrete example rendered as markdown, the review path as a compact table derived from `path` (#, file, why here from the step note, what it does from the hunk's first symbol or its header), capped at eight rows with a last row "and N more steps: <phases>", "watch for" bullets when there are any, then the counts. Collapsed to the TL;DR after the reviewer has read it once, which in practice means after the first Next or the first scroll. While stage 2 is pending it shows the rendered PR description with an "Analyzing…" label. When no judgment pass is attached to the session it says "Not analyzed" instead, so a placeholder never claims work that is not happening.
 
 ### Group headers
 
@@ -138,8 +138,8 @@ Before stage 2 is ready, the bar reads "Recommended order: analyzing…" and Nex
 │      └─────────────────────┘          │   Repo.Update                  │        │
 │                                       └────────────────────────────────┘        │
 │                                                                                 │
-│  ■ changed in this PR   □ unchanged caller or callee   ─▶ calls   ⇢ imports    │
-│  Showing 38 nodes. Click a changed node to jump to its diff.                    │
+│  ■ has a changed function   □ caller or callee only   ━▶ more calls             │
+│  All packages · 12 packages · 23 changed functions · click a changed package     │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -147,17 +147,24 @@ Before stage 2 is ready, the bar reads "Recommended order: analyzing…" and Nex
 
 The function-level map above failed on real data. One changed store method had 158 callers, the document hit the 300-node cap, and the layered layout produced a strip several screens tall that nothing could read. The map is now two levels.
 
-**Level 1, the default: packages.** One node per package that the change touches or that calls into it. A changed package is filled and carries the highest heat among its changed hunks. Node size grows with the number of changed functions inside. One edge per pair of packages, thickness by the number of resolved calls. A package-level graph for a 24-file PR has ten to twenty nodes and fits on one screen.
+**Level 1, the default: packages.** One node per package that the change touches or that calls into it. A package holding a changed function is filled; a package with changed hunks but no changed function of its own, such as a regenerated proto package, is outlined and does not open. Every changed package carries a border in the highest heat among its changed hunks, and unchanged packages are muted. Node size grows with `count.changedFunctions`, between a minimum and a maximum so the label stays readable. One edge per pair of packages, its width the number of resolved calls on a log scale with a cap. The label is the last two segments of the package path, with the full path on hover, next to "N changed functions · M callers folded". dagre lays it out left to right. On the 24-file backend pull request this is 4 nodes in a box of 984 × 134.
 
-**Level 2, on click: inside one package.** Clicking a changed package replaces the view with its changed functions, their callers and callees one hop out, grouped by their own package, capped at 40 nodes with a "and N more callers in pkg X" summary node. A breadcrumb returns to level 1. Clicking a changed function scrolls to its first hunk, as before.
+**Level 2, on click: inside one package.** Clicking a changed package replaces the view with its changed functions and their one-hop neighbours, in three columns of boxes: callers on the left, the open package in the middle, callees on the right, one box per package with its path as the box label. Hovering a function shows its fan-in, fan-out and hunk ids. Clicking a changed function switches to Files and scrolls to its first hunk, as before.
 
-**Navigation.** Wheel zooms around the cursor, drag pans, double-click fits, a Fit button and a Back button sit in the corner. The layout is computed per level, so it never has to place 300 nodes.
+Two caps keep the level readable, each with a summary node that is not clickable:
+
+- at most 40 neighbours, which the analyzer has usually applied already, with "and N more callers" for `count.foldedNeighbours`;
+- at most 40 changed functions of the open package, tests and least-called last, with "and N more changed functions" for the rest.
+
+The columns are placed directly rather than by dagre: a layered layout gives every long edge a slot of its own, which turned one package's 110 changed functions into a strip 5,200 px tall. Boxed lists in columns put the same package in 780 × 1,478.
+
+**Navigation.** Wheel zooms around the cursor, drag pans, double-click fits, and a Fit button and a Back button sit in the toolbar next to the breadcrumb "All packages › pkg/path". It is one SVG `transform` on a group with pointer events, no pan-and-zoom library. Each level fits once when it opens and is left alone after that, so a document update does not undo the reviewer's zoom.
 
 **Analyzer side.** The document still carries function nodes for every changed function and package nodes for every package in play. Unchanged neighbours beyond the cap are folded into their package node with a `count`, not dropped, so the level 1 view is always complete even when level 2 is truncated. This is a schema change and is listed in `03-review-document-schema.md`.
 
 ### Markdown rendering
 
-Every body the cockpit shows a person is rendered as markdown, not raw text: the PR description, the summary sections, existing comments and draft previews. Rendering is sanitised and supports headings, lists, emphasis, inline code, fenced code and links opening in a new tab. Raw markdown was shown at M1 and read as unfinished on a real PR.
+Every body the cockpit shows a person is rendered as markdown, not raw text: the PR description, the summary sections, existing comments, drafts on their line and the dry-run list in the submit modal. `marked` parses and `DOMPurify` sanitises, both bundled into the single file. Headings, lists, emphasis, inline code, fenced code, tables and blockquotes are styled in GitHub's light palette; links open in a new tab with `rel="noopener noreferrer"`; raw HTML in a body is escaped and shown as the text it was written as, never parsed. Fenced code is not syntax highlighted. Raw markdown was shown at M1 and read as unfinished on a real PR.
 
 ## Screen 3: Submit review
 
@@ -194,9 +201,9 @@ Every section of the document has a state. The UI shows it in place, never as a 
 
 | Section pending | What the reviewer sees |
 |---|---|
-| `summary` | The PR description with an "Analyzing summary…" label. |
-| `groups` | Only the deterministic groups (generated, imports, whitespace). A subtle "Looking for mechanical changes…" line under the group list. |
-| `path` | Autopilot bar reads "Recommended order: analyzing…" and walks file order, high-risk first. |
+| `summary` | The PR description with an "Analyzing…" label, or "Not analyzed" when `status.summary.message` is `not-attached`. |
+| `groups` | Only the deterministic groups (generated, imports, whitespace). A "Mechanical changes: analyzing…" line under the group list, or "not analyzed". |
+| `path` | Autopilot bar reads "Recommended order: analyzing…", or "not analyzed", and walks file order, high-risk first. |
 | `graph` | Map tab shows a centred message: "Building call graph… this can take up to a minute on large repositories." |
 
 | Section failed | What the reviewer sees |
@@ -218,7 +225,7 @@ Every section of the document has a state. The UI shows it in place, never as a 
 - Collapsed files and collapsed groups render as headers only. Hunks mount when the file opens, when the reviewer scrolls near it, or when Autopilot targets it.
 - Files above 1,500 diff lines render with a virtualised list so scrolling stays smooth.
 - The document is loaded once and updated by patch over server-sent events. The UI never polls.
-- The map lays out at most 300 nodes, and the layout runs in a web worker so the Files tab stays responsive.
+- The map lays out one level at a time, so it never places the whole graph. The layout is a pure function outside the component, which is also how it is measured in tests; if a real repository makes it block the Files tab it moves to a web worker.
 
 ## Not in v1
 
