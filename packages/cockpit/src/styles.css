@@ -1313,6 +1313,10 @@ tr:hover .plus {
   border-top-style: dashed;
 }
 
+.legend-swatch.is-folded {
+  border-style: dashed;
+}
+
 .legend-line.is-thick {
   border-top-width: 4px;
 }

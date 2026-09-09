@@ -8,6 +8,13 @@ const { graphlib, layout } = dagre;
 
 export const NEIGHBOUR_CAP = 40;
 
+/**
+ * Changed functions drawn at level 2. A package whose tests changed can hold
+ * over a hundred, and dagre stacks them into a strip no screen can read, which
+ * is the failure the two-level map exists to fix. The rest are summarised.
+ */
+export const MEMBER_CAP = 40;
+
 // A package label can hold spaces, as "(repository root)" does, so pairs are
 // keyed on a character no path contains.
 const PAIR = '\u0001';
@@ -66,6 +73,8 @@ export interface PlacedBox {
 export interface MapCounts {
   nodes: number;
   changedFunctions: number;
+  /** Changed functions of the open package that the level does not draw. */
+  hiddenFunctions: number;
   neighbours: number;
   folded: number;
 }
@@ -183,6 +192,125 @@ function run(
   };
 }
 
+interface Cell {
+  id: string;
+  width: number;
+  height: number;
+}
+
+/** One box of cells in a column, or a loose cell when box is null. */
+interface Item {
+  box: { id: string; label: string } | null;
+  cells: Cell[];
+}
+
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const MARGIN = 26;
+const COLUMN_GAP = 88;
+const BOX_PAD = 10;
+const BOX_HEADER = 20;
+const ROW_GAP = 6;
+const ITEM_GAP = 16;
+
+/**
+ * Callers, the open package, then callees: three columns of boxed lists. dagre
+ * ranks the same nodes into a strip thousands of pixels tall once a package has
+ * tens of changed functions, because every long edge takes a slot of its own.
+ */
+function columns(groups: Item[][]): {
+  position: (id: string) => Rect;
+  boxes: PlacedBox[];
+  width: number;
+  height: number;
+} {
+  const itemWidth = (item: Item): number =>
+    Math.max(...item.cells.map((cell) => cell.width)) + (item.box === null ? 0 : BOX_PAD * 2);
+  const itemHeight = (item: Item): number =>
+    item.cells.reduce((total, cell) => total + cell.height + ROW_GAP, -ROW_GAP) +
+    (item.box === null ? 0 : BOX_HEADER + BOX_PAD);
+
+  const present = groups.filter((items) => items.length > 0);
+  const widths = present.map((items) => Math.max(...items.map(itemWidth)));
+  const heights = present.map((items) =>
+    items.reduce((total, item) => total + itemHeight(item) + ITEM_GAP, -ITEM_GAP),
+  );
+  const tallest = Math.max(0, ...heights);
+
+  const rects = new Map<string, Rect>();
+  const boxes: PlacedBox[] = [];
+  let x = MARGIN;
+
+  for (const [c, items] of present.entries()) {
+    let y = MARGIN + (tallest - (heights[c] as number)) / 2;
+    for (const item of items) {
+      const height = itemHeight(item);
+      if (item.box !== null) {
+        boxes.push({
+          id: item.box.id,
+          label: shortPackage(item.box.label),
+          title: item.box.label,
+          x,
+          y,
+          width: widths[c] as number,
+          height,
+        });
+      }
+      let cellY = y + (item.box === null ? 0 : BOX_HEADER);
+      for (const cell of item.cells) {
+        rects.set(cell.id, {
+          x: x + (item.box === null ? 0 : BOX_PAD),
+          y: cellY,
+          width: cell.width,
+          height: cell.height,
+        });
+        cellY += cell.height + ROW_GAP;
+      }
+      y += height + ITEM_GAP;
+    }
+    x += (widths[c] as number) + COLUMN_GAP;
+  }
+
+  return {
+    position: (id) => rects.get(id) ?? { x: 0, y: 0, width: 0, height: 0 },
+    boxes,
+    width: x - COLUMN_GAP + MARGIN,
+    height: tallest + MARGIN * 2,
+  };
+}
+
+/** Straight lines between columns; a call inside one column loops back on its left. */
+function route(wires: Wire[], position: (id: string) => Rect): PlacedEdge[] {
+  return wires.map((wire, i) => {
+    const from = position(wire.from);
+    const to = position(wire.to);
+    const fromY = from.y + from.height / 2;
+    const toY = to.y + to.height / 2;
+    const forward = to.x > from.x + from.width;
+    const startX = forward ? from.x + from.width : from.x;
+    const bendX = forward
+      ? (from.x + from.width + to.x) / 2
+      : Math.min(from.x, to.x) - COLUMN_GAP / 3;
+    return {
+      key: `${wire.from}-${wire.to}-${i}`,
+      weight: wire.weight,
+      width: edgeWidth(wire.weight),
+      folded: wire.folded,
+      points: [
+        { x: startX, y: fromY },
+        { x: bendX, y: fromY },
+        { x: bendX, y: toY },
+        { x: to.x, y: toY },
+      ],
+    };
+  });
+}
+
 /** Level 1: one node per package, one edge per package pair, weighted by resolved calls. */
 export function packageLevel(graph: Graph, heatOf: HeatOf): MapLayout {
   const packages = graph.nodes.filter((node) => node.kind === 'package');
@@ -269,6 +397,7 @@ export function packageLevel(graph: Graph, heatOf: HeatOf): MapLayout {
     counts: {
       nodes: packages.length,
       changedFunctions: packages.reduce((total, node) => total + changedFunctionsOf(node), 0),
+      hiddenFunctions: 0,
       neighbours: packages.filter((node) => changedFunctionsOf(node) === 0).length,
       folded: packages.reduce((total, node) => total + (node.count?.foldedNeighbours ?? 0), 0),
     },
@@ -287,22 +416,36 @@ export function functionLevel(
   packageId: string,
   heatOf: HeatOf,
   cap = NEIGHBOUR_CAP,
+  memberCap = MEMBER_CAP,
 ): MapLayout {
   const pkg = graph.nodes.find((node) => node.id === packageId);
   const empty: MapLayout = {
     nodes: [],
     edges: [],
     boxes: [],
-    counts: { nodes: 0, changedFunctions: 0, neighbours: 0, folded: 0 },
+    counts: { nodes: 0, changedFunctions: 0, hiddenFunctions: 0, neighbours: 0, folded: 0 },
     width: 0,
     height: 0,
   };
   if (pkg === undefined) return empty;
 
   const byId = new Map(graph.nodes.map((node) => [node.id, node] as const));
-  const members = graph.nodes.filter(
-    (node) => node.kind !== 'package' && node.changed && packageOf(node) === pkg.label,
-  );
+  const degrees = degreesOf(graph);
+  const isTest = (node: GraphNode): boolean =>
+    (node.file ?? '').endsWith('_test.go') || node.label.startsWith('Test');
+
+  // Tests last and the most-called first, so a cut takes the functions a
+  // reviewer asks about last.
+  const changedMembers = graph.nodes
+    .filter((node) => node.kind !== 'package' && node.changed && packageOf(node) === pkg.label)
+    .sort(
+      (a, b) =>
+        Number(isTest(a)) - Number(isTest(b)) ||
+        (degrees.fanIn.get(b.id) ?? 0) - (degrees.fanIn.get(a.id) ?? 0) ||
+        a.label.localeCompare(b.label),
+    );
+  const members = changedMembers.slice(0, memberCap);
+  const hiddenFunctions = changedMembers.length - members.length;
   const memberIds = new Set(members.map((node) => node.id));
 
   const callersOf = new Set<string>();
@@ -313,7 +456,7 @@ export function functionLevel(
   }
   for (const id of callersOf) calleesOf.delete(id);
 
-  const { fanIn, fanOut } = degreesOf(graph);
+  const { fanIn, fanOut } = degrees;
   const rank = (id: string, caller: boolean): [number, number, string] => [
     caller ? 0 : 1,
     -(fanIn.get(id) ?? 0),
@@ -328,38 +471,57 @@ export function functionLevel(
     .map((entry) => byId.get(entry.id))
     .filter((node): node is GraphNode => node !== undefined);
 
-  const shown = [...members, ...neighbours];
-  const shownIds = new Set(shown.map((node) => node.id));
-
-  const boxes = new Map<string, string>();
-  const sized: Sized[] = shown.map((node) => {
-    const box = packageOf(node);
-    const boxId = `box:${box}`;
-    boxes.set(boxId, box);
-    return { id: node.id, width: labelWidth(node.label), height: FUNCTION_HEIGHT, parent: boxId };
-  });
-
-  const wires: Wire[] = [];
-  const seen = new Set<string>();
-  for (const edge of graph.edges) {
-    if (!shownIds.has(edge.from) || !shownIds.has(edge.to)) continue;
-    const key = `${edge.from} ${edge.to}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    wires.push({ from: edge.from, to: edge.to, weight: 1, folded: false });
-  }
-
   const folded = pkg.count?.foldedNeighbours ?? 0;
   const foldedId = 'folded';
   const foldedLabel = `and ${folded} more callers`;
-  if (folded > 0 && members.length > 0) {
-    sized.push({ id: foldedId, width: labelWidth(foldedLabel), height: FUNCTION_HEIGHT });
-    wires.push({ from: foldedId, to: members[0]!.id, weight: folded, folded: true });
-  }
+  const hiddenId = 'hidden';
+  const hiddenLabel = `and ${hiddenFunctions} more changed functions`;
 
-  const laid = run(sized, wires, boxes);
+  const callerNodes = neighbours.filter((node) => callersOf.has(node.id));
+  const calleeNodes = neighbours.filter((node) => !callersOf.has(node.id));
 
-  const nodes: PlacedNode[] = shown.map((node) => ({
+  const cellOf = (id: string, label: string): Cell => ({
+    id,
+    width: labelWidth(label),
+    height: FUNCTION_HEIGHT,
+  });
+  // The open package can appear in more than one column, as its own unchanged
+  // callers do, so a box id carries the side it sits on.
+  const boxesOf = (side: string, group: readonly GraphNode[]): Item[] => {
+    const byPackage = new Map<string, GraphNode[]>();
+    for (const node of group) {
+      const box = packageOf(node);
+      byPackage.set(box, [...(byPackage.get(box) ?? []), node]);
+    }
+    return [...byPackage.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([label, group]) => ({
+        box: { id: `box:${side}:${label}`, label },
+        cells: group.map((node) => cellOf(node.id, node.label)),
+      }));
+  };
+
+  const left: Item[] = [
+    ...(folded > 0 && members.length > 0
+      ? [{ box: null, cells: [cellOf(foldedId, foldedLabel)] }]
+      : []),
+    ...boxesOf('callers', callerNodes),
+  ];
+  const middle: Item[] = [
+    {
+      box: { id: `box:open:${pkg.label}`, label: pkg.label },
+      cells: [
+        ...members.map((node) => cellOf(node.id, node.label)),
+        ...(hiddenFunctions > 0 ? [cellOf(hiddenId, hiddenLabel)] : []),
+      ],
+    },
+  ];
+  const right: Item[] = boxesOf('callees', calleeNodes);
+
+  const laid = columns([left, middle, right]);
+
+  const shown = [...members, ...neighbours];
+  const placedNodes: PlacedNode[] = shown.map((node) => ({
     id: node.id,
     kind: node.kind === 'file' ? 'file' : 'function',
     label: node.label,
@@ -376,32 +538,67 @@ export function functionLevel(
     clickable: node.changed && node.hunkIds.length > 0,
   }));
 
+  const summary = (id: string, label: string, title: string, count: number): PlacedNode => ({
+    id,
+    kind: 'folded',
+    label,
+    title,
+    ...laid.position(id),
+    changed: false,
+    filled: false,
+    heat: 'low',
+    hunkIds: [],
+    fanIn: 0,
+    fanOut: 0,
+    changedFunctions: count,
+    foldedNeighbours: count,
+    clickable: false,
+  });
+
+  const nodes = [...placedNodes];
+  if (hiddenFunctions > 0) {
+    nodes.push(
+      summary(
+        hiddenId,
+        hiddenLabel,
+        `${hiddenFunctions} more changed functions in this package, tests and least-called last`,
+        hiddenFunctions,
+      ),
+    );
+  }
   if (folded > 0 && members.length > 0) {
-    nodes.push({
-      id: foldedId,
-      kind: 'folded',
-      label: foldedLabel,
-      title: `${folded} callers of this package were folded into its package node`,
-      ...laid.position(foldedId),
-      changed: false,
-      filled: false,
-      heat: 'low',
-      hunkIds: [],
-      fanIn: 0,
-      fanOut: 0,
-      changedFunctions: 0,
-      foldedNeighbours: folded,
-      clickable: false,
-    });
+    nodes.push(
+      summary(
+        foldedId,
+        foldedLabel,
+        `${folded} callers counted on the package node instead of drawn`,
+        folded,
+      ),
+    );
+  }
+
+  const shownIds = new Set(shown.map((node) => node.id));
+  const wires: Wire[] = [];
+  const seen = new Set<string>();
+  for (const edge of graph.edges) {
+    if (!shownIds.has(edge.from) || !shownIds.has(edge.to)) continue;
+    const key = `${edge.from}${PAIR}${edge.to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    wires.push({ from: edge.from, to: edge.to, weight: 1, folded: false });
+  }
+  if (folded > 0 && members.length > 0) {
+    wires.push({ from: foldedId, to: members[0]!.id, weight: folded, folded: true });
   }
 
   return {
     nodes,
-    edges: laid.edges,
+    edges: route(wires, laid.position),
     boxes: laid.boxes,
     counts: {
       nodes: nodes.length,
       changedFunctions: members.length,
+      hiddenFunctions,
       neighbours: neighbours.length,
       folded,
     },

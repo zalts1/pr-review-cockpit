@@ -154,7 +154,7 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
         <span className="map-count">
           {packages
             ? `${counts.nodes} packages · ${counts.changedFunctions} changed functions · click a changed package`
-            : `${counts.changedFunctions} changed functions · ${counts.neighbours} neighbours${counts.folded > 0 ? ` · ${counts.folded} callers folded` : ''}`}
+            : `${counts.changedFunctions}${counts.hiddenFunctions > 0 ? ` of ${counts.changedFunctions + counts.hiddenFunctions}` : ''} changed functions · ${counts.neighbours} neighbours${counts.folded > 0 ? ` · ${counts.folded} callers folded` : ''}`}
         </span>
         <div className="header-spacer" />
         <div className="map-legend">
@@ -179,7 +179,7 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
                 <span className="legend-swatch" /> unchanged caller or callee
               </span>
               <span className="legend-item">
-                <span className="legend-line is-import" /> folded callers
+                <span className="legend-swatch is-folded" /> counted, not drawn
               </span>
             </>
           )}
