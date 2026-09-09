@@ -1,6 +1,6 @@
 # 03 — Review document schema
 
-Status: draft for review. The contract described in `02-architecture.md`.
+Status: living spec, implemented in `packages/schema`. The contract described in `02-architecture.md`.
 
 ## Purpose
 
@@ -124,7 +124,7 @@ The raw deterministic measurements for the file. The risk model doc says how eac
   "authorPriorCommits": 0,         // commits by the PR author to this file before this PR
   "fanIn": 23,                     // functions elsewhere that call a function changed in this file
   "fanOut": 7,                     // functions the changed functions call
-  "fanSource": "grep",             // grep | graph   stage 1 estimates with git grep on the changed symbols, stage 3 replaces it with parsed call-graph counts
+  "fanSource": "grep",             // grep | graph | null   stage 1 estimates with git grep on the changed symbols, stage 3 replaces it with parsed call-graph counts
   "complexityBefore": 18,          // sum of cyclomatic complexity of changed functions, base side
   "complexityAfter": 27,           // same, head side
   "sensitivePath": { "match": true, "rule": "**/auth/**" },   // or { "match": false, "rule": null }
@@ -133,7 +133,7 @@ The raw deterministic measurements for the file. The risk model doc says how eac
 }
 ```
 
-Every numeric field may be `null` when the signal could not be computed, for example fan-in on a language without call-graph support. `null` means unknown and is never treated as zero.
+Every numeric field may be `null` when the signal could not be computed, for example fan-in on a language without call-graph support. `null` means unknown and is never treated as zero. `fanSource` is `null` when both `fanIn` and `fanOut` are `null`: with nothing counted there is no source to name. The validator rejects a document that names a source for counts it does not have.
 
 ### `Hunk`
 
@@ -226,21 +226,25 @@ A group is a set of hunks the reviewer should treat as one thing. Stage 1 may cr
   "title": "Rename TenantRecord to TenantProfile",
   "description": "Same identifier replaced across 9 files. No logic change.",
   "hunkIds": ["f1.h1", "f1.h2", "f4.h1", "f5.h1", "f5.h2", "f7.h1"],
-  "mode": "skim",                 // skim | scrutinize
-  "collapsedByDefault": true,
+  "mode": "skim",                 // skim | scrutinize   reading depth
+  "collapsedByDefault": true,     // the only field that controls expansion
   "producedBy": "stage2"          // stage1 | stage2
 }
 ```
+
+`mode` and `collapsedByDefault` answer two different questions. `mode` says how closely to read the group once it is open. `collapsedByDefault` says whether it starts open. A renderer expands a group when, and only when, `collapsedByDefault` is `false`; it never infers expansion from `mode`.
 
 Rules enforced at merge:
 
 - A hunk belongs to at most one group. A second assignment is rejected with a validation error.
 - A group with `mode: "skim"` may not contain a hunk whose `risk.floor` is `high`. The CLI removes such hunks from the group and logs it.
+- A group with `mode: "scrutinize"` must have `collapsedByDefault: false`, because folding a group the reviewer is told to read closely is a contradiction. The CLI expands such a group and logs it; the validator reports the combination as an error.
 - A group produced by stage 1 may not be removed by stage 2.
+- A group left with no hunks after those rules is dropped and logged.
 
 ## Stage 2: `path`
 
-The recommended walk order. Every hunk that is not inside a collapsed group appears exactly once. Grouped hunks appear once, as the group.
+The recommended walk order. Every hunk that is not in a group of kind `generated` is covered exactly once, either directly as a `hunk` step or through the group that holds it. A group is one step, wherever it appears. Groups of kind `generated` are folded, are not part of the walk, and may be left out of `path` entirely; a hunk inside one is never walked on its own.
 
 ```jsonc
 [
@@ -253,7 +257,7 @@ The recommended walk order. Every hunk that is not inside a collapsed group appe
 
 `phase` is one of `models`, `core`, `callsites`, `tests`, `config`, `other`. The cockpit uses it for the progress line, for example "core 2/4 · 1 high-risk remaining".
 
-Merge rules: every non-grouped, non-generated hunk must appear exactly once. Missing hunks are appended at the end under `phase: "other"` and logged. Duplicates and unknown ids are dropped.
+Merge rules: unknown ids and repeated steps are dropped and logged. A step that names a hunk which is inside a group becomes a step for that group, at that position, keeping the note; if the group is already in the walk, the step is dropped. Anything left uncovered, hunk or non-generated group, is appended at the end under `phase: "other"` and logged.
 
 ## Stage 2: `summary`
 
@@ -310,7 +314,40 @@ What the LLM produces. It is a separate file, never the document itself, so the 
 }
 ```
 
+`summary` is required. `groups`, `path`, `reasons` and `riskAdjustments` may be left out when there is nothing to say; the merge reads a missing section as empty. A group carries no id, so a `path` step cannot name one: a step for a proposed group names any hunk inside it, and the merge turns that step into a step for the group it created. A step may name a group id directly only for a stage 1 group, whose id the judgment pass has already read.
+
 The CLI validates it against a JSON Schema, then applies the merge rules above, then writes the result into the document and sets the stage 2 statuses to `ready`. A file that fails validation is kept as `judgment.rejected.json` and the exact errors are returned to the session for one retry.
+
+## The drafts file
+
+The reviewer's unsent comments, stored as `drafts.json` beside the document. Written by the cockpit through the server, in GitHub review API terms from the first keystroke, so nothing is translated at submit time.
+
+```jsonc
+{
+  "schemaVersion": "1.0.0",
+  "pr": { "owner": "northwind-labs", "repo": "tenant-platform", "number": 1234 },
+  "verdict": "COMMENT",            // COMMENT | REQUEST_CHANGES | APPROVE | null while unchosen
+  "summaryBody": "",               // the review body posted with the verdict
+  "drafts": [ /* Draft[] */ ]
+}
+```
+
+```jsonc
+{
+  "id": "d1",
+  "path": "api/service/tenant/record.go",
+  "line": 92,
+  "side": "RIGHT",                 // LEFT | RIGHT
+  "startLine": null,               // number | null   the first line of a multi-line comment
+  "startSide": null,               // LEFT | RIGHT | null
+  "body": "Markdown body",
+  "commitId": "d4e5f6...",         // the head SHA this comment is bound to
+  "createdAt": "2026-09-08T12:40:00Z",
+  "updatedAt": "2026-09-08T12:41:12Z"
+}
+```
+
+`startLine` and `startSide` are both set for a multi-line comment and both `null` otherwise, because GitHub needs both or neither. `validateDrafts` checks that, checks `commitId` is a commit SHA, and checks that ids do not repeat. A renderer may carry extra fields, for instance the hunk a draft belongs to, since unknown fields are allowed; they are warnings, not errors.
 
 ## Versioning
 
@@ -318,7 +355,8 @@ The CLI validates it against a JSON Schema, then applies the merge rules above, 
 - **Minor** bump: a new optional field, a new enum value the cockpit can ignore. The cockpit accepts any document with the same major version.
 - **Major** bump: a renamed or removed field, a changed meaning. The cockpit refuses a document with a different major version and shows the two versions.
 - The analyzer always writes the newest version. There are no migrations in v1; a stale cached document is re-analyzed.
-- The judgment file carries its own `schemaVersion`, and the prompt given to the LLM embeds the schema for that version, so the two cannot drift apart silently.
+- The judgment file carries its own `schemaVersion`, and the prompt given to the LLM embeds the schema for that version, so the two cannot drift apart silently. A judgment from another major version is an error, not a warning.
+- `checkVersion(doc)` in `packages/schema` answers the one question a renderer needs: does this document's major version match the one this build understands. The cockpit calls it before it renders anything.
 
 ## Size
 
@@ -326,9 +364,39 @@ A 4,500-line PR produces a document of roughly 1 to 2 MB, most of it diff lines.
 
 ## What the validator checks, beyond types
 
+`validateDocument`, `validateJudgment` and `validateDrafts` in `packages/schema` run the JSON Schema first and, when the shape holds, these rules. Each finding names the JSON path of the field and says the rule in plain words. Errors reject the file; warnings do not.
+
+Referential:
+
 - Every `hunkId` referenced from `comments`, `groups`, `path`, `graph` and `riskAdjustments` exists in `files`.
+- Ids do not repeat: files, hunks, groups, comments, graph nodes, drafts.
+- A hunk id is `<fileId>.h<index>`, counting from 1 within the file.
 - Every hunk appears at most once across all groups.
+- Comments have a `line` inside the referenced hunk's line range on the given `side` and a `path` matching that hunk's file, or `hunkId: null`.
+- `graph` edges reference nodes that exist, and a node is `changed` exactly when it carries hunk ids.
+
+Risk:
+
 - `risk.level` is never below `risk.floor`.
+- `risk.mode` follows `risk.level`: `skim` for low, `scrutinize` for medium and high.
+- `risk.adjustedBy` records the raise that happened: `from` is the floor, `to` is the level, and `to` is above `from`.
+- A high-risk hunk with no `reason` is a warning, once stage 2 has run.
+
+Walk and groups:
+
+- Step numbers run 1..n in array order, and no step is walked twice.
+- Every hunk outside a generated group is covered exactly once, and every non-generated group appears once, when `status.path` is `ready`.
+- A skim group holds no hunk whose floor is high, and a scrutinize group is not collapsed by default.
+
+Counts and consistency:
+
+- `summary.counts` matches the document, and all three fields are present, when `status.summary` is `ready`.
+- `file.additions` and `file.deletions` match the hunk lines, and `pr.additions`, `pr.deletions` and `pr.changedFiles` match the files.
+- A hunk's `oldLines` and `newLines` match its line list, and the line numbers run consecutively from `oldStart` and `newStart`.
 - `status.<section>.message` is present when `state` is `failed`.
 - `pr.head.sha` is a 40-character hex string.
-- Comments have a `line` inside a hunk's line range on the given `side`, or `hunkId: null`.
+
+Warnings:
+
+- An unknown field, named with its path.
+- A `schemaVersion` from another major version, which a renderer will refuse.

@@ -247,3 +247,23 @@ Status: accepted · 2026-09-09
 **Decision.** Continue to M2. UI polish is collected in `docs/BACKLOG.md` as it surfaces and gets a dedicated pass once the cockpit runs on a real PR (after M3), because polishing against fake data optimises for the fixture. The M1 build is preserved as the tag `m1-demo` and runs with `npm run demo`.
 
 **Consequences.** The real answer to the gate question moves to the end of M4, when the user can compare the cockpit on a real PR against their current habit.
+
+---
+
+## ADR-19: The four schema ambiguities are closed in favour of one explicit field each
+
+Status: accepted · 2026-09-09
+
+**Context.** M2 turns `03-review-document-schema.md` into code. Four questions in it had two defensible readings, and the M1 cockpit had already guessed at all four. A validator cannot be written against a document that contradicts itself, so each had to be decided before the rules could be enforced.
+
+**Decisions.**
+
+1. **Walk coverage.** `path` covers every hunk that is not in a group of kind `generated`, exactly once, either directly or through its group. A generated group is folded and may be left out of `path` entirely. The validator enforces the coverage; the merge appends whatever the judgment forgot under phase `other`. The alternative, walking generated hunks, would make the walk longer than the review.
+
+2. **`signals.fanSource`.** The type is `"grep" | "graph" | null`, and it is `null` exactly when both `fanIn` and `fanOut` are `null`. Naming a source for counts that do not exist is the kind of half-truth that makes a signal untrustworthy, so the validator rejects it. Four fixture files claimed `grep` with no counts and were corrected.
+
+3. **Drafts get a schema.** `Draft` is `{ id, path, line, side, startLine, startSide, body, commitId, createdAt, updatedAt }`, stored in `drafts.json` as `{ schemaVersion, pr, verdict, summaryBody, drafts }`, with `validateDrafts` beside the other two validators. The cockpit's `localStorage` shape is migrated to it and keeps its own two render-time ids as extra fields, which the schema allows as warnings. Deciding this now rather than in M6 means the server and the cockpit cannot disagree about what a draft is.
+
+4. **`collapsedByDefault` alone controls expansion.** `mode` says how closely to read a group, `collapsedByDefault` says whether it starts open, and a renderer expands a group when, and only when, `collapsedByDefault` is `false`. A `scrutinize` group with `collapsedByDefault: true` is a contradiction: the validator reports it as an error and the merge expands it. The cockpit's `mode === 'scrutinize' || !collapsedByDefault` rule is gone.
+
+**Consequences.** Two of the four decisions made existing data invalid, which is the point of having a validator: the fixtures were wrong and were fixed. The judgment file gained one rule that the doc could not express, because a proposed group has no id yet: a `path` step for a new group names one of its hunks and the merge rewrites the step to the group. Every rule above has a failing test.

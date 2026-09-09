@@ -8,10 +8,12 @@ blast-radius map of what the change touches.
 The design lives in `docs/`. Start with `docs/01-product-brief.md`, then
 `docs/02-architecture.md`.
 
-**This repository is at milestone M1** (`docs/06-milestones.md`): the cockpit renders a
-hand-authored review document, so the reviewing experience can be judged before any analyzer
-exists. There is no server, no analyzer and no GitHub write-back yet. Submit shows a toast and
-posts nothing.
+**This repository is at milestone M2** (`docs/06-milestones.md`): the review document is a
+checked contract. `packages/schema` holds the JSON Schema, the types generated from it, the
+validator and the merge that folds a judgment file into a document; `packages/cli` exposes
+both as `cockpit validate` and `cockpit merge`. The cockpit still renders hand-authored
+documents: there is no analyzer, no server and no GitHub write-back yet, and Submit shows a
+toast and posts nothing.
 
 ## Run it
 
@@ -50,6 +52,23 @@ open http://localhost:8080/?fixture=pr-fake-1
 In M1 the fixtures ship next to the page. From M3 the local server serves the same
 `index.html` and the real `review.json` in place of them.
 
+## Validate and merge
+
+```sh
+npm run build                                    # schema, cli, cockpit
+npx cockpit validate fixtures/pr-fake-1.json
+npx cockpit validate fixtures/judgment/pr-fake-1.json
+npx cockpit merge fixtures/pr-fake-1.stage1.json fixtures/judgment/pr-fake-1.json --out /tmp/review.json
+npm test                                         # every validator and merge rule
+```
+
+`validate` runs the JSON Schema and then the referential rules from
+`docs/03-review-document-schema.md`, names the JSON path of anything wrong and exits non-zero
+on an error. Unknown fields are warnings, so a document from a newer minor version still
+passes. `merge` clamps risk to the deterministic floor, assigns group ids, renumbers the walk,
+appends what the judgment left out, caps the reasons and recomputes the counts, printing one
+log line for everything it dropped or changed.
+
 ## Fixtures
 
 `fixtures/pr-fake-1.json` is a review document for a 20-file, 1,752-line Go PR in a service
@@ -61,10 +80,11 @@ whitespace-only hunk, tests, and a 34-node call graph.
 | File | What it exercises |
 |---|---|
 | `pr-fake-1.json` | Everything ready |
-| `pr-fake-1.stage1.json` | `groups`, `path`, `summary`, `graph` pending |
+| `pr-fake-1.stage1.json` | `groups`, `path`, `summary`, `graph` pending: levels at their floor, no reasons |
 | `pr-fake-1.graphfail.json` | `status.graph` failed with a message |
 | `pr-fake-1.stage2fail.json` | Stage 2 failed; deterministic risk only |
 | `pr-fake-empty.json` | Zero-line PR |
+| `judgment/pr-fake-1.json` | The judgment file that turns the stage 1 fixture into `pr-fake-1.json` |
 
 The JSON is generated from authored diff bodies so that every line number follows from the
 line arrays:
@@ -74,11 +94,8 @@ npm run fixtures:build     # rewrite the fixtures from fixtures/generate.ts
 npm run fixtures:check     # assert line numbers, id references, group and path rules
 ```
 
-`fixtures/check.ts` is the guard for hand edits: it checks that `oldLines` and `newLines`
-match the lines, that every referenced hunk id exists, that no hunk is in two groups, that a
-skim group holds no deterministically high-risk hunk, that the walk order covers every
-non-grouped hunk exactly once, that every comment sits on a line inside its hunk, and that
-the summary counts match the document.
+`fixtures/check.ts` is a wrapper around `validateDocument`, so the fixtures and the tool are
+checked by the same rules. `docs/03-review-document-schema.md` lists them.
 
 ## Keyboard
 
@@ -96,6 +113,8 @@ the summary counts match the document.
 ## Layout
 
 ```
+packages/schema/      the contract: JSON Schema, generated types, validator, judgment merge
+packages/cli/         the cockpit command: validate, merge
 packages/cockpit/     the React app: renders the review document and nothing else
 fixtures/             hand-authored review documents, their generator and their checker
 docs/                 the design: brief, architecture, schema, UX, risk model, milestones
