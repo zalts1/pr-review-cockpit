@@ -12,6 +12,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@review-cockpit/schema": "0.1.0"
+    "@review-cockpit/analyzer": "0.1.0",
+    "@review-cockpit/schema": "0.1.0",
+    "@review-cockpit/server": "0.1.0"
   }
 }
