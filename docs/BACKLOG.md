@@ -2,7 +2,7 @@
 
 Items that are agreed as worth doing but not scheduled in a milestone. Each line says where it came from. When an item is scheduled, move it into `06-milestones.md` and delete it here.
 
-## UI polish (from the M1 walkthrough, to be done after M3 on real data)
+## UI polish (scheduled as M4b, after the judgment pass exists)
 
 - Summary card collapses on first Next or on scroll rather than strictly after first view. (M1 report)
 - `c` comments on the last hovered line; there is no keyboard line cursor. (M1 report)
@@ -20,7 +20,9 @@ Items that are agreed as worth doing but not scheduled in a milestone. Each line
   function whose callers were folded away reads lower there than on its package node. (M3b)
 - Fenced code in a rendered body is not syntax highlighted; a highlighter is a third
   dependency and a much larger bundle. (ADR-29)
-- User-reported rough edges from the M1 demo: to be listed.
+- Overall look reads as a mock, not a product; map in particular. (user, after M3b, 2026-09-09)
+- Map level 2 caps changed functions at 40; the store package in the first real PR had 110. Revisit the cap or add paging. (ADR-30)
+- Map lost the "high-risk only" filter and the unchanged-node drawer in the two-level rewrite. (M3b report)
 
 ## Risk model calibration (from the M3 runs on three real pull requests)
 

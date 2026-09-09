@@ -77,6 +77,20 @@ Order matters. M1 tests the thesis before anything expensive is built. M2 turns 
 
 **Done when.** On both PRs the walkthrough order reads as sensible to the user, no skim group contains a change the user would have wanted to read, and the fallback path works.
 
+## M4b — UI renovation
+
+**Goal.** Make the cockpit look and feel like a finished tool, on a real PR with every section filled. The user's verdict after M3b: "still looks like a mock and looks bad". Polish before this point would have been tuned to placeholders.
+
+**Delivers.**
+- A visual direction first, as mockups the user approves before code: the Files screen, the Map at both levels, and the summary card. GitHub-like remains the constraint; the target is "GitHub, but calmer and denser where it matters".
+- Typography, spacing, colour and iconography applied consistently across every component. Real icons for bots, checks, heat and phases. Empty and loading states drawn, not just worded.
+- Map: node and edge styling, labels that never overlap, smooth zoom and pan, hover and selection states, a legible level 2.
+- The rough edges collected in `BACKLOG.md` under "UI polish", each either fixed or explicitly deferred.
+
+**Verify.** The user opens the same backend PR with the judgment pass attached and answers the M1 question again: would I rather review this way?
+
+**Done when.** The user says it no longer looks like a mock.
+
 ## M5 — Comment and check ingestion
 
 **Goal.** Existing signals on the PR appear in the cockpit where they belong.
