@@ -47,7 +47,7 @@ export function matchesGlob(path: string, pattern: string): boolean {
   return compiled(pattern).test(subject);
 }
 
-/** The first pattern that matches, so the reported rule is the one a reader can check. */
+/** The first match, so a folded or floored file names a rule a reader can check. */
 export function firstMatch(path: string, patterns: readonly string[]): string | null {
   for (const pattern of patterns) {
     if (matchesGlob(path, pattern)) return pattern;

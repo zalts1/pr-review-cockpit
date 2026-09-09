@@ -327,10 +327,15 @@ func TestUpdateRecord(t *testing.T) {
     expect(generated?.signals.fanSource).toBeNull();
   });
 
-  it('marks a test file as one', () => {
+  it('marks a test file as one and reads nothing in it as public surface', () => {
     const test = stage1.document.files.find((file) => file.path === 'tenant/service_test.go');
     expect(test?.signals.testFile).toBe(true);
     expect(test?.hunks.some((hunk) => hunk.kind === 'test')).toBe(true);
+    for (const hunk of test?.hunks ?? []) {
+      expect(hunk.risk.factors.map((factor) => factor.signal)).not.toContain(
+        'touchesPublicSurface',
+      );
+    }
   });
 
   it('reads the git history of every changed path', () => {

@@ -143,7 +143,12 @@ function isExportedGoSymbol(symbol: string): boolean {
   return /^[A-Z]/.test(name);
 }
 
+/**
+ * A test function is capitalised by convention and called by the test runner
+ * alone, so an exported name in a test file says nothing about blast radius.
+ */
 export function touchesPublicSurface(input: KindInput): boolean {
+  if (input.testFile) return false;
   const texts = [...changedLines(input.lines).map((l) => l.text), input.header];
 
   if (input.language === 'go') {

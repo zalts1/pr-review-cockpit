@@ -20,7 +20,6 @@ export function repoRoot(cwd: string): string | null {
   return result.code === 0 ? result.stdout.trim() : null;
 }
 
-/** The GitHub remote of a clone: origin first, then upstream, then any other. */
 export function githubRemote(repoPath: string): RemoteRepo | null {
   const result = run('git', ['-C', repoPath, 'remote', '-v']);
   if (result.code !== 0) return null;

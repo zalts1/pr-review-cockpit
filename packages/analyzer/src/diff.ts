@@ -52,7 +52,7 @@ function stripPrefix(path: string): string | null {
   return unquoted.replace(/^[ab]\//, '');
 }
 
-/** Splits `diff --git a/x b/y` when neither path was quoted, by trying every space. */
+/** A path with a space makes the header ambiguous, and git quotes only when it must. */
 function pathsFromHeader(line: string): { a: string | null; b: string | null } {
   const rest = line.slice('diff --git '.length);
   if (rest.startsWith('"')) {

@@ -1,13 +1,13 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { run } from './exec.js';
 
 export interface FanInRequest {
-  /** Changed file path to the symbol names defined in it that a caller could name. */
+  /** Each changed file to the names defined in it that a caller elsewhere could write. */
   symbolsByFile: Map<string, string[]>;
   globs: string[];
 }
+
+/** git grep -w matched whole words, so the same tokenisation attributes them. */
+const NON_WORD = /[^A-Za-z0-9_$]+/;
 
 export function countFromGrepOutput(
   output: string,
@@ -25,20 +25,16 @@ export function countFromGrepOutput(
   const counts = new Map<string, number>();
   for (const file of symbolsByFile.keys()) counts.set(file, 0);
 
-  const words = new Map<string, RegExp>();
-  for (const symbol of definers.keys()) {
-    words.set(symbol, new RegExp(`\\b${symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`));
-  }
-
   for (const line of output.split('\n')) {
     if (line === '') continue;
     const firstColon = line.indexOf(':');
     if (firstColon < 0) continue;
     const path = line.slice(0, firstColon);
-    const text = line.slice(firstColon + 1);
-    for (const [symbol, owners] of definers) {
-      if (!words.get(symbol)?.test(text)) continue;
-      for (const owner of owners) {
+    const seen = new Set<string>();
+    for (const token of line.slice(firstColon + 1).split(NON_WORD)) {
+      if (token === '' || seen.has(token)) continue;
+      seen.add(token);
+      for (const owner of definers.get(token) ?? []) {
         if (owner === path) continue;
         counts.set(owner, (counts.get(owner) ?? 0) + 1);
       }
@@ -49,18 +45,35 @@ export function countFromGrepOutput(
 }
 
 /**
- * Stage 1 fan-in: one `git grep` for every changed symbol at once, then the
- * matches are attributed per symbol. Occurrences in the defining file do not
- * count. Matching by name over-counts, which raises risk, the safe direction.
+ * One alternation rather than one pattern per symbol: git grep scans the tree
+ * once per pattern with -F, which on a large repository costs ten times as much
+ * as a single regular expression that matches all of them.
+ */
+const SYMBOLS_PER_GREP = 400;
+
+function alternationOf(symbols: readonly string[]): string {
+  return `(${symbols.map((symbol) => symbol.replace(/[^A-Za-z0-9_]/g, '\\$&')).join('|')})`;
+}
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Stage 1 fan-in: one `git grep` over the changed symbols, then the matches are
+ * attributed per symbol. Occurrences in the defining file do not count. Matching
+ * by name over-counts, which raises risk, the safe direction.
  */
 export function grepFanIn(worktree: string, request: FanInRequest): Map<string, number> {
-  const symbols = [...new Set([...request.symbolsByFile.values()].flat())];
+  const symbols = [...new Set([...request.symbolsByFile.values()].flat())].filter(
+    (symbol) => symbol.length > 0,
+  );
   if (symbols.length === 0 || request.globs.length === 0) return new Map();
 
-  const dir = mkdtempSync(join(tmpdir(), 'review-cockpit-grep-'));
-  const patternFile = join(dir, 'patterns.txt');
-  try {
-    writeFileSync(patternFile, `${symbols.join('\n')}\n`);
+  let output = '';
+  for (const batch of chunk(symbols, SYMBOLS_PER_GREP)) {
     const result = run('git', [
       '-c',
       'core.quotePath=false',
@@ -69,17 +82,17 @@ export function grepFanIn(worktree: string, request: FanInRequest): Map<string, 
       'grep',
       '--no-color',
       '-w',
-      '-F',
-      '-f',
-      patternFile,
+      '-E',
+      '-e',
+      alternationOf(batch),
       '--',
       ...request.globs,
     ]);
     if (result.code > 1) return new Map();
-    return countFromGrepOutput(result.stdout, request.symbolsByFile);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+    output += result.stdout;
   }
+
+  return countFromGrepOutput(output, request.symbolsByFile);
 }
 
 const EXPORTED_DECLARATION =

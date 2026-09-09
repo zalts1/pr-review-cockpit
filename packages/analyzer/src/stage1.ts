@@ -16,7 +16,7 @@ import { git, gitOk } from './exec.js';
 import type { HunkFeatures, LineRange } from './features.js';
 import { classifyKind, hunkFeatures, importRanges } from './features.js';
 import { exportedTsSymbols, grepFanIn } from './fanin.js';
-import { detectGenerated } from './generated.js';
+import { detectGenerated, generatedRule } from './generated.js';
 import { firstMatch } from './glob.js';
 import type { GoFile, GoFunction } from './go.js';
 import { functionsOverlapping, parseGo } from './go.js';
@@ -225,6 +225,11 @@ export async function analyzeStage1(options: Stage1Options): Promise<Stage1Resul
   for (const [index, file] of parsed.entries()) {
     const structure = structures.get(`f${index + 1}`);
     if (!structure || structure.fanInSymbols.length === 0) continue;
+    // A generated file defines hundreds of same-named symbols, so counting its
+    // callers by name measures the generator, not this change.
+    if (generatedRule(file.path, firstLines(structure.headSource, 5), overrides.generatedPatterns) !== null) {
+      continue;
+    }
     const language = languageOf(file.path);
     if (language === 'go') goSymbols.set(file.path, structure.fanInSymbols);
     else if (language === 'typescript' || language === 'tsx') tsSymbols.set(file.path, structure.fanInSymbols);

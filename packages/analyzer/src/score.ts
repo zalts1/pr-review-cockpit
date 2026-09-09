@@ -48,7 +48,6 @@ export function normFanIn(callers: number | null): number {
   return callers === null ? 0 : clamp01(Math.log2(1 + callers) / 6);
 }
 
-/** Growth only, plus a surcharge for a function that is complex whatever it was. */
 export function normComplexity(before: number | null, after: number | null): number {
   if (before === null || after === null) return 0;
   const growth = clamp01(Math.max(after - before, 0) / 10);

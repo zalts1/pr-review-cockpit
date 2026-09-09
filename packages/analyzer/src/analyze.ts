@@ -1,4 +1,4 @@
-import type { CheckoutInfo, PrInfo, ReviewDocument } from '@review-cockpit/schema';
+import type { CheckoutInfo, PrInfo, ReviewDocument, RiskLevel } from '@review-cockpit/schema';
 import type { HunkFeatures } from './features.js';
 import { checkout } from './checkout.js';
 import { readUserConfig } from './config.js';
@@ -8,7 +8,7 @@ import { buildGoGraph } from './graph.js';
 import type { PrRef } from './paths.js';
 import { documentFile, indexDir } from './paths.js';
 import { resolvePr } from './resolve.js';
-import { levelOf, modeOf, riskOf } from './score.js';
+import { modeOf, riskOf } from './score.js';
 import { analyzeStage1 } from './stage1.js';
 
 export interface AnalyzeOptions {
@@ -56,20 +56,23 @@ export function prepare(prArg: string, cwd: string, onProgress?: (message: strin
 }
 
 /**
- * Stage 3 may raise the risk it finds with a resolved call graph but never
- * lowers it: the grep estimate over-counts, and a floor that fell after the
- * reviewer had already seen it would be a floor in name only.
+ * Stage 3 rescores with resolved call counts. The score and the factors always
+ * follow the new counts, so the hover text and the signals agree, but the floor
+ * only ever rises: the grep estimate over-counts, and a floor that fell after
+ * the reviewer saw it would be a floor in name only.
  */
 export function applyGraphFan(
   document: ReviewDocument,
   fanByFile: ReadonlyMap<string, FanCounts>,
   featuresByHunk: ReadonlyMap<string, HunkFeatures>,
-): number {
+): { raised: number; kept: number } {
   let raised = 0;
+  let kept = 0;
 
   for (const file of document.files) {
     const fan = fanByFile.get(file.path);
     if (!fan) continue;
+    const estimated = file.signals.fanIn;
     file.signals.fanIn = fan.fanIn;
     file.signals.fanOut = fan.fanOut;
     file.signals.fanSource = 'graph';
@@ -84,23 +87,37 @@ export function applyGraphFan(
         path: file.path,
         generated: file.generated,
       });
-      if (refined.score <= hunk.risk.score) continue;
-      const floor = levelOf(refined.score);
-      if (floor === hunk.risk.floor) {
-        hunk.risk.score = refined.score;
+
+      const floor = rankOf(refined.floor) > rankOf(hunk.risk.floor) ? refined.floor : hunk.risk.floor;
+      if (refined.floor !== floor) {
+        kept += 1;
+        hunk.risk.factors = [
+          {
+            signal: 'floor',
+            contribution: 0,
+            detail: `kept at ${floor} from the stage 1 estimate of ${estimated ?? 0} callers`,
+          },
+          ...refined.factors.slice(0, 2),
+        ];
+      } else {
+        if (floor !== hunk.risk.floor) raised += 1;
         hunk.risk.factors = refined.factors;
-        continue;
       }
+
       hunk.risk.score = refined.score;
-      hunk.risk.factors = refined.factors;
-      hunk.risk.floor = refined.floor;
-      hunk.risk.level = refined.floor;
-      hunk.risk.mode = modeOf(refined.floor);
-      raised += 1;
+      hunk.risk.floor = floor;
+      hunk.risk.level = floor;
+      hunk.risk.mode = modeOf(floor);
     }
   }
 
-  return raised;
+  return { raised, kept };
+}
+
+const rank: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
+
+function rankOf(level: RiskLevel): number {
+  return rank[level];
 }
 
 export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
@@ -149,12 +166,12 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
       indexDirectory: indexDir(resolved.ref),
       ...(onProgress ? { onProgress } : {}),
     });
-    const raised = applyGraphFan(document, graph.fanByFile, stage1.featuresByHunk);
+    const refined = applyGraphFan(document, graph.fanByFile, stage1.featuresByHunk);
     document.graph = graph.graph;
     document.status.graph = status('ready', nowIso());
     writeDocument(documentPath, document);
     onProgress?.(
-      `graph: ${graph.graph.nodes.length} nodes, ${graph.graph.edges.length} edges, ${raised} hunks raised (${graph.stats.ms} ms)`,
+      `graph: ${graph.graph.nodes.length} nodes, ${graph.graph.edges.length} edges, ${refined.raised} hunks raised, ${refined.kept} floors kept (${graph.stats.ms} ms)`,
     );
     return { ref: resolved.ref, checkout: info, document, documentPath, stage1Ms, graph };
   } catch (error) {

@@ -264,7 +264,6 @@ export async function parseGo(source: string): Promise<GoFile> {
   }
 }
 
-/** Functions whose line span overlaps any of the given head-side line ranges. */
 export function functionsOverlapping(
   functions: readonly GoFunction[],
   ranges: ReadonlyArray<readonly [number, number]>,

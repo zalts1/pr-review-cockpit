@@ -165,6 +165,14 @@ describe('hunk features', () => {
     ).toBe(true);
   });
 
+  it('reads nothing in a test file as public surface', () => {
+    expect(
+      hunkFeatures(
+        input({ lines: lines('+\tt.Log("x")'), symbols: ['TestUpdate'], testFile: true }),
+      ).touchesPublicSurface,
+    ).toBe(false);
+  });
+
   it('sees the public surface through an export in TypeScript', () => {
     expect(
       hunkFeatures(input({ lines: lines('+export function load() {}'), language: 'ts' }))
