@@ -1,4 +1,4 @@
-import type { PathStep } from '../types';
+import type { PathStep } from '@review-cockpit/schema';
 
 interface Props {
   steps: PathStep[];

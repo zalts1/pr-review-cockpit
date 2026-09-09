@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Comment } from '../types';
+import type { Comment } from '@review-cockpit/schema';
 import { preview } from '../lib/drafts';
 
 function inline(text: string, keyPrefix: string): ReactNode[] {

@@ -1,4 +1,4 @@
-import type { Check, CheckStatus, PrInfo } from '../types';
+import type { Check, CheckStatus, PrInfo } from '@review-cockpit/schema';
 import { shortSha } from '../lib/derive';
 
 const icons: Record<CheckStatus, string> = {

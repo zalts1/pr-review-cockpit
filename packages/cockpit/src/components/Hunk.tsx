@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
-import type { Comment, DiffLine, Hunk as HunkModel, ReviewFile } from '../types';
-import type { Draft } from '../lib/drafts';
+import type { Comment, DiffLine, Hunk as HunkModel, ReviewFile } from '@review-cockpit/schema';
+import type { CockpitDraft } from '../lib/drafts';
 import type { DragRange, EditorTarget, LineTarget } from '../lib/interaction';
 import { rangeOf } from '../lib/interaction';
 import { CommentPin } from './CommentPin';
@@ -9,7 +9,7 @@ import { HeatBar, ReasonBanner } from './HeatBar';
 
 export interface DiffHandlers {
   commentsByHunk: Map<string, Comment[]>;
-  drafts: Draft[];
+  drafts: CockpitDraft[];
   expandedComments: Set<string>;
   toggleComment(id: string): void;
   editor: EditorTarget | null;

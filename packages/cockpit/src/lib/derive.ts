@@ -3,19 +3,13 @@ import type {
   Group,
   Hunk,
   PathStep,
+  ReadySummary,
   ReviewDocument,
   ReviewFile,
   RiskLevel,
-  Summary,
-} from '../types';
-
-export const SUPPORTED_MAJOR = 1;
+} from '@review-cockpit/schema';
 
 export const levelRank: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
-
-export function majorOf(version: string): number {
-  return Number.parseInt(version.split('.')[0] ?? '', 10);
-}
 
 export function shortSha(sha: string): string {
   return sha.slice(0, 7);
@@ -39,7 +33,7 @@ export interface Derived {
   highHunkIds: string[];
   steps: PathStep[];
   pathIsFallback: boolean;
-  summary: Summary | null;
+  summary: ReadySummary | null;
   totals: { hunks: number; high: number; skimmable: number };
 }
 
@@ -142,7 +136,7 @@ export function derive(doc: ReviewDocument): Derived {
     highHunkIds,
     steps,
     pathIsFallback: !pathReady,
-    summary: summaryReady ? (doc.summary as Summary) : null,
+    summary: summaryReady ? (doc.summary as ReadySummary) : null,
     totals: {
       hunks: allHunks.length,
       high: highHunkIds.length,

@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import type { PrInfo } from '../types';
-import type { Draft } from '../lib/drafts';
+import type { Draft, PrInfo } from '@review-cockpit/schema';
 import { draftTarget, preview } from '../lib/drafts';
 import { shortSha } from '../lib/derive';
 

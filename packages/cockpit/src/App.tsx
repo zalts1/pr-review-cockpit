@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReviewDocument, RiskLevel } from './types';
-import { SUPPORTED_MAJOR, derive, levelRank, majorOf } from './lib/derive';
-import type { Draft } from './lib/drafts';
-import { draftsKey, loadDrafts, preview, saveDrafts } from './lib/drafts';
+import type { ReviewDocument, RiskLevel } from '@review-cockpit/schema';
+import { checkVersion } from '@review-cockpit/schema/version';
+import { derive, levelRank } from './lib/derive';
+import type { CockpitDraft } from './lib/drafts';
+import { draftsFileOf, draftsKey, loadDrafts, preview, saveDrafts } from './lib/drafts';
 import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
 import { editorTargetFromDrag } from './lib/interaction';
 import { AutopilotBar } from './components/AutopilotBar';
@@ -69,14 +70,14 @@ export function App() {
     );
   }
 
-  const major = majorOf(load.doc.schemaVersion);
-  if (major !== SUPPORTED_MAJOR) {
+  const version = checkVersion(load.doc);
+  if (!version.ok) {
     return (
       <div className="centered">
         <h1>This document has an unsupported schema version</h1>
         <p>
-          The document is <code>{load.doc.schemaVersion}</code>. This cockpit renders{' '}
-          <code>{SUPPORTED_MAJOR}.x</code> documents only.
+          The document is <code>{version.documentVersion}</code>. This cockpit renders{' '}
+          <code>{version.supportedMajor}.x</code> documents only.
         </p>
         <p className="empty">
           A major version means a field changed meaning, so rendering it could show the wrong
@@ -99,17 +100,12 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
     () => new Set(doc.files.filter((f) => f.generated.is).map((f) => f.id)),
   );
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    () =>
-      new Set(
-        doc.groups
-          .filter((g) => g.mode === 'scrutinize' || !g.collapsedByDefault)
-          .map((g) => g.id),
-      ),
+    () => new Set(doc.groups.filter((g) => !g.collapsedByDefault).map((g) => g.id)),
   );
   const [stepIndex, setStepIndex] = useState(-1);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
-  const [drafts, setDrafts] = useState<Draft[]>(() => loadDrafts(storageKey));
+  const [drafts, setDrafts] = useState<CockpitDraft[]>(() => loadDrafts(storageKey));
   const [editor, setEditor] = useState<EditorTarget | null>(null);
   const [drag, setDrag] = useState<DragRange | null>(null);
   const [hoveredLine, setHoveredLine] = useState<LineTarget | null>(null);
@@ -127,7 +123,10 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
   const fileEls = useRef(new Map<string, HTMLElement>());
   const groupEls = useRef(new Map<string, HTMLElement>());
 
-  useEffect(() => saveDrafts(storageKey, drafts), [storageKey, drafts]);
+  useEffect(
+    () => saveDrafts(storageKey, draftsFileOf(doc.pr, drafts)),
+    [storageKey, doc.pr, drafts],
+  );
 
   useEffect(() => {
     if (!toast) return;
@@ -364,6 +363,7 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
     addDraft: (target, body) => {
       const location = derived.hunkById.get(target.hunkId);
       if (!location) return;
+      const now = new Date().toISOString();
       setDrafts((current) => [
         ...current,
         {
@@ -377,7 +377,8 @@ export function Cockpit({ doc }: { doc: ReviewDocument }) {
           startSide: target.startSide,
           body,
           commitId: doc.pr.head.sha,
-          createdAt: new Date().toISOString(),
+          createdAt: now,
+          updatedAt: now,
         },
       ]);
       setEditor(null);

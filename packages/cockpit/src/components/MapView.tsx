@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import * as dagreModule from '@dagrejs/dagre';
-import type { Graph, GraphNode, RiskLevel, SectionStatus } from '../types';
+import type { Graph, GraphNode, RiskLevel, SectionStatus } from '@review-cockpit/schema';
 
 // dagre ships CommonJS, and Node's ESM interop exposes only some of its named
 // exports, so reach through the default binding when the bundler provides one.

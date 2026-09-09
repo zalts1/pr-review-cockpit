@@ -1,40 +1,56 @@
-import type { PrInfo, Side } from '../types';
+import type { Draft, DraftsFile, PrInfo } from '@review-cockpit/schema';
+import { SCHEMA_VERSION } from '@review-cockpit/schema/version';
 
-export interface Draft {
-  id: string;
+/** A draft plus the two ids the renderer needs to place it under its hunk. */
+export interface CockpitDraft extends Draft {
   fileId: string;
   hunkId: string;
-  path: string;
-  side: Side;
-  line: number;
-  startLine: number | null;
-  startSide: Side | null;
-  body: string;
-  commitId: string;
-  createdAt: string;
 }
 
 export function draftsKey(pr: PrInfo, fixture: string): string {
   return `review-cockpit:drafts:${pr.owner}/${pr.repo}#${pr.number}:${fixture}`;
 }
 
-export function loadDrafts(key: string): Draft[] {
+export function draftsFileOf(pr: PrInfo, drafts: CockpitDraft[]): DraftsFile {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    pr: { owner: pr.owner, repo: pr.repo, number: pr.number },
+    verdict: null,
+    summaryBody: '',
+    drafts,
+  };
+}
+
+export function loadDrafts(key: string): CockpitDraft[] {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Draft[]) : [];
+    // Drafts were stored as a bare array before the drafts file had a schema.
+    const drafts = Array.isArray(parsed)
+      ? parsed
+      : ((parsed as Partial<DraftsFile> | null)?.drafts ?? []);
+    return (drafts as Array<Partial<CockpitDraft>>).filter(isDraft).map(withUpdatedAt);
   } catch {
     return [];
   }
 }
 
-export function saveDrafts(key: string, drafts: Draft[]): void {
+export function saveDrafts(key: string, file: DraftsFile): void {
   try {
-    localStorage.setItem(key, JSON.stringify(drafts));
+    localStorage.setItem(key, JSON.stringify(file));
   } catch {
     // A browser with site data blocked keeps the drafts in memory for this session only.
   }
+}
+
+function isDraft(value: Partial<CockpitDraft>): boolean {
+  return typeof value.id === 'string' && typeof value.hunkId === 'string';
+}
+
+function withUpdatedAt(draft: Partial<CockpitDraft>): CockpitDraft {
+  const full = draft as CockpitDraft;
+  return { ...full, updatedAt: full.updatedAt ?? full.createdAt };
 }
 
 export function draftTarget(draft: Draft): string {

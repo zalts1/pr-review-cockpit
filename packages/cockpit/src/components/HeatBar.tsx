@@ -1,4 +1,4 @@
-import type { Hunk } from '../types';
+import type { Hunk } from '@review-cockpit/schema';
 import { factorText } from '../lib/derive';
 
 interface Props {

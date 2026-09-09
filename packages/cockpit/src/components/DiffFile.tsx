@@ -1,4 +1,4 @@
-import type { Hunk as HunkModel, ReviewFile } from '../types';
+import type { Hunk as HunkModel, ReviewFile } from '@review-cockpit/schema';
 import type { DiffHandlers } from './Hunk';
 import { Hunk } from './Hunk';
 

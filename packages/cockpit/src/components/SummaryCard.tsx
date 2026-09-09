@@ -1,7 +1,7 @@
-import type { SectionStatus, Summary } from '../types';
+import type { ReadySummary, SectionStatus } from '@review-cockpit/schema';
 
 interface Props {
-  summary: Summary | null;
+  summary: ReadySummary | null;
   status: SectionStatus;
   prBody: string;
   collapsed: boolean;

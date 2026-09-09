@@ -1,4 +1,4 @@
-import type { ReviewDocument, SectionName } from '../types';
+import type { ReviewDocument, SectionName } from '@review-cockpit/schema';
 
 const stage2: SectionName[] = ['groups', 'path', 'summary'];
 

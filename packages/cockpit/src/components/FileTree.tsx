@@ -1,4 +1,4 @@
-import type { Group, ReviewFile, RiskLevel } from '../types';
+import type { Group, ReviewFile, RiskLevel } from '@review-cockpit/schema';
 
 interface Props {
   files: ReviewFile[];
