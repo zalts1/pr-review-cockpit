@@ -14,7 +14,8 @@
     "build": "npm run build --workspace @review-cockpit/cockpit",
     "typecheck": "npm run typecheck --workspace @review-cockpit/cockpit",
     "fixtures:build": "tsx fixtures/generate.ts",
-    "fixtures:check": "tsx fixtures/check.ts"
+    "fixtures:check": "tsx fixtures/check.ts",
+    "demo": "npm run build && (sleep 1 && open \"http://localhost:8080/?fixture=pr-fake-1\" &) && python3 -m http.server -d packages/cockpit/dist 8080"
   },
   "devDependencies": {
     "@types/node": "^26.5.0",

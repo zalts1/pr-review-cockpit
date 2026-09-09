@@ -233,3 +233,17 @@ Status: accepted · 2026-09-08
 **Decision.** Option 1, and the layout runs synchronously in a `useMemo` rather than in a worker.
 
 **Consequences.** The graph is capped at 300 nodes by the schema, and 34 nodes lay out in under a millisecond, so the worker buys nothing yet. If a real repository produces a graph that blocks the Files tab, the layout call moves into a worker without touching the rest of the Map code. Option 2 stays open because only `computeLayout` in `MapView.tsx` knows about dagre.
+
+---
+
+## ADR-18: M1 gate result — continue, with polish deferred to real data
+
+Status: accepted · 2026-09-09
+
+**Context.** ADR-12 made M1 a go/no-go gate. The user walked the fake PR in the built cockpit on 2026-09-08 and 2026-09-09.
+
+**Verdict.** "Overall it does look great and a great direction." Not yet preferred over GitHub in its current state; a lot of UI polish and untested functionality remain. The direction is confirmed, the thesis is not yet proven.
+
+**Decision.** Continue to M2. UI polish is collected in `docs/BACKLOG.md` as it surfaces and gets a dedicated pass once the cockpit runs on a real PR (after M3), because polishing against fake data optimises for the fixture. The M1 build is preserved as the tag `m1-demo` and runs with `npm run demo`.
+
+**Consequences.** The real answer to the gate question moves to the end of M4, when the user can compare the cockpit on a real PR against their current habit.
