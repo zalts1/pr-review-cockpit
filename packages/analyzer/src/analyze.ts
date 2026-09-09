@@ -2,12 +2,13 @@ import type { CheckoutInfo, PrInfo, ReviewDocument, RiskLevel } from '@review-co
 import { summaryCounts } from '@review-cockpit/schema';
 import type { HunkFeatures } from './features.js';
 import { checkout } from './checkout.js';
+import { diffBytes, formatBytes, writeCompact } from './compact.js';
 import { readUserConfig } from './config.js';
 import { nowIso, status, writeDocument } from './document.js';
 import type { FanCounts, GraphResult } from './graph.js';
 import { buildGoGraph } from './graph.js';
 import type { PrRef } from './paths.js';
-import { documentFile, indexDir } from './paths.js';
+import { compactFile, documentFile, indexDir } from './paths.js';
 import { resolvePr } from './resolve.js';
 import { modeOf, riskOf } from './score.js';
 import { analyzeStage1 } from './stage1.js';
@@ -27,6 +28,8 @@ export interface AnalyzeResult {
   checkout: CheckoutInfo;
   document: ReviewDocument;
   documentPath: string;
+  compactPath: string;
+  compactBytes: number;
   stage1Ms: number;
   graph: GraphResult | null;
 }
@@ -153,12 +156,26 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
   });
 
   const documentPath = documentFile(resolved.ref);
+  const compactPath = compactFile(resolved.ref);
   writeDocument(documentPath, stage1.document);
+  let compactBytes = writeCompact(compactPath, stage1.document);
   const stage1Ms = Date.now() - stage1Started;
   onProgress?.(`stage 1 written to ${documentPath} (${stage1Ms} ms total)`);
+  onProgress?.(
+    `compact view written to ${compactPath}: ${formatBytes(compactBytes)} against ${formatBytes(diffBytes(stage1.document))} of diff`,
+  );
 
   if (options.skipGraph === true) {
-    return { ref: resolved.ref, checkout: info, document: stage1.document, documentPath, stage1Ms, graph: null };
+    return {
+      ref: resolved.ref,
+      checkout: info,
+      document: stage1.document,
+      documentPath,
+      compactPath,
+      compactBytes,
+      stage1Ms,
+      graph: null,
+    };
   }
 
   const document = stage1.document;
@@ -175,10 +192,20 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
     document.graph = graph.graph;
     document.status.graph = status('ready', nowIso());
     writeDocument(documentPath, document);
+    compactBytes = writeCompact(compactPath, document);
     onProgress?.(
       `graph: ${graph.graph.nodes.length} nodes, ${graph.graph.edges.length} edges, ${refined.raised} hunks raised, ${refined.kept} floors kept (${graph.stats.ms} ms)`,
     );
-    return { ref: resolved.ref, checkout: info, document, documentPath, stage1Ms, graph };
+    return {
+      ref: resolved.ref,
+      checkout: info,
+      document,
+      documentPath,
+      compactPath,
+      compactBytes,
+      stage1Ms,
+      graph,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     document.status.graph = status(
@@ -188,6 +215,15 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
     );
     writeDocument(documentPath, document);
     onProgress?.(`graph failed: ${message}`);
-    return { ref: resolved.ref, checkout: info, document, documentPath, stage1Ms, graph: null };
+    return {
+      ref: resolved.ref,
+      checkout: info,
+      document,
+      documentPath,
+      compactPath,
+      compactBytes,
+      stage1Ms,
+      graph: null,
+    };
   }
 }

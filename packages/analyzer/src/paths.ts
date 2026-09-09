@@ -39,6 +39,18 @@ export function documentFile(ref: PrRef): string {
   return join(prDir(ref), 'review.json');
 }
 
+export function compactFile(ref: PrRef): string {
+  return join(prDir(ref), 'compact.md');
+}
+
+export function judgmentFile(ref: PrRef): string {
+  return join(prDir(ref), 'judgment.json');
+}
+
+export function rejectedJudgmentFile(ref: PrRef): string {
+  return join(prDir(ref), 'judgment.rejected.json');
+}
+
 export function serverFile(ref: PrRef): string {
   return join(prDir(ref), 'server.json');
 }

@@ -1,6 +1,14 @@
 export { analyze, applyGraphFan, prepare } from './analyze.js';
 export type { AnalyzeOptions, AnalyzeResult, PrepareResult } from './analyze.js';
 export { checkout, findLocalClone, worktreeHost } from './checkout.js';
+export {
+  buildCompact,
+  diffBytes,
+  formatBytes,
+  FULL_TEXT_MAX_CHANGED_LINES,
+  PREVIEW_CHANGED_LINES,
+  writeCompact,
+} from './compact.js';
 export type { CheckoutOptions } from './checkout.js';
 export { noOverrides, readRepoOverrides, readUserConfig } from './config.js';
 export type { RepoOverrides, UserConfig } from './config.js';
