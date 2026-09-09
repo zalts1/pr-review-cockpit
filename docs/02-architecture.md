@@ -11,7 +11,7 @@ A Claude Code skill named `review` turns a PR number into a running local web ap
 | Component | What it is | Runs where | Owns |
 |---|---|---|---|
 | **Skill** | `SKILL.md` plus a thin wrapper. Teaches Claude Code what `review <pr>` means and how to do the judgment pass. | Inside the Claude Code session | The conversation with the reviewer |
-| **CLI** (`cockpit`) | A Node program with subcommands: `prepare`, `analyze`, `serve`, `clean`, `validate`, `merge`, and later `judge-merge` and `submit`. | Spawned by the skill | Orchestration, checkout, process lifecycle |
+| **CLI** (`cockpit`) | A Node program with subcommands: `prepare`, `analyze`, `compact`, `judge-prompt`, `judge-merge`, `serve`, `clean`, `validate`, `merge`, and later `submit`. | Spawned by the skill | Orchestration, checkout, process lifecycle |
 | **Analyzer** | A library the CLI calls. Reads the local checkout and produces the deterministic part of the review document. | Inside the CLI process | Diff parsing, git signals, tree-sitter signals, generated-code detection |
 | **Schema package** | JSON Schema for the review document plus a validator and TypeScript types. | Imported by every other component | The contract |
 | **Server** | A small HTTP server. Serves the cockpit's static files, the review document, and a local API for drafts and submit. | Background process, one per review | Live state, write-back |
@@ -138,7 +138,29 @@ and a watch bound to the old inode goes quiet after the first write.
 analyzed" rather than "Analyzing…", so a placeholder never claims work that no process is
 doing. The `review` skill always passes it, because it always runs the judgment pass.
 
-**5. Judgment pass.** The CLI writes `compact.md` next to the document: one block per hunk with its id, file, enclosing symbol, signals, risk floor and the first lines of the change, and the full text of any hunk under 40 lines. A 4,500-line PR compacts to roughly a fifth of its size. The skill instructs the resident Claude session to read the compact view, open full hunks from the checkout only where it needs to, and produce `judgment.json` in the exact shape the schema demands. The CLI validates it, rejects anything that lowers a deterministically high-risk hunk, and merges the result into the document. The server pushes the change.
+**5. Judgment pass.** `cockpit analyze` writes `compact.md` next to the document, and
+`cockpit compact` rewrites it on its own: a legend, the pull request and its body, the file
+list with the rule that folded each generated file, the stage 1 groups, and one block per
+hunk that is not generated, carrying its id, path, enclosing symbols, kind, risk floor with
+the signals behind it, and the change text — in full under 40 changed lines, the first 15
+otherwise.
+
+`cockpit judge-prompt <pr>` prints the whole prompt to stdout: the instructions, the judgment
+JSON Schema embedded from `packages/schema/schemas`, the floor rules, the merge rules, the
+shape of the summary, and the compact view at the end. The prompt text lives in
+`skill/review/judgment-prompt.md` with `{{placeholders}}` the CLI fills (ADR-32), so it is
+reviewable as text rather than buried in a string. It names one output path and one next
+command.
+
+`cockpit judge-merge <pr>` reads `judgment.json`, validates it, merges it, validates the
+merged document and writes it by rename, so a cockpit that is already open picks it up over
+server-sent events. Every dropped or clamped proposal is printed and appended to `log.txt`.
+
+The compact view is not always smaller than the diff. On a 24-file, 194-hunk pull request it
+came to 164 kB against 131 kB of `gh pr diff` and 776 kB of `review.json`: the change text
+inside it is 88 kB, two thirds of the raw diff, and the rest is the per-hunk metadata the
+judgment pass needs. It replaces the document as the model's input, not the diff as the
+reviewer's.
 
 **6. Graph stage.** The CLI builds the call graph for the changed Go functions: what they call and what calls them, one hop out, within the repository. Written as stage 3.
 
@@ -198,7 +220,9 @@ The server posts as the user's own `gh` identity. The tool never holds a token o
     pr-123/
       worktree/            git worktree at the PR head
       review.json          the document, all stages
+      compact.md           the pull request as text for the judgment pass
       judgment.json        raw LLM output, kept for debugging
+      judgment.rejected.json   the last judgment that failed validation
       drafts.json          the reviewer's unsent comments and verdict
       server.json          port and pid of the running server
       log.txt
@@ -210,7 +234,12 @@ An optional `~/.config/review-cockpit/config.json` holds workspace roots to sear
 
 - **`gh` not authenticated:** stop before checkout with the exact `gh auth login` command to run.
 - **Repository too large to clone in the budget:** the CLI reports progress and keeps going. The startup budget is a target, not a timeout.
-- **Judgment pass returns invalid JSON:** the CLI reports the validation error to the session, which retries once. If it fails again, stage 2 is marked failed and the cockpit works from deterministic risk alone, with a visible note.
+- **Judgment pass returns invalid JSON:** `judge-merge` writes nothing, keeps the file as
+  `judgment.rejected.json`, prints the first five errors in plain words and one line saying
+  where to write the corrected file, and exits non-zero. The session fixes it and retries
+  once. After a second rejection the skill stops and says so; the stage 2 sections stay
+  `pending` and the cockpit works from deterministic risk alone. Marking them `failed` is
+  M7's job, since M4 has no process that owns the second failure.
 - **Graph stage fails or times out:** stage 3 is marked failed. The graph tab shows the message. Nothing else is affected.
 - **Nothing is written into the user's clone** but the objects a fetch brings in, one ref
   under `refs/review-cockpit/`, and the worktree registration. `cockpit clean` removes both.

@@ -224,9 +224,33 @@ its recomputed level says so in its first factor: "kept at high from the stage 1
 
 ## The judgment layer
 
+Implemented at M4. `cockpit analyze` writes the input, `cockpit judge-prompt` prints the
+prompt, `cockpit judge-merge` validates and merges the output.
+
 ### Input
 
-The compact view written by the CLI, `compact.md`. Per hunk: id, path, enclosing symbol, kind, floor, the top factors, and the change text: full for hunks under 40 lines, the first 15 changed lines otherwise. Also the PR title and body, the file list with generated files marked, and the existing bot comments. The session may open any file in the checkout when it wants more.
+The compact view written by the CLI, `compact.md`, in this order: a legend; the pull request
+with its title, author, refs, size and body verbatim; the file list, each line carrying the
+file id, status, language, added and deleted lines, hunk count, path and the rule that folded
+it when it is generated; the stage 1 groups with their hunk ids; one block per hunk that is
+not in a generated group; and the stage 1 comments, when there are any.
+
+A hunk block carries the id, the path, the enclosing symbols (falling back to the diff header
+for a language the analyzer does not parse), the kind with the size of the change and the
+lines it covers, the floor and score with the top factors on one line, and the change text:
+full under 40 changed lines, the first 15 changed lines otherwise with a `… N more lines`
+marker. The change text sits in a backtick fence that grows longer when the text itself holds
+backticks.
+
+The compact view is not a compressed diff. On a 24-file, 194-hunk pull request it came to
+164 kB against 131 kB of `gh pr diff`: the change text inside it is 88 kB, two thirds of the
+raw diff, and the remaining 76 kB is the per-hunk metadata that makes each block judgeable on
+its own. What it replaces is the 776 kB review document.
+
+The session may open any file in the checkout when it wants more, and the prompt tells it to:
+read the callers of a changed function, read the code around a preview hunk, and check the
+pull request body against the code, because a body written days earlier often describes an
+earlier commit.
 
 ### Output
 
@@ -241,15 +265,35 @@ The judgment file from `03-review-document-schema.md`. Four kinds of content:
 
 The LLM is told the floor rules and told plainly that it cannot lower risk. Asking it to argue for lowering produces text nobody reads; asking it to spot what the signals missed produces the raises we want.
 
+One more thing the LLM decides, which the merge cannot check: a group of kind `generated` is
+folded out of the walk entirely. That is the right home for a file whose own header says it is
+generated but which no built-in pattern matched — on the verification pull request, 14 hunks
+of a protobuf-ts client. The prompt says so, and says to name the header in the description so
+the reviewer can check the call.
+
 ### Validation
 
-1. Parse as JSON. Failure: return the parse error to the session for one retry.
-2. Validate against the judgment JSON Schema. Failure: return the first five schema errors for one retry.
-3. Referential checks: every hunk id exists.
-4. Merge rules, applied in this order: risk adjustments, then groups, then path, then reasons, then summary. Counts are recomputed from the merged document.
-5. Anything dropped by a rule goes to `log.txt` with the hunk id and the rule, so a wrong floor can be investigated.
+`cockpit judge-merge` runs the steps in order and stops at the first failure:
 
-After a second failure, stage 2 sections are marked `failed` with the validation message, and the cockpit runs on deterministic risk alone.
+1. Parse as JSON.
+2. Validate against the judgment JSON Schema and the referential rules, which include that
+   every hunk id exists.
+3. Merge, in this order: risk adjustments, then groups, then path, then reasons, then summary.
+   Counts are recomputed from the merged document.
+4. Validate the merged document, which is the last line of defence against a merge rule with a
+   gap in it.
+5. Write the document by rename, so a cockpit that is already open picks it up and never reads
+   half a file.
+
+Anything a rule dropped or clamped is printed and appended to `log.txt` with the hunk id and
+the rule, so a wrong floor can be investigated.
+
+On any failure nothing is written, the judgment is kept as `judgment.rejected.json`, the first
+five errors are printed in plain words with one line saying where to write the corrected file,
+and the exit code is non-zero. The one retry lives in the skill, not in the CLI: the CLI has no
+way to produce a better judgment, so it fails loudly and the session decides. After a second
+rejection the skill stops and tells the reviewer, and the stage 2 sections stay `pending`, so
+the cockpit runs on deterministic risk alone.
 
 ## Calibration
 

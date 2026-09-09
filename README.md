@@ -13,7 +13,8 @@ produces a real document. `packages/analyzer` resolves the pull request through 
 it out as a worktree on a local clone, parses the diff, measures git history and Go structure
 with tree-sitter, scores every hunk, and writes `review.json`; `packages/server` serves that
 document to the cockpit and pushes every rewrite of it over server-sent events;
-`packages/cli` drives all of it as `cockpit prepare`, `analyze`, `serve` and `clean`.
+`packages/cli` drives all of it as `cockpit prepare`, `analyze`, `judge-prompt`, `judge-merge`,
+`serve` and `clean`.
 
 The map reads the graph at two levels, packages first and one package's functions on click,
 and every body the cockpit shows is rendered as sanitised markdown.
@@ -69,8 +70,12 @@ npm install
 npm run build                      # schema, analyzer, server, cli, cockpit
 
 # 123, owner/repo#123 or a pull request URL; a bare number needs a GitHub clone as cwd
-npx cockpit analyze 456
+npx cockpit analyze 456 --expect-judgment
 npx cockpit serve   456 --open
+
+# the judgment pass: print the prompt, follow it, write judgment.json, merge it
+npx cockpit judge-prompt 456
+npx cockpit judge-merge  456
 ```
 
 `analyze` prints progress and timings per step to stderr and the path of `review.json` to
@@ -89,7 +94,10 @@ fetch brings in, one ref under `refs/review-cockpit/`, and the worktree registra
 | Command | What it does |
 |---|---|
 | `cockpit prepare <pr> [--cwd <dir>]` | Resolve and check out only. Prints the checkout as JSON. |
-| `cockpit analyze <pr> [--expect-judgment] [--no-fold-generated] [--skip-graph] [--cwd <dir>]` | Stage 1 and stage 3 into `review.json`. |
+| `cockpit analyze <pr> [--expect-judgment] [--no-fold-generated] [--skip-graph] [--cwd <dir>]` | Stage 1 and stage 3 into `review.json`, and `compact.md` beside it. |
+| `cockpit compact <pr> [--cwd <dir>]` | Rewrite `compact.md` from the document on its own. |
+| `cockpit judge-prompt <pr> [--cwd <dir>]` | Print the whole judgment prompt to stdout. |
+| `cockpit judge-merge <pr> [--judgment <file>] [--cwd <dir>]` | Validate `judgment.json`, merge it, write the document and the log. |
 | `cockpit serve <pr> [--port <n>] [--open] [--cwd <dir>]` | Serve the cockpit and the document on 127.0.0.1. |
 | `cockpit clean <pr> [--cwd <dir>]` | Stop the server, remove the worktree and the ref, keep the document. |
 | `cockpit validate <file> [--as document\|judgment\|drafts]` | Schema and referential rules. |
@@ -102,8 +110,29 @@ sections are marked `not-attached` and the cockpit shows "Not analyzed" instead 
 "Analyzing…".
 
 Everything lives under `~/.cache/review-cockpit/<owner>/<repo>/`: `pr-<n>/review.json`,
-`pr-<n>/worktree`, `pr-<n>/server.json`, and an `index/` of parsed Go symbols shared by every
-pull request of that repository. `docs/02-architecture.md` has the layout.
+`pr-<n>/compact.md`, `pr-<n>/judgment.json`, `pr-<n>/log.txt`, `pr-<n>/worktree`,
+`pr-<n>/server.json`, and an `index/` of parsed Go symbols shared by every pull request of
+that repository. `docs/02-architecture.md` has the layout.
+
+## The judgment pass
+
+`analyze` writes `compact.md` next to the document: the pull request as one text file, with
+the file list, the deterministic groups, and one block per hunk carrying its id, path,
+symbols, kind, risk floor and change text. A hunk under 40 changed lines is shown in full, a
+larger one shows its first 15 changed lines and counts the rest.
+
+`judge-prompt` prints the prompt that turns that file into a judgment: the instructions, the
+judgment JSON Schema, the floor rules, the merge rules, the shape of the summary, and the
+compact view at the end. The prompt itself lives in `skill/review/judgment-prompt.md` with
+`{{placeholders}}` the CLI fills, so it is reviewable as text. It names one output path,
+`judgment.json` beside the document, and one next command.
+
+`judge-merge` validates that file, merges it, and writes the document atomically, so a
+cockpit that is already open picks it up over server-sent events. It prints every proposal it
+dropped or clamped and appends the same lines to `log.txt`. A rejected judgment is kept as
+`judgment.rejected.json`, the first five errors are printed in plain words, nothing is
+written, and the exit code is non-zero. `skill/review/SKILL.md` is the procedure the resident
+Claude session follows, including the one retry.
 
 ### Configuration
 

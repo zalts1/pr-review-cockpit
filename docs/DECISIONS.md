@@ -476,3 +476,104 @@ be summarised while a rarely-called production function is drawn; fan-in decides
 last.
 
 **Amended 2026-09-09.** HTML comments render to nothing, and `sup`, `sub`, `kbd`, `br`, `details`, `summary` pass through to the sanitiser. The first real PR body carried a bot summary wrapped in `<!-- … -->` markers and `<sup>` attribution, both shown as literal text under the original rule. GitHub `[!NOTE]`-style alerts render as a blockquote with a bold label.
+
+---
+
+## ADR-31: The judgment pass reads one compact markdown file, not the document
+
+Status: accepted · 2026-09-09
+
+**Context.** The judgment pass needs the whole pull request in one readable input: the change,
+the risk floors, the groups the analyzer already made, and enough structure that every hunk can
+be judged on its own. The review document has all of it and is 776 kB of JSON on a 24-file pull
+request, most of it diff lines, and none of it comfortable to read.
+
+**Options.**
+1. Hand the session `review.json` and let it navigate. Every field is there, and so is every
+   field it does not need; a model reading JSON spends its attention on punctuation.
+2. Hand it `gh pr diff` plus a table of floors. Two inputs to keep in step, and the join is the
+   model's problem.
+3. A compact markdown view written next to the document, one block per hunk, with the floor and
+   its factors attached to each block.
+
+**Decision.** Option 3. `compact.md`, written by `cockpit analyze` and regenerable with
+`cockpit compact <pr>`. Fixed order: legend, pull request with its body verbatim, file list with
+the rule that folded each generated file, stage 1 groups, one block per hunk outside a generated
+group, then the stage 1 comments. A hunk under 40 changed lines carries its change text in full;
+a larger one carries its first 15 changed lines and a count of the rest. Each block names the
+fields the merge rules act on, so a session that reads only this file can still produce a
+judgment the CLI accepts.
+
+**Consequences.** It is not a compressed diff, and the earlier claim in `02-architecture.md`
+that a large pull request "compacts to roughly a fifth of its size" was wrong. Measured on the
+verification pull request: 164 kB, against 131 kB of `gh pr diff` and 776 kB of `review.json`.
+The change text inside it is 88 kB — two thirds of the raw diff, which is what the caps and the
+generated fold buy — and the other 76 kB is per-hunk metadata, about 300 bytes a hunk. The trade
+is deliberate: the file replaces the document as the model's input, not the diff as the
+reviewer's. Two consequences of the format itself: the change text is fenced with a fence that
+grows past three backticks when the text holds backticks, so a markdown file in the diff cannot
+break the block; and the diff header is printed only where tree-sitter parsed no symbol, since
+elsewhere it repeats the symbol line and cost 12 kB on that pull request.
+
+---
+
+## ADR-32: The judgment prompt is a text template the CLI renders
+
+Status: accepted · 2026-09-09
+
+**Context.** The prompt is the whole judgment layer: the schema, the floor rules, the merge
+rules, the shape of the summary, and the compact view. It has to be reviewable like any other
+artefact, and it has to be exactly what the session receives, not a paraphrase of it.
+
+**Options.**
+1. Write it into `SKILL.md` and let the session assemble the schema and the compact view itself.
+   The session then decides what the schema says, which is the one thing that must not drift.
+2. Build it in TypeScript as a template literal. Reviewable only as code, and a diff of it reads
+   as a diff of a string.
+3. Keep it as markdown with `{{placeholders}}` the CLI fills, and print the filled prompt from a
+   subcommand.
+
+**Decision.** Option 3. `skill/review/judgment-prompt.md` holds the text; `cockpit judge-prompt
+<pr>` fills it and prints it to stdout. The CLI supplies the pull request, the checkout path,
+the output path, the next command, the schema version, the reason cap, the hunks that must carry
+a reason, the stage 1 group ids, the walkable hunk count, the judgment JSON Schema read from
+`packages/schema/schemas/judgment.schema.json`, and the compact view. A placeholder the CLI
+cannot fill is an error, not an empty string, so the template and the code cannot drift apart
+quietly.
+
+**Consequences.** The schema in the prompt is the schema the validator runs, by construction.
+The prompt is a file a person can read and comment on in a pull request. Placeholder values are
+inserted in one pass and are never rescanned, so `{{...}}` inside a pull request body or a Go
+template in the diff passes through untouched. The skill lives in `skill/review/` rather than at
+`skill/SKILL.md` as `06-milestones.md` assumed, so the prompt sits next to the skill that uses
+it and a second skill can be added later without moving either.
+
+---
+
+## ADR-33: A rejected judgment fails loudly and the retry lives in the skill
+
+Status: accepted · 2026-09-09 · refines the failure behaviour in ADR-5
+
+**Context.** `03-review-document-schema.md` says an invalid judgment is kept as
+`judgment.rejected.json` and the errors are returned to the session for one retry. Something has
+to own that loop, and `02-architecture.md` left it ambiguous between the CLI and the skill.
+
+**Options.**
+1. The CLI owns the retry: it would have to call the LLM, which ADR-5 put in the resident
+   session.
+2. The CLI marks stage 2 `failed` on the first rejection. The reviewer then sees a failure for
+   something that is about to be retried and probably succeed.
+3. The CLI fails loudly and writes nothing; the skill owns the one retry.
+
+**Decision.** Option 3. `cockpit judge-merge` exits non-zero, keeps the file as
+`judgment.rejected.json` beside the document, prints the first five errors in plain words and
+one line naming where to write the corrected file. It never touches `review.json` on a failure,
+so the stage 2 sections stay `pending` and the cockpit keeps saying what it said before.
+`skill/review/SKILL.md` holds the loop: fix once, retry once, then stop and report.
+
+**Consequences.** Five errors is a fixable list; forty is not, so the rest are counted rather
+than printed. Marking stage 2 `failed` after a second rejection is left to M7, which owns the
+skill's progress reporting — until then a second failure is a message in the terminal, not a
+label in the cockpit. `--judgment <file>` reads a judgment from elsewhere and still writes the
+rejected copy into the pull request's cache directory, so the name the docs promise is always
+where the docs say.
