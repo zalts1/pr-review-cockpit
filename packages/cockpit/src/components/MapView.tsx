@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { Graph, RiskLevel, SectionStatus } from '@review-cockpit/schema';
 import type { MapLayout, PlacedNode } from '../lib/mapLayout';
 import { functionLevel, packageLevel } from '../lib/mapLayout';
-import { ArrowRightIcon, ChevronRightIcon, WarnIcon } from './Icons';
+import {
+  ArrowRightIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  SpinnerIcon,
+  WarnIcon,
+} from './Icons';
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
@@ -29,6 +36,16 @@ interface Props {
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
+}
+
+function MapMessage({ children }: { children: ReactNode }) {
+  return (
+    <div className="map">
+      <div className="map-message">
+        <div className="map-message-card">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -225,44 +242,46 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
 
   if (status.state === 'pending') {
     return (
-      <div className="map">
-        <div className="map-message">
-          <p>Building the call graph. This can take up to a minute on a large repository.</p>
-        </div>
-      </div>
+      <MapMessage>
+        <SpinnerIcon size={20} />
+        <h2>Building the call graph</h2>
+        <p className="empty">This can take up to a minute on a large repository.</p>
+      </MapMessage>
     );
   }
 
   if (status.state === 'failed') {
     return (
-      <div className="map">
-        <div className="map-message">
-          <WarnIcon size={20} />
-          <p>{status.message ?? 'The call graph could not be built.'}</p>
-          <p className="empty">
-            Re-run from the terminal with <code>review {prNumber} --graph</code>.
-          </p>
-        </div>
-      </div>
+      <MapMessage>
+        <WarnIcon size={20} className="map-message-warn" />
+        <h2>The call graph could not be built</h2>
+        <p>{status.message ?? 'No message given.'}</p>
+        <p className="empty">
+          Re-run from the terminal with <code>review {prNumber} --graph</code>.
+        </p>
+      </MapMessage>
     );
   }
 
   if (laid === null || laid.nodes.length === 0) {
     return (
-      <div className="map">
-        <div className="map-message">
-          <p>
-            {graph.nodes.length === 0
-              ? 'No call graph nodes for this PR.'
-              : 'This package has no changed function to show.'}
-          </p>
-          {level.kind === 'package' && (
-            <button className="btn btn-small" onClick={() => setLevel({ kind: 'packages' })}>
-              Back to all packages
-            </button>
-          )}
-        </div>
-      </div>
+      <MapMessage>
+        <h2>
+          {graph.nodes.length === 0
+            ? 'Nothing to map'
+            : 'This package has no changed function'}
+        </h2>
+        <p className="empty">
+          {graph.nodes.length === 0
+            ? 'The analyzer found no call graph nodes for this PR.'
+            : 'Its changed hunks are outside any function the analyzer tracks.'}
+        </p>
+        {level.kind === 'package' && (
+          <button className="btn btn-small" onClick={() => setLevel({ kind: 'packages' })}>
+            <ChevronLeftIcon size={11} /> Back to all packages
+          </button>
+        )}
+      </MapMessage>
     );
   }
 
@@ -334,7 +353,7 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
           )}
           {!packages && (
             <button className="btn btn-small" onClick={() => setLevel({ kind: 'packages' })}>
-              Back
+              <ChevronLeftIcon size={11} /> Back
             </button>
           )}
           <button className="btn btn-small" onClick={fit}>
