@@ -11,16 +11,74 @@ answer questions about the code while you read.
 
 Nothing leaves your machine except the review you choose to post.
 
-## Install
+## Install as a Claude Code plugin
+
+Two commands in Claude Code:
+
+```
+/plugin marketplace add zalts1/pr-review-cockpit
+/plugin install cockpit@pr-review-cockpit
+```
+
+The first registers this repository as a plugin marketplace, the second installs the one
+plugin in it. That plugin is the whole tool: the skill, the `cockpit` command on your PATH,
+and the hook that builds them.
 
 You need:
 
 - **Node 24 or newer** (`.nvmrc` pins it).
 - **The GitHub CLI**, logged in: `gh auth login`. The tool posts as you and holds no token of
   its own.
-- **Claude Code**, for the skill.
 
-Then, from this checkout:
+### The first session builds it
+
+A plugin install is source, with no `node_modules` and no `dist`, so a `SessionStart` hook
+runs `npm ci` and `npm run build` once. That takes about a minute, and ends in one line:
+
+```
+cockpit: built v0.1.0
+```
+
+Every session after that one starts with the hook finding the build already there and saying
+nothing. It builds again only when an update changes the version.
+
+Nothing it does can stop a session from starting. A missing `gh`, a node older than 24 or a
+build that failed is one line saying so, and the whole log is at
+`~/.claude/plugins/data/<plugin>/bootstrap.log`. `cockpit doctor` names which of them it was.
+
+Update to a newer version with:
+
+```
+/plugin marketplace update pr-review-cockpit
+```
+
+### Installing it for a team
+
+Commit this to a repository's `.claude/settings.json`, and everyone who trusts that folder
+gets the marketplace and the plugin without typing either command:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "pr-review-cockpit": {
+      "source": {
+        "source": "github",
+        "repo": "zalts1/pr-review-cockpit"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "cockpit@pr-review-cockpit": true
+  }
+}
+```
+
+## Install from a checkout
+
+This is the path for working on the cockpit itself: it runs the skill and the command straight
+out of your clone, so an edit is live in the next session with no reinstall.
+
+You need Node 24, the GitHub CLI logged in, and Claude Code. Then, from this checkout:
 
 ```sh
 scripts/install.sh
@@ -237,6 +295,9 @@ packages/server/      node:http on 127.0.0.1: the cockpit, the document, the dra
 packages/cli/         the cockpit command
 packages/cockpit/     the React app: renders the review document and nothing else
 skills/cockpit/       SKILL.md, the procedure the Claude session follows, and its prompt
+.claude-plugin/       plugin.json and marketplace.json: what /plugin install reads
+bin/cockpit           the wrapper that puts the built CLI on the Bash tool's PATH
+hooks/hooks.json      the SessionStart hook, and scripts/plugin-bootstrap.sh behind it
 fixtures/             hand-authored review documents, their generator and their checker
 docs/                 the design: brief, architecture, schema, UX, risk model, milestones
 ```
