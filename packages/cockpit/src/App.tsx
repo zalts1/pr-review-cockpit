@@ -435,13 +435,19 @@ export function Cockpit({ doc, disconnected, revision }: CockpitProps) {
     }
     setPosting(true);
     setSubmitResult(null);
-    void postReview(store.verdict ?? 'COMMENT', store.summaryBody).then((result) => {
-      setPosting(false);
-      setSubmitResult(result);
-      // The posted comments come back as pinned comments on the next analysis,
-      // so nothing is faked here beyond dropping the drafts that became them.
-      if (result.kind === 'posted') store.clear();
-    });
+    // The server posts the drafts file it holds, so the pending save has to
+    // land before the request or the newest draft is left out of the review.
+    void store
+      .flush()
+      .then(() => postReview(store.verdict ?? 'COMMENT', store.summaryBody))
+      .then((result) => {
+        setPosting(false);
+        setSubmitResult(result);
+        // The posted comments come back as pinned comments on the next
+        // analysis, so nothing is faked here beyond dropping the drafts that
+        // became them.
+        if (result.kind === 'posted') store.clear();
+      });
   }, [store]);
 
   useEffect(() => {

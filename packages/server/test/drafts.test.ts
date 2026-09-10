@@ -214,6 +214,23 @@ describe('POST /api/submit', () => {
     expect(left.verdict).toBeNull();
   });
 
+  it('leaves the orphan list alone, because none of it was posted', async () => {
+    const server = await start(ghStub((call) => (call.args[0] === 'pr' ? head() : created())).gh);
+    await writeDocument();
+    await put(server, draftsFile());
+    await writeFile(
+      join(prDir, 'drafts.orphaned.json'),
+      JSON.stringify(draftsFile([draft({ id: 'd9' })])),
+      'utf8',
+    );
+
+    await submit(server, { verdict: 'COMMENT', summaryBody: 'One thing.' });
+
+    const served = (await (await fetch(`${server.url}/api/drafts`)).json()) as DraftsFile;
+    expect(served.drafts).toEqual([]);
+    expect(served.orphaned?.map((d) => d.id)).toEqual(['d9']);
+  });
+
   it('sends the review in GitHub review API terms, drafts read from disk', async () => {
     const stub = ghStub((call) => (call.args[0] === 'pr' ? head() : created()));
     const server = await start(stub.gh);

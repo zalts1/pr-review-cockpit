@@ -50,7 +50,6 @@ export async function documentHead(prDir: string): Promise<string | null> {
   return typeof sha === 'string' ? sha : null;
 }
 
-/** The stored drafts, or an empty file when the reviewer has written none yet. */
 export async function readDrafts(prDir: string): Promise<DraftsFile> {
   const stored = await readJson(join(prDir, DRAFTS_FILENAME));
   if (stored === null) return emptyDrafts(await prIdentity(prDir));
@@ -73,7 +72,8 @@ export function submittedDraftsFilename(when: Date): string {
 
 /**
  * Keeps what was posted and leaves an empty file behind, so the cockpit that
- * posted it reads zero drafts rather than the ones GitHub now holds.
+ * posted it reads zero drafts rather than the ones GitHub now holds. The orphan
+ * list is left alone: nothing in it was posted.
  */
 export async function rotateSubmittedDrafts(
   prDir: string,
@@ -83,7 +83,6 @@ export async function rotateSubmittedDrafts(
   const name = submittedDraftsFilename(when);
   await writeAtomic(join(prDir, name), `${JSON.stringify(posted, null, 2)}\n`);
   await writeDrafts(prDir, emptyDrafts(posted.pr, when.toISOString()));
-  await unlink(join(prDir, ORPHANED_DRAFTS_FILENAME)).catch(() => undefined);
   return name;
 }
 

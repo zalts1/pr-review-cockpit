@@ -58,7 +58,6 @@ export interface Debounced {
   cancel(): void;
 }
 
-/** Runs the last call after the delay and drops the calls it superseded. */
 export function debounce(run: () => void, delayMs: number): Debounced {
   let timer: ReturnType<typeof setTimeout> | null = null;
   return {
@@ -82,6 +81,8 @@ export interface DraftsStore extends DraftsContent {
   setDrafts(next: (current: CockpitDraft[]) => CockpitDraft[]): void;
   setVerdict(verdict: DraftsFile['verdict']): void;
   setSummaryBody(body: string): void;
+  /** Sends what is pending now, for a caller that is about to read the stored file. */
+  flush(): Promise<void>;
   clear(): void;
 }
 
@@ -205,9 +206,13 @@ export function useDraftsSync(options: DraftsSyncOptions): DraftsStore {
       (summaryBody) => change({ ...current.current, summaryBody }),
       [change],
     ),
-    clear: useCallback(() => {
-      setOrphaned([]);
-      change(emptyContent());
-    }, [change]),
+    flush: useCallback(async () => {
+      if (!toServer) return;
+      saver.current?.cancel();
+      await sendRef.current();
+    }, [toServer]),
+    // The orphans stay: a posted review does not say what a draft nobody
+    // could place said.
+    clear: useCallback(() => change(emptyContent()), [change]),
   };
 }
