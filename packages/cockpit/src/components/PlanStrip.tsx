@@ -70,19 +70,26 @@ export function PlanStrip({
   const failed = status.state === 'failed';
   const placeholder = pending ? pendingLabel(status) : 'Summary unavailable';
   const detailLabel =
-    summary === null ? 'PR description' : 'Before and after, and what to watch for';
+    summary === null ? 'PR description' : 'Brief';
 
   return (
     <section className="plan">
-      <div className="plan-row">
-        <div className="plan-tldr">
-          <span className="plan-label">TL;DR</span>
-          {summary === null ? (
-            <span className={failed ? 'plan-failed' : 'plan-pending'}>{placeholder}</span>
-          ) : (
+      <div className="plan-tldr-row">
+        <span className="plan-label">TL;DR</span>
+        {summary === null ? (
+          <span className={failed ? 'plan-failed' : 'plan-pending'}>{placeholder}</span>
+        ) : (
+          <span className="plan-tldr">
             <MarkdownInline text={summary.tldr} />
-          )}
-        </div>
+          </span>
+        )}
+      </div>
+
+      <div className="plan-row">
+        <button className="plan-disclosure" onClick={onToggle} aria-expanded={open}>
+          {open ? <ChevronDownIcon size={11} /> : <ChevronRightIcon size={11} />}
+          <span>{detailLabel}</span>
+        </button>
 
         <PhaseBars phases={phases} />
 
@@ -100,16 +107,6 @@ export function PlanStrip({
         </div>
       </div>
 
-      <button className="plan-disclosure" onClick={onToggle} aria-expanded={open}>
-        {open ? <ChevronDownIcon size={11} /> : <ChevronRightIcon size={11} />}
-        <span>{detailLabel}</span>
-        {!open && summary !== null && summary.watchFor.length > 0 && (
-          <span className="plan-disclosure-hint">
-            <MarkdownInline text={summary.watchFor[0] as string} />
-          </span>
-        )}
-      </button>
-
       {open &&
         (summary === null ? (
           <div className="plan-detail">
@@ -118,48 +115,52 @@ export function PlanStrip({
             </div>
           </div>
         ) : (
-          <div className="plan-detail">
-            <div className="plan-flow">
-              <div className="plan-flow-row">
-                <span className="plan-flow-label">before</span>
-                <code>{summary.flow.before}</code>
-              </div>
-              <div className="plan-flow-row">
-                <span className="plan-flow-label">after</span>
-                <code>{summary.flow.after}</code>
-              </div>
-            </div>
-
-            {summary.watchFor.length > 0 && (
-              <div>
-                <div className="plan-detail-label plan-detail-warn">Watch for</div>
-                <ul className="plan-bullets">
-                  {summary.watchFor.map((line) => (
-                    <li key={line}>
-                      <MarkdownInline text={line} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {(summary.whereItFits.length > 0 || summary.example) && (
-              <details className="plan-example">
-                <summary>Where it fits, and one concrete example</summary>
-                <div className="plan-example-body">
-                  {summary.whereItFits.length > 0 && (
-                    <ul className="plan-bullets">
-                      {summary.whereItFits.map((line) => (
-                        <li key={line}>
-                          <MarkdownInline text={line} />
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {summary.example && <Markdown className="plan-body" text={summary.example} />}
+          <div className="plan-detail plan-brief">
+            <div className="plan-col">
+              <div className="plan-detail-label">Flow</div>
+              <div className="plan-flow">
+                <div className="plan-flow-row">
+                  <span className="plan-flow-label">before</span>
+                  <code>{summary.flow.before}</code>
                 </div>
-              </details>
-            )}
+                <div className="plan-flow-row">
+                  <span className="plan-flow-label">after</span>
+                  <code>{summary.flow.after}</code>
+                </div>
+              </div>
+              {summary.whereItFits.length > 0 && (
+                <>
+                  <div className="plan-detail-label">Where it fits</div>
+                  <ul className="plan-bullets">
+                    {summary.whereItFits.map((line) => (
+                      <li key={line}>
+                        <MarkdownInline text={line} />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+            <div className="plan-col">
+              {summary.watchFor.length > 0 && (
+                <>
+                  <div className="plan-detail-label plan-detail-warn">Watch for</div>
+                  <ul className="plan-bullets">
+                    {summary.watchFor.map((line) => (
+                      <li key={line}>
+                        <MarkdownInline text={line} />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {summary.example && (
+                <>
+                  <div className="plan-detail-label">Example</div>
+                  <Markdown className="plan-body" text={summary.example} />
+                </>
+              )}
+            </div>
           </div>
         ))}
     </section>

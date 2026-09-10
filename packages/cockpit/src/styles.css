@@ -448,16 +448,31 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 10px 20px 8px;
+  padding: 6px 20px 8px;
 }
 
+.plan-tldr-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 20px 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
 .plan-tldr {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+.plan-brief {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px 28px;
+}
+.plan-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .plan-label {
@@ -551,8 +566,6 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 34vh;
-  overflow: auto;
 }
 
 .plan-panel {
@@ -588,7 +601,8 @@ a:hover {
 .plan-flow-row code {
   font-family: var(--mono);
   font-size: 11px;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .plan-detail-label {
