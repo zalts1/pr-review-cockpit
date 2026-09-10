@@ -8,7 +8,8 @@
     "dev": "npm run sync-fixtures && vite",
     "build": "npm run sync-fixtures && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.4",
@@ -24,6 +25,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
-    "vite-plugin-singlefile": "^2.1.0"
+    "vite-plugin-singlefile": "^2.1.0",
+    "vitest": "^3.2.7"
   }
 }
