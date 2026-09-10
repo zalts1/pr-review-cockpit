@@ -7,7 +7,9 @@ import {
   askClaudePrompt,
   heatOf,
   highRiskAhead,
+  nextStepLabel,
   phaseProgress,
+  railPath,
   reviewOrder,
   skippableHunkCount,
 } from '../src/lib/plan';
@@ -155,6 +157,50 @@ describe('highRiskAhead', () => {
   it('never grows as the walk advances', () => {
     const counts = derived.steps.map((_, at) => highRiskAhead(derived, at));
     expect(counts).toEqual([...counts].sort((a, b) => b - a));
+  });
+});
+
+describe('railPath', () => {
+  it('leaves a path the rail can show whole alone', () => {
+    expect(railPath('db/queries/tenant.sql')).toBe('db/queries/tenant.sql');
+  });
+
+  it('keeps the name and as much of the directory as fits', () => {
+    expect(railPath('api/proto/tenant/v1/tenant.proto')).toBe('…/tenant/v1/tenant.proto');
+    expect(railPath('a/b/c/d/e.go', 9)).toBe('…/d/e.go');
+  });
+
+  it('keeps the name even when the name alone is too long', () => {
+    expect(railPath('db/migrations/0042_tenant_profile_region.sql', 20)).toBe(
+      '…/0042_tenant_profile_region.sql',
+    );
+  });
+});
+
+describe('nextStepLabel', () => {
+  it('names the note of the step after this one', () => {
+    expect(nextStepLabel(derived, 0)).toBe(
+      (derived.steps[1]?.note ?? '').slice(0, 37).trimEnd() + '…',
+    );
+  });
+
+  it('falls back to the enclosing symbol, then to the file name', () => {
+    const noNotes = structuredClone(doc);
+    noNotes.path = noNotes.path.map((step) => ({ ...step, note: null }));
+    const bare = derive(noNotes);
+    expect(nextStepLabel(bare, 3)).toBe('Service.UpdateRecord');
+    expect(nextStepLabel(bare, -1)).toBe('tenant.proto');
+  });
+
+  it('names a group step by its title', () => {
+    expect(nextStepLabel(derived, 7)).toBe(
+      'Mechanical rename, 9 files. Skim for…',
+    );
+  });
+
+  it('is null at the end of the walk', () => {
+    expect(nextStepLabel(derived, derived.steps.length - 1)).toBeNull();
+    expect(nextStepLabel(derive(fixture('pr-fake-empty')), -1)).toBeNull();
   });
 });
 

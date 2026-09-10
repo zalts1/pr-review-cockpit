@@ -2,27 +2,30 @@
 
 Items that are agreed as worth doing but not scheduled in a milestone. Each line says where it came from. When an item is scheduled, move it into `06-milestones.md` and delete it here.
 
-## UI polish (scheduled as M4b, after the judgment pass exists)
+## UI polish (what M4b left)
 
-- Summary card collapses on first Next or on scroll rather than strictly after first view. (M1 report)
-- `c` comments on the last hovered line; there is no keyboard line cursor. (M1 report)
-- Virtualisation for files over 1,500 diff lines. (M1 report)
-- Map layout in a web worker if a real repository's graph blocks the Files tab. (ADR-17)
-- Level 2 of the map draws at most 40 of a package's changed functions and summarises the
-  rest; there is no way to page through them or to filter to non-test functions. On the
-  verification PR that hid 70 of 110. (ADR-30)
+M4b closed the rest of this list. What survives, and why:
+
+- Virtualisation for files over 1,500 diff lines. Less pressing now that only the current
+  step's file is open, so a 4,000-line file mounts only when the walk reaches it or the
+  reviewer clicks it. (M1 report, still open after M4b)
+- `c` comments on the last hovered line; there is still no keyboard line cursor, so `c` does
+  nothing until the pointer has been over a line. (M1 report, still open after M4b)
+- Map layout in a web worker if a real repository's graph blocks the Files tab. Level 1 on the
+  verification PR lays out in a few milliseconds, so there is nothing to fix yet. (ADR-17)
+- Level 2 of the map draws at most 40 of a package's changed functions and 40 neighbours, and
+  states both counts, but there is no way to page through the rest or to filter out tests. On
+  the verification PR that is 40 of 110 with 128 callers folded. Paging needs a scroll model
+  for a pan-and-zoom canvas, which is more than the redesign was for. (ADR-30, kept after M4b)
 - The map's "only high-risk nodes and neighbours" filter was dropped with the two-level
-  rewrite. A heat filter at package level may be worth rebuilding once the user has used
-  the new map. (M3b)
-- The map has no side drawer for an unchanged node any more: level 2 shows its package,
-  fan-in and fan-out on hover, and reading its source still needs the server. (M3b)
+  rewrite. Level 1 now shows heat on every card and names the high functions, which covers
+  most of what the filter was for; a real filter can wait for a PR that needs it. (M3b, kept)
+- The map has no side drawer for an unchanged node: level 2 shows its package, fan-in and
+  fan-out on hover, and reading its source still needs the server. (M3b, kept)
 - Fan-in and fan-out in the level 2 hover are counted from the document's edges, so a
-  function whose callers were folded away reads lower there than on its package node. (M3b)
+  function whose callers were folded away reads lower there than on its package card. (M3b)
 - Fenced code in a rendered body is not syntax highlighted; a highlighter is a third
-  dependency and a much larger bundle. (ADR-29)
-- Overall look reads as a mock, not a product; map in particular. (user, after M3b, 2026-09-09)
-- Map level 2 caps changed functions at 40; the store package in the first real PR had 110. Revisit the cap or add paging. (ADR-30)
-- Map lost the "high-risk only" filter and the unchanged-node drawer in the two-level rewrite. (M3b report)
+  dependency and a much larger bundle. (ADR-29, kept)
 
 ## Risk model calibration (from the M3 runs on three real pull requests)
 
@@ -76,8 +79,9 @@ Items that are agreed as worth doing but not scheduled in a milestone. Each line
   lines of each hunk, would hand the judgment pass its mechanical group instead of making it
   infer one. (M4 report)
 - `summary.counts.skimmable` counts hunks whose risk mode is skim, so grouping does not move it:
-  141 of 177 walkable hunks sat in two skim groups while the count still said 81. Either the
-  count should follow the groups or the cockpit should show both numbers. (M4 report)
+  141 of 177 walkable hunks sat in two skim groups while the count still said 81. The cockpit's
+  plan strip now counts the union of both sets itself, so what the reviewer reads is right; the
+  field in the document is still the narrower number. (M4 report, half fixed in M4b)
 - The rendered prompt wraps raggedly wherever a placeholder holds a long path, because the
   template is hard-wrapped at 100 columns and the values are not. Harmless for a model, ugly for
   the person reviewing the prompt. (M4)

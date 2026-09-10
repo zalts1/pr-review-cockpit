@@ -589,3 +589,83 @@ Status: accepted · 2026-09-10
 **Decision.** B. Engineers trust the diff, not a narrative about it; B keeps the full diff one click away and matches GitHub muscle memory. From C it takes the before/after flow and watch-for shown once in the plan strip, and step notes on rail hover. Adds "Ask Claude about this hunk", which copies a ready prompt, as the cheap first version of the cockpit-to-agent channel. Focus mode may return later as a toggle.
 
 **Consequences.** The bottom autopilot bar is removed; its function moves to the header button and the plan strip. The rail changes from a file tree to a review-order list. Reference mockups in `docs/design/m4b/`.
+
+---
+
+## ADR-35: The plan strip is the whole brief, and openness follows the walk
+
+Status: accepted · 2026-09-10 · extends ADR-34, revises the summary-card and Viewed rules of `04-cockpit-ux.md`
+
+**Context.** ADR-34 put a one-row plan strip under the header with a disclosure for the flow and the
+watch-for list. ADR-27 had made the summary six sections — TL;DR, where it fits, flow, example,
+review path, watch for — in a card that owned the top of the diff pane. Three of those now have a
+better home: the review path is the rail, the TL;DR is the strip's own row, and the counts are the
+strip's position line. That leaves "where it fits" and the example with nowhere to go, and the
+mockup shows no place for them.
+
+**Options.**
+1. Drop them. The strip is short and the brief loses two sections ADR-27 asked for.
+2. Put all four in the open disclosure. On the verification PR the watch-for list alone is three
+   bullets of two lines each; adding both would take a third of the screen on load.
+3. Flow and watch-for open; where-it-fits and the example one click deeper.
+
+**Decision.** Option 3. The disclosure holds the flow and the watch-for bullets, and a nested
+disclosure labelled "Where it fits, and one concrete example" holds the other two. Nothing ADR-27
+asked for is lost, and the strip is one row plus a line once the walk starts. With no summary yet
+the disclosure is closed on load and opens the rendered PR description instead: the raw description
+is a fallback, not a brief, and it is not worth the whole strip.
+
+Two smaller calls in the same screen:
+
+- **Viewed stops folding the file.** What is open is decided by the walk and by the reviewer's own
+  clicks, so making a checkbox also fold would give one state two owners. Viewed is now purely a
+  progress mark: it puts the green check on the rail row and counts towards the submit warning.
+- **The cockpit computes its own skippable count.** `summary.counts.skimmable` counts hunks whose
+  own risk mode is skim, which does not move when the judgment pass folds 141 hunks into two skim
+  groups. The plan strip counts the union of the two sets, so "12 hunks skippable" means what a
+  reviewer would take it to mean.
+
+**Consequences.** The summary card and the bottom autopilot bar are deleted, and `reviewPath` in
+`lib/derive.ts` goes with the review-path table. The plan's five derived values — review order,
+phase progress, skippable count, high-risk ahead, next-step label — are pure functions in
+`lib/plan.ts` with tests, so the screen and the document cannot drift apart. The number in the plan
+strip and the number in `summary.counts.skimmable` are now allowed to differ, and the backlog says
+so.
+
+---
+
+## ADR-36: Map cards are HTML in a transformed scene; only the edges are SVG
+
+Status: accepted · 2026-09-10 · extends ADR-26 and ADR-30
+
+**Context.** M3b drew the map as one SVG: rects and `text` for nodes, polylines for edges. The M4b
+mockup asks each package for a card with a name, a meta row, three changed functions with caller
+counts and a link — five kinds of text at three sizes, some of them coloured by heat and some
+needing an ellipsis. In SVG that is manual line layout, manual truncation and a second copy of the
+type scale.
+
+**Options.**
+1. Keep SVG and lay the card's text out by hand.
+2. `foreignObject` per card.
+3. Absolutely positioned HTML cards inside one transformed container, with an SVG behind them
+   holding only the edges.
+
+**Decision.** Option 3. One `div` takes `translate(x, y) scale(k)`, and the edge SVG and the cards
+are children of it, so pan and zoom stay a single transform and the cards are ordinary CSS: the
+page's fonts, the page's heat colours, `text-overflow: ellipsis`, `:hover`, real buttons. The
+layout in `lib/mapLayout.ts` stays a pure function and now measures the card — padding, gaps, line
+heights, per-row width — instead of guessing a box from the label length. Those constants and the
+`.map-card` rules in `styles.css` describe the same card and have to be changed together, which the
+comment above them says.
+
+Level 2 keeps the three columns ADR-30 placed — callers, the open package's changed functions,
+callees — rather than the mockup inset's two panes, which showed only the left and right of the
+same idea. Dropping the callees column would lose the one thing the map says that the diff does
+not: what this change now calls. The rows are restyled as the mockup's boxed lists with heat dots,
+and the edges are drawn at half opacity, because at a hundred calls the lines read louder than the
+names they connect.
+
+**Consequences.** A card whose longest member name exceeds the 420 px cap clips that name with an
+ellipsis and keeps the caller count, which is the right half to keep. Zooming scales the text
+rather than reflowing it, so a card reads the same at every zoom. Pointer handling gains one rule:
+a pointer that travelled more than 4 px was panning, and its release does not open a card.
