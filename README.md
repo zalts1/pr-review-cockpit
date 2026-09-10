@@ -251,9 +251,6 @@ lists:
 | `m` | Switch between the Files and Map tabs |
 | `?` | Show the shortcut table |
 | `Esc` | Close an overlay or the comment editor |
-| `m` | Switch between the Files and Map tabs |
-| `?` | Show the shortcut table |
-| `Esc` | Close a modal or the comment editor |
 
 ## The commands underneath
 
