@@ -88,21 +88,46 @@ marked.use({
   },
 });
 
+const HLJS_CLASS = /^hljs-[a-z-]+$/;
+
 let hooked = false;
 
-function sanitize(html: string): string {
-  if (!hooked) {
-    DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-      if (node.tagName !== 'A') return;
+function installHooks(): void {
+  if (hooked) return;
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'A') {
       node.setAttribute('target', '_blank');
       node.setAttribute('rel', 'noopener noreferrer');
-    });
-    hooked = true;
-  }
+      return;
+    }
+    if (node.tagName !== 'SPAN' || !node.hasAttribute('class')) return;
+    const kept = (node.getAttribute('class') ?? '').split(/\s+/).filter((c) => HLJS_CLASS.test(c));
+    if (kept.length === 0) node.removeAttribute('class');
+    else node.setAttribute('class', kept.join(' '));
+  });
+  hooked = true;
+}
+
+function sanitize(html: string): string {
+  installHooks();
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
     ADD_ATTR: ['target'],
+    ALLOW_DATA_ATTR: false,
+  });
+}
+
+/**
+ * Sanitised HTML for one highlighted line of code. Only highlight.js's own spans survive:
+ * every other tag is unwrapped and every other class removed, so a diff line can never
+ * reach the page as markup of its own.
+ */
+export function sanitizeCodeHtml(html: string): string {
+  installHooks();
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['span'],
+    ALLOWED_ATTR: ['class'],
     ALLOW_DATA_ATTR: false,
   });
 }
