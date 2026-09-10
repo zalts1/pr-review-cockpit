@@ -8,7 +8,7 @@ blast-radius map of what the change touches.
 The design lives in `docs/`. Start with `docs/01-product-brief.md`, then
 `docs/02-architecture.md`.
 
-**This repository is at milestone M3b** (`docs/06-milestones.md`): a real pull request
+**This repository is at milestone M5** (`docs/06-milestones.md`): a real pull request
 produces a real document. `packages/analyzer` resolves the pull request through `gh`, checks
 it out as a worktree on a local clone, parses the diff, measures git history and Go structure
 with tree-sitter, scores every hunk, and writes `review.json`; `packages/server` serves that
@@ -16,13 +16,17 @@ document to the cockpit and pushes every rewrite of it over server-sent events;
 `packages/cli` drives all of it as `cockpit prepare`, `analyze`, `judge-prompt`, `judge-merge`,
 `serve` and `clean`.
 
-The map reads the graph at two levels, packages first and one package's functions on click,
-and every body the cockpit shows is rendered as sanitised markdown.
+The judgment pass groups the change, orders the walk and writes the brief, and the merge
+clamps whatever it proposes against the deterministic floor. Stage 1 also ingests what the
+pull request already knows: review comments pinned to their lines and grouped into threads,
+the comments with no line to pin them to, check runs and legacy statuses as the header strip,
+and the summary Cursor Bugbot writes into the pull request body as a pill with the overview
+behind it. The map reads the graph at two levels, packages first and one package's functions
+on click, and every body the cockpit shows is rendered as sanitised markdown.
 
-What is not here yet: the judgment pass, so `groups`, `path` and `summary` stay `pending` and
-every hunk sits at its deterministic floor (M4); existing review comments and check runs, so
-`comments` and `checks` are empty (M5); and write-back, so Submit posts nothing and the
-drafts, submit and ask routes answer 501 (M6).
+What is not here yet: write-back, so Submit posts nothing and the drafts, submit and ask
+routes answer 501 (M6), and the `review <pr>` skill that runs the whole thing from one command
+(M7).
 
 ## Run it
 
@@ -79,7 +83,9 @@ npx cockpit judge-merge  456
 ```
 
 `analyze` prints progress and timings per step to stderr and the path of `review.json` to
-stdout. `serve` prints the URL, serves the built cockpit at `/` and the document at
+stdout, including how many comments it placed, how many it could not, and the checks by
+status. Running it again on a pull request whose head has not moved keeps the judgment pass's
+work: stage 2 is re-merged onto the fresh stage 1, and the line above the timings says so. `serve` prints the URL, serves the built cockpit at `/` and the document at
 `/api/document`, and pushes `{"type":"document"}` over `/api/events` every time the document
 is rewritten, so the page picks up the graph stage without a reload. When you are done:
 
@@ -179,7 +185,10 @@ log line for everything it dropped or changed.
 that manages tenant records: a protobuf change with its generated `*.pb.go`, an sqlc query
 change with its generated code, a `NOT NULL` migration, the core `UpdateRecord` change with a
 pinned Cursor Bugbot comment, a mechanical rename over nine files, an import-only and a
-whitespace-only hunk, tests, and a 34-node call graph.
+whitespace-only hunk, tests, and a 43-node call graph. Its comments cover what the ingestion
+produces: a two-comment thread, a resolved thread with its answer, an outdated comment on a
+line the diff no longer holds, two comments with no line to pin them to, a Bugbot summary
+inside the body, and checks in six states.
 
 | File | What it exercises |
 |---|---|

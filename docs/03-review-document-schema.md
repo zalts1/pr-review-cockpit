@@ -28,9 +28,11 @@ The document has two producers with different trust levels. Stage 1 comes from c
   "checkout":  { /* CheckoutInfo */ },
   "status":    { /* SectionStatus per section, see below */ },
 
-  "files":     [ /* File[]     stage 1 */ ],
-  "comments":  [ /* Comment[]  stage 1 */ ],
-  "checks":    [ /* Check[]    stage 1 */ ],
+  "files":        [ /* File[]                stage 1 */ ],
+  "comments":     [ /* Comment[]             stage 1 */ ],
+  "conversation": [ /* ConversationComment[] stage 1, optional */ ],
+  "checks":       [ /* Check[]               stage 1 */ ],
+  "botSummaries": [ /* BotSummary[]          stage 1, optional */ ],
 
   "groups":    [ /* Group[]    stage 2 */ ],
   "path":      [ /* PathStep[] stage 2 */ ],
@@ -182,33 +184,69 @@ The clamp rule, applied by the CLI at merge time: if stage 2 proposes a level lo
 
 ## Stage 1: `comments`
 
-Existing review comments on the PR, from bots and from people, pinned to the diff.
+Existing review comments on the PR, from bots and from people, pinned to the diff. Fetched with `gh api repos/{owner}/{repo}/pulls/{n}/comments --paginate`.
 
 ```jsonc
 {
-  "id": "c17",
+  "id": "c1990001",               // "c" and GitHub's own comment id
   "source": { "kind": "bot", "name": "Cursor Bugbot" },     // kind: bot | human
   "author": "cursor[bot]",
   "path": "api/service/tenant/record.go",
   "line": 92,
   "side": "RIGHT",
   "hunkId": "f3.h2",              // null when the comment is on a line outside the current diff
+  "threadId": "PRRT_kwDO…",       // the review thread; replies carry the same one
   "body": "Markdown body",
   "url": "https://github.com/.../pull/1234#discussion_r...",
   "createdAt": "2026-09-08T10:00:00Z",
   "resolved": false,
-  "severity": "medium"            // low | medium | high | null   parsed from the bot's own labels when present, else null
+  "severity": "medium"            // low | medium | high | null   parsed from the bot's own body when it names a level, else null
 }
 ```
 
 `hunkId` is the join key the cockpit uses to place a pin. A comment on a line that no longer exists in the diff has `hunkId: null` and is listed in a separate "outdated" area.
 
+How each field is filled:
+
+- `source.kind` is `bot` when the login ends in `[bot]` or GitHub types the user as a bot. `source.name` is a friendly name for the bots we know — `cursor[bot]` is "Cursor Bugbot", `github-actions[bot]` is "GitHub Actions" — and the login for everyone else, bot or person.
+- `line` is GitHub's `line`, or `original_line` when GitHub reports no current line.
+- `hunkId` is found by looking the line up in the parsed diff on the given side. A comment GitHub reports with no current line, and every comment on a thread GitHub marks outdated, is left unplaced: `original_line` is a line number from the commit the comment was written against, so placing by it would pin the comment to whatever code holds that number now (ADR-38).
+- `resolved` and `threadId` come from one GraphQL query for `pullRequest.reviewThreads`, joined to the comments by comment id. Resolution belongs to the thread, not the comment, and this is the only API that reports it. With the query unavailable, `threadId` falls back to the reply chain (`in_reply_to_id`, else the comment's own id) and nothing reads as resolved.
+- `severity` is parsed from a bot's body when it names a level: on a line of its own ("**Medium Severity**"), after a label ("**Severity:** High"), or inside a GitHub alert ("[!WARNING] High Risk"). A person's comment has no severity.
+
+A reply is a comment of its own with the same `path` and `line` as the comment it answers. The cockpit groups a thread into one chip and counts the replies on it; nothing in the document nests them.
+
+## Stage 1: `conversation`
+
+Comments with no line to pin them to. Two kinds land here: top-level comments on the PR conversation, from `gh api repos/{owner}/{repo}/issues/{n}/comments --paginate`, and review comments GitHub reports against a whole file rather than a line.
+
+```jsonc
+{
+  "id": "ic4001",                 // "ic" and GitHub's own comment id
+  "source": { "kind": "human", "name": "danat" },
+  "author": "danat",
+  "path": null,                   // the file, for a file-level review comment; null for a top-level one
+  "line": null,
+  "side": null,
+  "hunkId": null,
+  "body": "Markdown body",
+  "url": "https://github.com/.../pull/1234#issuecomment-4001",
+  "createdAt": "2026-09-08T09:14:00Z",
+  "resolved": false,
+  "severity": null
+}
+```
+
+`line`, `side` and `hunkId` are null here and nowhere else: a `Comment` always has a line, so the two shapes stay apart and the outdated area keeps meaning "a line comment we could not place" (ADR-37). The cockpit shows these in a disclosure at the foot of the rail, not in the diff.
+
 ## Stage 1: `checks`
+
+From `gh api repos/{owner}/{repo}/commits/{headSha}/check-runs --paginate` plus `gh api repos/{owner}/{repo}/commits/{headSha}/status` for the legacy commit statuses.
 
 ```jsonc
 {
   "name": "Wiz",
-  "app": "wiz-io",
+  "app": "wiz-io",                // the app slug of a check run, the context of a legacy status
   "status": "success",            // success | failure | pending | neutral | skipped | cancelled
   "url": "https://github.com/.../checks/...",
   "completedAt": "2026-09-08T10:05:00Z"
@@ -216,6 +254,23 @@ Existing review comments on the PR, from bots and from people, pinned to the dif
 ```
 
 Displayed as a strip. Never pinned to a line in v1.
+
+`status` is normalised: a run that has not completed is `pending` whatever its conclusion field says; `timed_out`, `action_required` and `startup_failure` are `failure`; `stale` is `cancelled`; a conclusion we do not know is `neutral`; a legacy `error` is `failure`. `url` is `details_url`, then `html_url` or `target_url`, then the PR itself. One entry per name, the latest by completion time: a re-run leaves both attempts on the commit and the older one is not what the reviewer is looking at.
+
+## Stage 1: `botSummaries`
+
+A review summary a bot wrote into the PR body, lifted out of it. Cursor Bugbot wraps one in `<!-- CURSOR_SUMMARY -->` markers with a risk level line and an overview.
+
+```jsonc
+{
+  "source": { "kind": "bot", "name": "Cursor Bugbot" },
+  "riskLevel": "medium",          // low | medium | high | null when the bot named no level
+  "body": "<the overview, markdown>",
+  "url": "https://github.com/northwind-labs/tenant-platform/pull/1234"
+}
+```
+
+`pr.body` still holds the block, because the document reports the PR as it is; the cockpit drops it from the rendered description instead, so the summary is on screen once (ADR-40). The overview is the block without its scaffolding: the blockquote the alert is written as, the alert marker, the level line the pill already says, and the "Reviewed by" footer the pill's link replaces. A block with an opening marker and no closing one is left alone, because its end is unknown.
 
 ## Stage 2: `groups`
 
@@ -375,7 +430,7 @@ The reviewer's unsent comments, stored as `drafts.json` beside the document. Wri
 
 ## Versioning
 
-- `schemaVersion` follows semantic versioning.
+- `schemaVersion` follows semantic versioning. It is `1.1.0`: `conversation`, `botSummaries` and `threadId` arrived as optional fields, so a cached `1.0.0` document still validates and still renders.
 - **Minor** bump: a new optional field, a new enum value the cockpit can ignore. The cockpit accepts any document with the same major version.
 - **Major** bump: a renamed or removed field, a changed meaning. The cockpit refuses a document with a different major version and shows the two versions.
 - The analyzer always writes the newest version. There are no migrations in v1; a stale cached document is re-analyzed.
@@ -397,6 +452,8 @@ Referential:
 - A hunk id is `<fileId>.h<index>`, counting from 1 within the file.
 - Every hunk appears at most once across all groups.
 - Comments have a `line` inside the referenced hunk's line range on the given `side` and a `path` matching that hunk's file, or `hunkId: null`.
+- Comment ids do not repeat across `comments` and `conversation`.
+- Every entry of `botSummaries` has `source.kind: "bot"`.
 - `graph` edges reference nodes that exist, and a node is `changed` exactly when it carries hunk ids.
 - A `graph` node carries `count` when it is a package node, and does not when it is not.
 
@@ -424,5 +481,6 @@ Counts and consistency:
 
 Warnings:
 
+- Two comments of one thread on different paths, which the cockpit will show under one chip.
 - An unknown field, named with its path.
 - A `schemaVersion` from another major version, which a renderer will refuse.

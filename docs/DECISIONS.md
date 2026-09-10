@@ -669,3 +669,153 @@ names they connect.
 ellipsis and keeps the caller count, which is the right half to keep. Zooming scales the text
 rather than reflowing it, so a card reads the same at every zoom. Pointer handling gains one rule:
 a pointer that travelled more than 4 px was panning, and its release does not open a card.
+
+---
+
+## ADR-37: Comments with no line live in their own list, not in `comments`
+
+Status: accepted · 2026-09-10
+
+**Context.** M5 ingests three kinds of comment: a review comment on a line, a review comment
+GitHub attaches to a whole file, and a top-level comment on the pull request conversation. The
+schema's `Comment` requires a `path`, a `line` and a `side`, because the cockpit pins it and the
+validator checks the line against the hunk. The last two kinds have no line.
+
+**Options.**
+1. Drop what does not fit. The description of a migration written as a conversation comment is
+   often the most useful thing on the pull request; dropping it is a silent loss.
+2. Relax `Comment` so `path`, `line` and `side` may be null. Every reader then has to test three
+   fields before using any of them, and "outdated" — a line comment we could not place — stops
+   being distinguishable from "never had a line".
+3. A second list, `conversation`, whose entries have `line`, `side` and `hunkId` null and a
+   `path` only when GitHub gave one.
+
+**Decision.** Option 3. `Comment` keeps its guarantees, so the pinning code and the validator's
+line rules are unchanged, and `hunkId: null` inside `comments` keeps its one meaning: a comment
+that had a line and no longer has one. The two lists share every other field, so the cockpit
+renders both with the same parts.
+
+**Consequences.** Comment ids have to be unique across the two lists, which the validator now
+checks; the analyzer prefixes a review comment with `c` and an issue comment with `ic`, because
+the two id spaces are GitHub's and can collide. The cockpit shows `conversation` in a closed
+disclosure at the foot of the rail: on the three verification pull requests it held seven
+entries each, nearly all of them bot notices about scans and pipelines.
+
+---
+
+## ADR-38: A comment GitHub cannot place, we do not place either
+
+Status: accepted · 2026-09-10
+
+**Context.** A review comment carries `line` and `original_line`. `line` is where the comment
+sits in the current head; it is null once the line it was written against is gone.
+`original_line` is the line number in the commit the comment was written against, and it is
+always present.
+
+**Options.**
+1. Fall back to `original_line` for the hunk lookup, as the M5 brief first described. It places
+   more comments.
+2. Place only by `line`, and treat every comment GitHub reports without one — and every comment
+   on a thread GitHub marks `isOutdated` — as outdated.
+
+**Decision.** Option 2. A number from another commit points at whatever code holds that number
+now, so option 1 does not place a comment, it moves it. On the app verification pull request six
+of eleven comments had no current line, and four of the six numbers do exist in the new diff:
+option 1 would have pinned four comments to code they were never about. The comment keeps its
+`original_line` as its `line` so the outdated list can still say `path:line`, but `hunkId` stays
+null.
+
+**Consequences.** The outdated list is longer than it would otherwise be — 2 of 7 on one
+verification pull request, 6 of 11 on another — and that is the honest count. Spot-checking six
+placed comments against GitHub's own `diff_hunk` on three pull requests, every one landed on the
+line GitHub shows it on.
+
+---
+
+## ADR-39: Threads are joined by GitHub's thread id and rendered as one chip
+
+Status: accepted · 2026-09-10
+
+**Context.** A reply is a comment of its own with the same path and line as the comment it
+answers, and resolution is a property of the thread, not of any comment in it. The REST comment
+payload carries neither the thread id nor its resolved state; only the GraphQL
+`pullRequest.reviewThreads` connection does.
+
+**Options.**
+1. Rebuild threads from `in_reply_to_id` and leave `resolved` always false. One REST call, no
+   resolution, and "resolved" is exactly what tells a reviewer they can skip a chip.
+2. Nest replies inside their parent comment in the document.
+3. One GraphQL query for the threads, joined to the comments by comment id, with `threadId` on
+   each comment and the thread's resolved state copied to every comment in it.
+
+**Decision.** Option 3, with option 1 as the fallback when the query fails. `threadId` is a flat
+field, so the document stays a list of comments and the cockpit does the grouping — three
+comments of one thread become one chip with a reply count. Nesting would have made every reader
+walk two levels to find a body, and would have put the same body in two shapes depending on
+whether it was first.
+
+**Consequences.** One more `gh` call per analysis, about 300 ms of the 2.8 seconds the whole
+fetch takes. A thread with more than 100 comments would lose the resolution of the rest; nothing
+reads a hundred replies. The validator warns when one thread holds comments on two paths, which
+GitHub should never produce and which would put two files under one chip.
+
+---
+
+## ADR-40: A bot's body summary becomes a document field, and leaves the description
+
+Status: accepted · 2026-09-10
+
+**Context.** Cursor Bugbot writes its review summary into the pull request body between
+`<!-- CURSOR_SUMMARY -->` markers: a `[!NOTE]` alert with a `Medium Risk` line and an overview
+of the change. Rendered as part of the description it is a wall of text in the plan strip's
+disclosure, and its risk level — the one thing a reviewer wants at a glance — is buried in it.
+
+**Options.**
+1. Leave it in the body. Nothing to build, and the level stays invisible.
+2. Strip it in the analyzer and store the body without it. The document would then not report
+   the pull request as it is, and `compact.md` would hide from the judgment pass that another
+   reviewer has already been over the change.
+3. Parse it into `botSummaries` and leave `pr.body` untouched; the cockpit drops the block when
+   it renders the description.
+
+**Decision.** Option 3. Stage 1 stays a faithful report of the pull request, and the duplicate
+is a rendering concern, solved where the rendering happens. The pill says "Bugbot: medium risk"
+in the level's colour and holds the overview in a hover card.
+
+**Consequences.** The marker pattern exists twice, in the analyzer's parser and in the cockpit's
+`lib/prBody.ts`, and a second vendor's markers would have to be added to both. The strip is
+keyed on `<!-- X_SUMMARY -->` with a matching close marker, so a block whose close marker is
+missing is left in the description rather than swallowing the rest of it. `botSummaries` has no
+entry in `status`: it is parsed from a field stage 1 already holds, so there is no fetch to
+fail and nothing to report as pending.
+
+---
+
+## ADR-41: Re-analysing an unchanged head keeps stage 2, through the merge
+
+Status: accepted · 2026-09-10
+
+**Context.** `cockpit analyze` rewrites `review.json` from scratch. Running it again on a pull
+request whose judgment pass has already run — to pick up new comments, a finished check, or a
+newer build of the tool — threw away the groups, the walk, the reasons and the brief, and the
+reviewer had to pay for another judgment pass to get them back.
+
+**Options.**
+1. Copy the stage 2 sections across when the head sha matches. Fast, and wrong the moment the
+   merge base has moved under an unchanged head: the hunk ids shift, and a walk that names ids
+   that no longer exist is a broken document.
+2. Read stage 2 back out of the cached document as a judgment file and re-merge it onto the
+   fresh stage 1.
+
+**Decision.** Option 2, guarded by the head sha. The merge already knows how to drop unknown
+hunk ids, re-clamp a raise against a floor that moved, renumber the walk and append what the
+walk no longer covers, and it logs every one of those. After the merge the document is
+validated, and a stage 2 that no longer fits is dropped with the first error as the reason. A
+stage 2 group carries no id in a judgment file, so a walk step for one names a hunk inside it,
+exactly as the judgment pass writes it.
+
+**Consequences.** `analyze` reads the cached document before it writes, and says on stderr
+whether stage 2 was kept and why not when it was not. The graph stage, which rescores after
+stage 1, now has to keep a carried raise: it holds the level at the higher of the raise and the
+new floor, and clears `adjustedBy` when the floor has caught up with the raise, so the raise the
+reviewer sees is always one the code signals did not already make.

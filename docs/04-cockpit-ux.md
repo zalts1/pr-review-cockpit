@@ -39,7 +39,8 @@ Light theme only, using GitHub's light palette: white page, `#f6f8fa` panels, gr
 
 - **Identity line**: repository, title as a link to the PR, number, and a `draft` pill for a draft PR.
 - **Meta line**: author, head branch → base branch, the short head sha the review is bound to (full sha on hover), then the checks.
-- **Check pills**, compact and aggregated: one green "N checks passed" pill naming the checks on hover, one red pill per failing check linking to it, one amber "N running" pill, one grey "N skipped" pill for neutral, skipped and cancelled. Before `checks` is ready the pill says "Loading checks"; with no checks at all it says "No checks reported". The old one-chip-per-check strip cost a whole header row on a repository with fifteen checks.
+- **Check pills**, compact and aggregated: one green "N checks passed" pill naming the checks on hover, one red pill per failing check linking to it, one amber "N running" pill, one grey "N skipped" pill for neutral, skipped and cancelled. Every pill is a link: a failing check goes to its own run, a pill standing for one check goes to that check, and a pill standing for several goes to the PR's checks tab. Before `checks` is ready the pill says "Loading checks"; with no checks at all it says "No checks reported"; when the fetch failed it says "Checks unavailable" with the `gh` error on hover, rather than claiming there are none. The old one-chip-per-check strip cost a whole header row on a repository with fifteen checks, and one pill per pending check would cost the same row again on a repository mid-build.
+- **Bot summary pill**, one per entry of `botSummaries`: "Bugbot: medium risk", coloured by the level, linking to the PR, with a hover card holding the rendered overview. The block it came from is dropped from the rendered PR description, so the summary is on screen once.
 - **Files / Map** toggle, the **draft count**, the keyboard help button, **Submit review** as the secondary action.
 - **One primary action**, green: `Next: <note of the next step>`, falling back to that step's enclosing symbol and then to its file name, clipped to 38 characters. At the end of the walk it reads "Walk complete" and is disabled. There is no bottom bar; `Prev` lives on the step card.
 
@@ -66,7 +67,7 @@ The current row takes the blue left border and the `#ddf4ff` wash. Clicking a ro
 
 Below a divider, `SKIPPABLE` lists the skim groups and the generated group with their file counts. Clicking one expands it in the diff pane and scrolls to it without moving the walk. A group the judgment pass marked `scrutinize` is not skippable and stays in the review path as its own row.
 
-`Outdated comments` sits at the bottom when `comments` holds any with `hunkId: null`, each linking to GitHub.
+`Outdated comments` sits below that when `comments` holds any with `hunkId: null`, each with its `path:line`, its author, the first line of the body and a link to GitHub. Under it, `Conversation` is a closed disclosure over `conversation` — the comments with no line to pin them to — each with its source name, the file for a file-level comment, and the first line of the body. It is closed because a busy pull request collects a dozen bot notices there, and none of them is about a line the reviewer is reading.
 
 While `path` is pending the rail says "Recommended order: analyzing…" (or "not analyzed") and walks the files in order, riskiest hunk of each first. Nobody waits for the judgment pass to start reading.
 
@@ -98,7 +99,9 @@ The medium wash over the line numbers is gone: on a high-churn repository most n
 
 ### Pinned comments
 
-An existing comment renders as a one-line chip on its line, indented under the code: source icon (a robot for a bot, a speech bubble for a person), the source name, the severity in its colour, and the first 60 characters of the body with the markdown markers stripped. Clicking expands it in place with the full rendered body, the author, the timestamp and a link to GitHub. Resolved comments are dimmed and carry a `resolved` marker.
+An existing review thread renders as a one-line chip on the line its first comment sits on, indented under the code: source icon (a robot for a bot, a speech bubble for a person), the source name, the severity in its colour, a reply count when the thread has replies, and the first 60 characters of the body with the markdown markers stripped. Clicking expands it in place with the full rendered body, then each reply with its author and time, and a link to GitHub. A resolved thread is dimmed and carries a `resolved` marker.
+
+A thread is one chip rather than one chip per comment: on a real pull request the argument that matters is three comments long, and three stacked chips push the code that is being argued about off the screen.
 
 ### Drafting comments
 

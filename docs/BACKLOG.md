@@ -88,6 +88,16 @@ M4b closed the rest of this list. What survives, and why:
 - `judge-merge` prints the merge log and appends it to `log.txt`, and nothing ever rotates or
   reads that file. (M4)
 
-## Signals for M5 (from the first real PR)
+## Comments and checks (M5 leftovers)
 
-- Cursor Bugbot embeds a summary in the PR body between `<!-- CURSOR_SUMMARY -->` markers, with a risk level line (`[!NOTE] Medium Risk …`) and an overview. Parse it into a header chip and a summary section instead of leaving it inside the rendered body. (2026-09-09)
+- Only Cursor Bugbot's severity shapes are parsed. Another bot's level, and the per-finding
+  parsing of Wiz and CodeQL results, is the post-v1 item already in `06-milestones.md`. (M5)
+- The comments fetch is all or nothing: if the review-thread query fails after the comments
+  themselves arrived, the section is marked `failed` and the comments are dropped rather than
+  shown without their resolved state. Both calls share one auth and one host, so a split
+  failure is unlikely; if it ever happens the honest thing is to keep the comments and say the
+  resolution is unknown. (ADR-39, M5)
+- A file-level review comment lands in `conversation` with its path, so it is listed at the foot
+  of the rail rather than on the file it is about. GitHub's own UI shows it above the file. (M5)
+- Nothing reads a reply's own resolved state or the "outdated" flag beyond placement: an
+  outdated thread and a comment on a deleted line read the same in the outdated list. (M5)

@@ -56,7 +56,9 @@ The full schema is in `03-review-document-schema.md`. The shape that matters for
   files[]      stage 1   the diff, per file, per hunk, with deterministic risk
   signals      stage 1   raw numbers per file: churn, bugfix density, complexity, fan-in, fan-out
   comments[]   stage 1   existing PR review comments from bots and people, pinned to file and line
+  conversation stage 1   comments with no line to pin them to
   checks[]     stage 1   CI check results for the status strip
+  botSummaries stage 1   a review summary a bot wrote into the PR body, lifted out of it
   groups[]     stage 2   semantic groups such as "mechanical rename of Foo to Bar"
   path[]       stage 2   recommended walk order over hunks
   reasons      stage 2   plain-language "why risky" per high-risk hunk
@@ -115,11 +117,26 @@ everything that landed after it.
 
 Where to look for local clones: the current directory's repository first. Then a list of workspace roots from the optional global config. Then give up and clone.
 
-**3. Stage 1 analysis.** Parse the diff between base and head. For each changed file, compute git signals from history and structure signals from tree-sitter. Detect generated files by built-in patterns. Fetch existing review comments and check runs. Compute the deterministic risk per hunk. Write the document with stage 2 and 3 marked pending.
+**3. Stage 1 analysis.** Parse the diff between base and head. For each changed file, compute git signals from history and structure signals from tree-sitter. Detect generated files by built-in patterns. Fetch what the pull request already knows. Compute the deterministic risk per hunk. Write the document with stage 2 and 3 marked pending.
 
-At M3 `comments` and `checks` are written as empty arrays with status `ready`: ingestion is
-M5, and a section marked `pending` would make the cockpit render a placeholder for something
-nothing is going to deliver yet.
+What the fetch is, five `gh` calls: review comments
+(`pulls/{n}/comments --paginate`) mapped to file, line, side and hunk id; top-level comments
+(`issues/{n}/comments --paginate`), which have no line and go to `conversation`; one GraphQL
+query for `pullRequest.reviewThreads`, which is the only API that says whether a thread is
+resolved or outdated; check runs (`commits/{headSha}/check-runs --paginate`) and the legacy
+commit statuses (`commits/{headSha}/status`), normalised to one status vocabulary and
+deduplicated by name. The Cursor Bugbot summary is parsed out of the pull request body, which
+`gh pr view` already returned in step 1, and costs no call.
+
+Comments and checks fail independently: a fetch that fails leaves its section `failed` with
+the `gh` error as its message, and the rest of stage 1 is written as usual. Nothing about the
+diff depends on GitHub answering.
+
+Re-analysing the same head keeps the judgment pass's work. Stage 2 is read back out of the
+cached document as a judgment file and re-merged onto the fresh stage 1, so the clamp, group
+and coverage rules decide what still fits; a stage 2 that no longer validates against the new
+diff is dropped with a reason printed. The head moving is what makes the judgment stale, so
+that is the one condition the carry checks first (ADR-41).
 
 `pr.additions`, `pr.deletions` and `pr.changedFiles` are recomputed from the parsed diff
 rather than taken from `gh`. GitHub counts a rename and a binary file differently, and the
@@ -246,6 +263,9 @@ An optional `~/.config/review-cockpit/config.json` holds workspace roots to sear
   The analyzer does not run `git worktree prune`, which would drop registrations belonging to
   other tools, except when its own worktree path is registered with no directory behind it
   and prune is the only way to re-add it.
+- **`gh` cannot answer for comments or checks:** the section is marked `failed` with the `gh`
+  error, the header says "Checks unavailable" rather than "No checks reported", and every
+  other part of stage 1 is written.
 - **PR head moved before submit:** submit is refused with a clear message. Drafts are kept. `review 123` again re-analyzes and re-attaches drafts whose file and line still exist, and lists the ones it could not place.
 - **Server dies:** `review 123` again finds the cached document and drafts and restarts the server without re-analyzing, unless the head SHA changed.
 
