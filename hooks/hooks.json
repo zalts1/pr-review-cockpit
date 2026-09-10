@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/plugin-bootstrap.sh",
+            "timeout": 600,
+            "statusMessage": "Checking the cockpit build..."
+          }
+        ]
+      }
+    ]
+  }
+}
