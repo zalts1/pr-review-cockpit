@@ -151,6 +151,11 @@ it checked out from. It keeps everything about the review itself. Report where t
 Name the files that are actually there. If the user never drafted anything, do not claim a
 drafts file.
 
+Forgetting this step costs nothing: a server stops itself after 30 minutes with no cockpit
+connected, and `cockpit gc`, which every `cockpit run` does a pass of, removes the worktree of
+any review nobody has come back to for seven days. What the review is made of is never
+collected.
+
 ## 6. Re-analyse after new commits
 
 When the user says the author pushed new commits, or asks for a re-analysis:
