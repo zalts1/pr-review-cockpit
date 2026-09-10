@@ -60,10 +60,12 @@ judge-merge
           --judgment reads the judgment from somewhere else.
 
 serve     Serves the cockpit and the document on 127.0.0.1 and pushes every
-          change to review.json over server-sent events. Prints the URL.
+          change to review.json over server-sent events. Prints the URL. A
+          pull request whose server is already running prints that server's
+          URL instead of starting a second one.
 
 clean     Stops the server, removes the worktree and the review-cockpit ref,
-          and keeps review.json.
+          and keeps review.json and drafts.json.
 
 validate  Checks a file against its JSON Schema and the referential rules.
           The kind is detected from the file unless --as says otherwise.

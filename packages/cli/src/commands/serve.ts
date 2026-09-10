@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { documentFile, prDir, resolveRef, run } from '@review-cockpit/analyzer';
-import { startServer } from '@review-cockpit/server';
+import { readServerFile, serverIsAlive, startServer } from '@review-cockpit/server';
 
 export interface ServeFlags {
   cwd: string;
@@ -12,6 +12,16 @@ export async function serveCommand(prArg: string, flags: ServeFlags): Promise<nu
   const ref = resolveRef(prArg, flags.cwd);
   const directory = prDir(ref);
   const document = documentFile(ref);
+
+  const existing = readServerFile(directory);
+  if (existing !== null && serverIsAlive(existing)) {
+    console.error(
+      `[serve] a server for ${ref.owner}/${ref.repo}#${ref.number} is already running (pid ${existing.pid})`,
+    );
+    console.log(existing.url);
+    if (flags.open) run('open', [existing.url]);
+    return 0;
+  }
 
   const server = await startServer({ prDir: directory, ...(flags.port === undefined ? {} : { port: flags.port }) });
 

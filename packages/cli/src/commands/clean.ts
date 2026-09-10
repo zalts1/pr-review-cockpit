@@ -2,6 +2,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import {
   cloneDir,
   documentFile,
+  draftsFile,
   git,
   prRefName,
   readDocument,
@@ -44,7 +45,8 @@ export function cleanCommand(prArg: string, cwd: string): number {
     done.push(`deleted ${refName} from ${host}`);
   }
 
+  const drafts = draftsFile(ref);
   for (const line of done) console.error(`[clean] ${line}`);
-  console.error(`[clean] kept ${document}`);
+  console.error(`[clean] kept ${document}${existsSync(drafts) ? ` and ${drafts}` : ''}`);
   return 0;
 }
