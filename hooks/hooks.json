@@ -12,6 +12,16 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/plugin-session-end.sh"
+          }
+        ]
+      }
     ]
   }
 }

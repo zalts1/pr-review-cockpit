@@ -24,6 +24,24 @@ interface MarketplacePlugin {
 const entries = marketplace['plugins'] as MarketplacePlugin[];
 const entry = entries.find((candidate) => candidate.name === 'cockpit') as MarketplacePlugin;
 
+interface HookEvent {
+  matcher?: string;
+  hooks: Array<{ type: string; command: string }>;
+}
+
+function hookEvents(event: string): HookEvent[] {
+  const hooks = readJson('hooks', 'hooks.json');
+  return (hooks['hooks'] as Record<string, unknown>)[event] as HookEvent[];
+}
+
+function expectRunnable(handler: HookEvent['hooks'][number] | undefined, script: RegExp): void {
+  expect(handler?.type).toBe('command');
+  const path = handler?.command.replace('${CLAUDE_PLUGIN_ROOT}', repoRoot).replace(/^bash\s+/, '') ?? '';
+  expect(path).toMatch(script);
+  expect(existsSync(path)).toBe(true);
+  expect(statSync(path).mode & 0o111).toBeGreaterThan(0);
+}
+
 describe('.claude-plugin/plugin.json', () => {
   it('carries every field the plugin manager shows', () => {
     expect(plugin['name']).toBe('cockpit');
@@ -74,20 +92,17 @@ describe('the plugin layout', () => {
   });
 
   it('runs a SessionStart hook whose script is there', () => {
-    const hooks = readJson('hooks', 'hooks.json');
-    const events = (hooks['hooks'] as Record<string, unknown>)['SessionStart'] as Array<{
-      matcher: string;
-      hooks: Array<{ type: string; command: string }>;
-    }>;
+    const events = hookEvents('SessionStart');
     expect(events).toHaveLength(1);
     expect(events[0]?.matcher).toContain('startup');
+    expectRunnable(events[0]?.hooks[0], /plugin-bootstrap\.sh$/);
+  });
 
-    const handler = events[0]?.hooks[0];
-    expect(handler?.type).toBe('command');
-
-    const path = handler?.command.replace('${CLAUDE_PLUGIN_ROOT}', repoRoot).replace(/^bash\s+/, '') ?? '';
-    expect(path).toMatch(/plugin-bootstrap\.sh$/);
-    expect(existsSync(path)).toBe(true);
-    expect(statSync(path).mode & 0o111).toBeGreaterThan(0);
+  /** No matcher, because every way a session can end leaves the same servers behind. */
+  it('runs a SessionEnd hook on every exit reason', () => {
+    const events = hookEvents('SessionEnd');
+    expect(events).toHaveLength(1);
+    expect(events[0]?.matcher).toBeUndefined();
+    expectRunnable(events[0]?.hooks[0], /plugin-session-end\.sh$/);
   });
 });
