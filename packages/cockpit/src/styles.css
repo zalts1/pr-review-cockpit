@@ -984,6 +984,28 @@ a.pill:hover {
   flex: none;
 }
 
+.banner-stopped {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-strong);
+  color: var(--fg);
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  flex: none;
+}
+
+.banner-stopped code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--page);
+  border: 1px solid var(--border-muted);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
 .banner-drafts {
   display: flex;
   align-items: center;

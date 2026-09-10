@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReviewDocument } from '@review-cockpit/schema';
+import type { Connection, ConnectionEvent } from './connection.js';
+import { hasGivenUp, initialConnection, nextConnection, shutdownReasonOf } from './connection.js';
 
 const DEFAULT_FIXTURE = 'pr-fake-1';
 const DOCUMENT_URL = '/api/document';
@@ -16,7 +18,7 @@ export type DocumentLoad =
 
 export interface DocumentState {
   load: DocumentLoad;
-  disconnected: boolean;
+  connection: Connection;
   /** Counts the documents this page has read, so a reader can act on a re-analysis. */
   revision: number;
 }
@@ -40,7 +42,7 @@ export function storageSourceOf(source: DocumentSource): string {
 
 export function useDocumentSource(source: DocumentSource): DocumentState {
   const [load, setLoad] = useState<DocumentLoad>({ kind: 'loading' });
-  const [disconnected, setDisconnected] = useState(false);
+  const [connection, setConnection] = useState<Connection>(initialConnection);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -77,11 +79,29 @@ export function useDocumentSource(source: DocumentSource): DocumentState {
 
     const reload = () => void read();
     const events = new EventSource(EVENTS_URL);
-    events.onopen = () => setDisconnected(false);
-    // EventSource reconnects on its own, so an error means the stream is down for now,
-    // not for good; readyState says whether it has already come back.
-    events.onerror = () => setDisconnected(events.readyState !== EventSource.OPEN);
+
+    const advance = (incoming: ConnectionEvent) => {
+      setConnection((current) => {
+        const next = nextConnection(current, incoming);
+        // Nothing is coming back, so the stream is closed rather than left retrying for
+        // the life of the tab.
+        if (hasGivenUp(next)) events.close();
+        return next;
+      });
+    };
+
+    events.onopen = () => advance({ kind: 'open' });
+    // EventSource reconnects on its own, so an error means the stream is down for now, not
+    // for good; readyState says whether it has already come back.
+    events.onerror = () => {
+      if (events.readyState !== EventSource.OPEN) advance({ kind: 'failed' });
+    };
     events.onmessage = (event) => {
+      const shutdown = shutdownReasonOf(event.data);
+      if (shutdown !== null) {
+        advance({ kind: 'shutdown', reason: shutdown });
+        return;
+      }
       if (isDocumentEvent(event.data)) reload();
     };
     // A server that names the event sends it to this listener instead of onmessage.
@@ -93,7 +113,7 @@ export function useDocumentSource(source: DocumentSource): DocumentState {
     };
   }, [source]);
 
-  return { load, disconnected, revision };
+  return { load, connection, revision };
 }
 
 function isDocumentEvent(data: unknown): boolean {

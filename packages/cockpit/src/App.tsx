@@ -13,6 +13,8 @@ import {
 } from './lib/plan';
 import type { RailEntry } from './lib/plan';
 import { copyText } from './lib/clipboard';
+import type { Connection } from './lib/connection';
+import { connectionBanner } from './lib/connection';
 import {
   documentSource,
   documentUrlOf,
@@ -44,7 +46,7 @@ import { SubmitModal } from './components/SubmitModal';
 const fixture = documentSource.mode === 'fixture' ? documentSource.fixture : null;
 
 export function App() {
-  const { load, disconnected, revision } = useDocumentSource(documentSource);
+  const { load, connection, revision } = useDocumentSource(documentSource);
 
   if (load.kind === 'loading') {
     return (
@@ -112,12 +114,12 @@ export function App() {
     );
   }
 
-  return <Cockpit doc={load.doc} disconnected={disconnected} revision={revision} />;
+  return <Cockpit doc={load.doc} connection={connection} revision={revision} />;
 }
 
 interface CockpitProps {
   doc: ReviewDocument;
-  disconnected: boolean;
+  connection: Connection;
   /** Counts the document loads, so a re-analysis re-reads the drafts beside it. */
   revision: number;
 }
@@ -132,7 +134,7 @@ type PaneItem =
       step: number | null;
     };
 
-export function Cockpit({ doc, disconnected, revision }: CockpitProps) {
+export function Cockpit({ doc, connection, revision }: CockpitProps) {
   const derived = useMemo(() => derive(doc), [doc]);
   const order = useMemo(() => reviewOrder(derived), [derived]);
   const storageKey = draftsKey(doc.pr, storageSourceOf(documentSource));
@@ -178,9 +180,13 @@ export function Cockpit({ doc, disconnected, revision }: CockpitProps) {
     pr: doc.pr,
     storageKey,
     toServer: documentSource.mode === 'server',
-    disconnected,
+    disconnected: connection.state !== 'live',
     documentRevision: revision,
   });
+  const banner = useMemo(
+    () => connectionBanner(connection, `${doc.pr.owner}/${doc.pr.repo}#${doc.pr.number}`),
+    [connection, doc.pr],
+  );
   const owners = useMemo(() => lineOwners(doc.files), [doc.files]);
   const drafts = useMemo(() => placeDrafts(store.drafts, owners), [store.drafts, owners]);
   const [editor, setEditor] = useState<EditorTarget | null>(null);
@@ -687,10 +693,19 @@ export function Cockpit({ doc, disconnected, revision }: CockpitProps) {
 
   return (
     <div className="app">
-      {disconnected && (
-        <div className="banner-offline" role="alert">
+      {banner !== null && (
+        <div className={banner.tone === 'stopped' ? 'banner-stopped' : 'banner-offline'} role="alert">
           <WarnIcon size={13} />
-          Disconnected from the local server. Drafts are saved locally.
+          <span>
+            {banner.text}
+            {banner.command !== null && (
+              <>
+                {' Run '}
+                <code>{banner.command}</code>
+                {' to bring it back.'}
+              </>
+            )}
+          </span>
         </div>
       )}
 
