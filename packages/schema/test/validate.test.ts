@@ -298,6 +298,20 @@ describe('validateDrafts', () => {
   it('rejects a verdict GitHub does not have', () => {
     expect(rulesOf(validateDrafts({ ...draftsFile(), verdict: 'MERGE' }))).toContain('schema');
   });
+
+  it('accepts the file the re-attach writes, with orphans and a write time', () => {
+    const file = draftsFile();
+    const orphan = { ...file.drafts[0]!, id: 'd2' };
+    const result = validateDrafts({ ...file, updatedAt: '2026-09-10T12:00:00Z', orphaned: [orphan] });
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('rejects an orphan that repeats a live draft id', () => {
+    const file = draftsFile();
+    const orphan = { ...file.drafts[0]! };
+    expect(rulesOf(validateDrafts({ ...file, orphaned: [orphan] }))).toContain('draft-id-unique');
+  });
 });
 
 function comment(): ReviewDocument['comments'][number] {

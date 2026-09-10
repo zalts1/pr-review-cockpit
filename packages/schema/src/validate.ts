@@ -10,7 +10,7 @@ import type {
   RiskLevel,
 } from './generated/document.js';
 import type { Judgment } from './generated/judgment.js';
-import type { DraftsFile } from './generated/drafts.js';
+import type { Draft, DraftsFile } from './generated/drafts.js';
 import { draftsSchema, judgmentSchema, reviewDocumentSchema } from './schemas.js';
 import { SECTION_NAMES } from './types.js';
 import { SUPPORTED_SCHEMA_MAJOR, majorOf } from './version.js';
@@ -790,33 +790,40 @@ export function validateDrafts(drafts: unknown): ValidationResult {
   checkSchemaVersion(file.schemaVersion, issues);
 
   const ids = new Set<string>();
-  for (const [i, draft] of file.drafts.entries()) {
-    const at = `drafts[${i}]`;
-    if (ids.has(draft.id)) {
-      issues.error('draft-id-unique', `${at}.id`, `repeats the draft id "${draft.id}"`);
-    }
-    ids.add(draft.id);
+  const lists: Array<[string, readonly Draft[]]> = [
+    ['drafts', file.drafts],
+    ['orphaned', file.orphaned ?? []],
+  ];
 
-    if (!/^[0-9a-f]{40}$/.test(draft.commitId)) {
-      issues.error(
-        'draft-commit-id',
-        `${at}.commitId`,
-        `is "${draft.commitId}", not a 40-character hex commit SHA. A draft binds to the head it was written against.`,
-      );
-    }
+  for (const [field, list] of lists) {
+    for (const [i, draft] of list.entries()) {
+      const at = `${field}[${i}]`;
+      if (ids.has(draft.id)) {
+        issues.error('draft-id-unique', `${at}.id`, `repeats the draft id "${draft.id}"`);
+      }
+      ids.add(draft.id);
 
-    if ((draft.startLine === null) !== (draft.startSide === null)) {
-      issues.error(
-        'draft-range',
-        at,
-        'sets one of startLine and startSide and leaves the other null; GitHub needs both for a multi-line comment',
-      );
-    } else if (draft.startLine !== null && draft.startLine > draft.line) {
-      issues.error(
-        'draft-range',
-        `${at}.startLine`,
-        `is ${draft.startLine}, after the comment line ${draft.line}`,
-      );
+      if (!/^[0-9a-f]{40}$/.test(draft.commitId)) {
+        issues.error(
+          'draft-commit-id',
+          `${at}.commitId`,
+          `is "${draft.commitId}", not a 40-character hex commit SHA. A draft binds to the head it was written against.`,
+        );
+      }
+
+      if ((draft.startLine === null) !== (draft.startSide === null)) {
+        issues.error(
+          'draft-range',
+          at,
+          'sets one of startLine and startSide and leaves the other null; GitHub needs both for a multi-line comment',
+        );
+      } else if (draft.startLine !== null && draft.startLine > draft.line) {
+        issues.error(
+          'draft-range',
+          `${at}.startLine`,
+          `is ${draft.startLine}, after the comment line ${draft.line}`,
+        );
+      }
     }
   }
 

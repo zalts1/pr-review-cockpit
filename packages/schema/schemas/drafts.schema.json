@@ -15,7 +15,17 @@
       "enum": ["COMMENT", "REQUEST_CHANGES", "APPROVE", null]
     },
     "summaryBody": { "type": "string" },
-    "drafts": { "type": "array", "items": { "$ref": "#/$defs/Draft" } }
+    "drafts": { "type": "array", "items": { "$ref": "#/$defs/Draft" } },
+    "updatedAt": {
+      "description": "When this file was last written. The cockpit compares it against its browser-storage copy to decide which of the two is newer.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "orphaned": {
+      "description": "Drafts a re-analysis could not re-attach to the new diff. Written by the analyzer into drafts.orphaned.json and served with the drafts; the cockpit never writes it.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/Draft" }
+    }
   },
   "$defs": {
     "DraftsPr": {
