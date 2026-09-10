@@ -12,6 +12,9 @@ import { analyzeStage1 } from '../src/stage1.js';
 
 const AUTHOR = 'contributor@example.test';
 
+/** Stage 1 fetches comments and checks through gh; this test repository has none. */
+const noSignals = (): string => '[]';
+
 /** More callers of one changed function than the neighbour cap, so folding has something to fold. */
 const CALLER_COUNT = 45;
 
@@ -247,6 +250,7 @@ func TestUpdateRecord(t *testing.T) {
       pr: pr(baseSha, headSha),
       checkout: { mode: 'worktree', path: root, sourceRepo: root },
       authorEmails: [AUTHOR],
+      gh: noSignals,
     });
   });
 
@@ -293,11 +297,13 @@ func TestUpdateRecord(t *testing.T) {
       pr: pr(baseSha, headSha),
       checkout: { mode: 'worktree', path: root, sourceRepo: root },
       authorEmails: [AUTHOR],
+      gh: noSignals,
     });
     const expected = await analyzeStage1({
       pr: pr(baseSha, headSha),
       checkout: { mode: 'worktree', path: root, sourceRepo: root },
       authorEmails: [AUTHOR],
+      gh: noSignals,
       expectJudgment: true,
     });
 

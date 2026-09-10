@@ -17,10 +17,12 @@ import type { HunkFeatures, LineRange } from './features.js';
 import { classifyKind, hunkFeatures, importRanges } from './features.js';
 import { exportedTsSymbols, grepFanIn } from './fanin.js';
 import { detectGenerated, generatedRule } from './generated.js';
+import type { GhRunner } from './gh.js';
 import { firstMatch } from './glob.js';
 import type { GoFile, GoFunction } from './go.js';
 import { functionsOverlapping, parseGo } from './go.js';
 import { stage1Groups } from './groups.js';
+import { ingest } from './ingest.js';
 import type { FileHistory } from './gitsignals.js';
 import { gitSignals } from './gitsignals.js';
 import type { HazardLanguage } from './language.js';
@@ -32,6 +34,8 @@ export interface Stage1Options {
   pr: PrInfo;
   checkout: CheckoutInfo;
   authorEmails: readonly string[];
+  /** Injected so a test reaches no network; the default runs the gh command line. */
+  gh?: GhRunner;
   foldGenerated?: boolean;
   expectJudgment?: boolean;
   now?: Date;
@@ -329,6 +333,12 @@ export async function analyzeStage1(options: Stage1Options): Promise<Stage1Resul
 
   const groups = stage1Groups(files);
 
+  const signals = step('comments and checks fetched', onProgress, () =>
+    ingest({ pr, files, ...(options.gh ? { gh: options.gh } : {}) }),
+  );
+  if (signals.commentsError !== null) onProgress?.(`comments failed: ${signals.commentsError}`);
+  if (signals.checksError !== null) onProgress?.(`checks failed: ${signals.checksError}`);
+
   const document = buildDocument({
     pr: {
       ...pr,
@@ -339,6 +349,18 @@ export async function analyzeStage1(options: Stage1Options): Promise<Stage1Resul
     checkout,
     files,
     groups,
+    comments: signals.comments,
+    conversation: signals.conversation,
+    checks: signals.checks,
+    botSummaries: signals.botSummaries,
+    commentsStatus:
+      signals.commentsError === null
+        ? status('ready', generatedAt)
+        : status('failed', generatedAt, `existing comments could not be read: ${signals.commentsError}`),
+    checksStatus:
+      signals.checksError === null
+        ? status('ready', generatedAt)
+        : status('failed', generatedAt, `check runs could not be read: ${signals.checksError}`),
     graphStatus: status('pending', generatedAt),
     generatedAt,
     expectJudgment: options.expectJudgment === true,

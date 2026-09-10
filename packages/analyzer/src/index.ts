@@ -1,6 +1,39 @@
 export { analyze, applyGraphFan, prepare } from './analyze.js';
 export type { AnalyzeOptions, AnalyzeResult, PrepareResult } from './analyze.js';
+export {
+  cursorSummaryBlock,
+  overviewOf,
+  parseBotSummaries,
+  riskLevelOf,
+} from './botsummary.js';
+export { carryStage2, judgmentFromDocument } from './carry.js';
+export type { CarryOptions, CarryOutcome } from './carry.js';
+export {
+  checkRunStatus,
+  commitStatusStatus,
+  countByStatus,
+  dedupeChecks,
+  mapCheckRuns,
+  mapCommitStatuses,
+} from './checks.js';
+export type { GhCheckRun, GhCommitStatus, TimedCheck } from './checks.js';
 export { checkout, findLocalClone, worktreeHost } from './checkout.js';
+export {
+  commentStats,
+  lineIndex,
+  mapComments,
+  placeComment,
+  severityOf,
+  sourceOf,
+  threadsByComment,
+} from './comments.js';
+export type {
+  CommentStats,
+  GhIssueComment,
+  GhReviewComment,
+  MappedComments,
+  ThreadInfo,
+} from './comments.js';
 export {
   buildCompact,
   diffBytes,
@@ -30,6 +63,10 @@ export {
 } from './features.js';
 export type { HunkFeatures, KindInput, LineRange } from './features.js';
 export { countFromGrepOutput, exportedTsSymbols, grepFanIn } from './fanin.js';
+export { ghArray, ghCli, ghMessage, ghObjects, jsonValues } from './gh.js';
+export type { GhRunner } from './gh.js';
+export { fetchChecks, fetchComments, ingest, REVIEW_THREADS_QUERY } from './ingest.js';
+export type { IngestOptions, IngestResult } from './ingest.js';
 export { detectGenerated, generatedRule, HEADER_RULE } from './generated.js';
 export type { GeneratedDetection } from './generated.js';
 export { firstMatch, globToRegExp, matchesGlob } from './glob.js';

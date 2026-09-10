@@ -1,9 +1,11 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type {
+  BotSummary,
   Check,
   CheckoutInfo,
   Comment,
+  ConversationComment,
   DocumentStatus,
   Graph,
   Group,
@@ -38,7 +40,11 @@ export interface DocumentParts {
   files: ReviewFile[];
   groups: Group[];
   comments?: Comment[];
+  conversation?: ConversationComment[];
   checks?: Check[];
+  botSummaries?: BotSummary[];
+  commentsStatus?: SectionStatus;
+  checksStatus?: SectionStatus;
   graph?: Graph;
   graphStatus: SectionStatus;
   generatedAt: string;
@@ -58,8 +64,8 @@ export function buildDocument(parts: DocumentParts): ReviewDocument {
 
   const documentStatus: DocumentStatus = {
     files: ready,
-    comments: ready,
-    checks: ready,
+    comments: parts.commentsStatus ?? ready,
+    checks: parts.checksStatus ?? ready,
     groups: stage2,
     path: stage2,
     summary: stage2,
@@ -75,7 +81,9 @@ export function buildDocument(parts: DocumentParts): ReviewDocument {
     status: documentStatus,
     files: parts.files,
     comments: parts.comments ?? [],
+    conversation: parts.conversation ?? [],
     checks: parts.checks ?? [],
+    botSummaries: parts.botSummaries ?? [],
     groups: parts.groups,
     path: [],
     summary: { counts: { hunks: 0, highRisk: 0, skimmable: 0 } },

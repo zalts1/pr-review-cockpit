@@ -1,10 +1,13 @@
 import type { CheckoutInfo, PrInfo, ReviewDocument, RiskLevel } from '@review-cockpit/schema';
 import { summaryCounts } from '@review-cockpit/schema';
 import type { HunkFeatures } from './features.js';
+import type { CarryOutcome } from './carry.js';
+import { carryStage2 } from './carry.js';
 import { checkout } from './checkout.js';
 import { diffBytes, formatBytes, writeCompact } from './compact.js';
 import { readUserConfig } from './config.js';
-import { nowIso, status, writeDocument } from './document.js';
+import { nowIso, readDocument, status, writeDocument } from './document.js';
+import type { GhRunner } from './gh.js';
 import type { FanCounts, GraphResult } from './graph.js';
 import { buildGoGraph } from './graph.js';
 import type { PrRef } from './paths.js';
@@ -16,6 +19,8 @@ import { analyzeStage1 } from './stage1.js';
 export interface AnalyzeOptions {
   prArg: string;
   cwd: string;
+  /** Injected so a test reaches no network; the default runs the gh command line. */
+  gh?: GhRunner;
   foldGenerated?: boolean;
   skipGraph?: boolean;
   /** True when a judgment pass will follow, so stage 2 reads as running rather than absent. */
@@ -32,6 +37,8 @@ export interface AnalyzeResult {
   compactBytes: number;
   stage1Ms: number;
   graph: GraphResult | null;
+  /** Whether the stage 2 of an earlier run of the same head was kept. */
+  carry: CarryOutcome;
 }
 
 export interface PrepareResult {
@@ -110,10 +117,17 @@ export function applyGraphFan(
         hunk.risk.factors = refined.factors;
       }
 
+      // A carried stage 2 may already hold a raise above the old floor, and a
+      // raise the new floor has caught up with is no longer a raise.
+      const level = rankOf(hunk.risk.level) > rankOf(floor) ? hunk.risk.level : floor;
       hunk.risk.score = refined.score;
       hunk.risk.floor = floor;
-      hunk.risk.level = floor;
-      hunk.risk.mode = modeOf(floor);
+      hunk.risk.level = level;
+      hunk.risk.mode = modeOf(level);
+      hunk.risk.adjustedBy =
+        hunk.risk.adjustedBy === null || level === floor
+          ? null
+          : { from: floor, to: level, why: hunk.risk.adjustedBy.why };
     }
   }
 
@@ -152,11 +166,22 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
     authorEmails: resolved.authorEmails,
     foldGenerated: options.foldGenerated ?? true,
     expectJudgment: options.expectJudgment === true,
+    ...(options.gh ? { gh: options.gh } : {}),
     ...(onProgress ? { onProgress } : {}),
   });
 
   const documentPath = documentFile(resolved.ref);
   const compactPath = compactFile(resolved.ref);
+  const carry = carryForward(documentPath, stage1.document);
+  if (carry.kind === 'carried') {
+    stage1.document = carry.document;
+    onProgress?.(
+      `stage 2 kept from the previous run at the same head: ${carry.document.groups.length} groups, ${carry.document.path.length} steps` +
+        (carry.log.length > 0 ? `, ${carry.log.length} merge log entries` : ''),
+    );
+  } else {
+    onProgress?.(`stage 2 not carried forward: ${carry.why}`);
+  }
   writeDocument(documentPath, stage1.document);
   let compactBytes = writeCompact(compactPath, stage1.document);
   const stage1Ms = Date.now() - stage1Started;
@@ -175,6 +200,7 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
       compactBytes,
       stage1Ms,
       graph: null,
+      carry,
     };
   }
 
@@ -205,6 +231,7 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
       compactBytes,
       stage1Ms,
       graph,
+      carry,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -224,6 +251,17 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
       compactBytes,
       stage1Ms,
       graph: null,
+      carry,
     };
   }
+}
+
+function carryForward(documentPath: string, fresh: ReviewDocument): CarryOutcome {
+  let previous: ReviewDocument;
+  try {
+    previous = readDocument(documentPath);
+  } catch {
+    return { kind: 'skipped', why: 'there is no cached document for this pull request' };
+  }
+  return carryStage2(previous, fresh, { now: nowIso() });
 }

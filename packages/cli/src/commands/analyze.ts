@@ -1,5 +1,5 @@
-import { analyze } from '@review-cockpit/analyzer';
-import type { ReviewDocument, RiskLevel } from '@review-cockpit/schema';
+import { analyze, commentStats, countByStatus } from '@review-cockpit/analyzer';
+import type { CheckStatus, ReviewDocument, RiskLevel } from '@review-cockpit/schema';
 import { progress } from '../progress.js';
 
 export interface AnalyzeFlags {
@@ -15,6 +15,36 @@ function countByLevel(document: ReviewDocument): Record<RiskLevel, number> {
     for (const hunk of file.hunks) counts[hunk.risk.level] += 1;
   }
   return counts;
+}
+
+function reportSignals(document: ReviewDocument, step: (message: string) => void): void {
+  if (document.status.comments.state === 'failed') {
+    step(`comments: ${document.status.comments.message ?? 'failed'}`);
+  } else {
+    const stats = commentStats({
+      comments: document.comments,
+      conversation: document.conversation ?? [],
+    });
+    step(
+      `comments: ${stats.total} on the diff (${stats.placed} placed, ${stats.outdated} outdated), ` +
+        `${stats.threads} threads with ${stats.resolvedThreads} resolved, ` +
+        `${stats.conversation} on the conversation`,
+    );
+  }
+
+  if (document.status.checks.state === 'failed') {
+    step(`checks: ${document.status.checks.message ?? 'failed'}`);
+  } else {
+    const counts = countByStatus(document.checks);
+    const named = (Object.keys(counts) as CheckStatus[])
+      .filter((status) => counts[status] > 0)
+      .map((status) => `${counts[status]} ${status}`);
+    step(`checks: ${document.checks.length} runs${named.length > 0 ? ` — ${named.join(', ')}` : ''}`);
+  }
+
+  for (const summary of document.botSummaries ?? []) {
+    step(`${summary.source.name} summary: ${summary.riskLevel ?? 'no'} risk, ${summary.body.length} characters`);
+  }
 }
 
 export async function analyzeCommand(prArg: string, flags: AnalyzeFlags): Promise<number> {
@@ -39,7 +69,9 @@ export async function analyzeCommand(prArg: string, flags: AnalyzeFlags): Promis
   if (folded.length > 0) {
     step(`folded as generated: ${folded.map((file) => `${file.path} (${file.generated.rule})`).join(', ')}`);
   }
-  if (!flags.expectJudgment) {
+  reportSignals(document, step);
+
+  if (!flags.expectJudgment && document.status.summary.state !== 'ready') {
     step('stage 2 marked "not-attached": no judgment pass is running, and the cockpit says so');
   }
   if (document.status.graph.state === 'failed') {
