@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# The plugin's bin/ is on the Bash tool's PATH, so this is what `cockpit …` runs
+# in a session that installed the plugin rather than scripts/install.sh.
+set -uo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+entry="$root/packages/cli/dist/cockpit.js"
+log="${CLAUDE_PLUGIN_DATA:-$root}/bootstrap.log"
+
+if [ ! -f "$entry" ]; then
+  printf 'cockpit: not built yet (%s is missing).\n' "$entry" >&2
+  printf 'cockpit: the SessionStart hook builds it; see %s, or run: cd %q && npm ci && npm run build\n' "$log" "$root" >&2
+  exit 1
+fi
+
+exec node "$entry" "$@"
