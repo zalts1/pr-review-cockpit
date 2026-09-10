@@ -101,6 +101,7 @@ node             ok      v24.15.0
 gh               ok      ✓ Logged in to github.com account you
 build            ok      …/packages/cockpit/dist/index.html
 skill            ok      ~/.claude/skills/cockpit → …/skills/cockpit
+servers          ok      none running. cockpit ps lists them
 config           ok      ~/.config/review-cockpit/config.json is absent, which is fine: it is optional
 workspace roots  ok      none configured: a repository with no local clone is cloned into the cache
 ```
@@ -165,7 +166,9 @@ Everything the tool writes is under one directory, `~/.cache/review-cockpit`:
     drafts.json               your unsent comments, verdict and review body
     drafts.orphaned.json      drafts a re-analysis could not place in the new diff
     submitted-<ts>.json       one file per review you posted, as it was sent
-    server.json               port, pid and url of the running server
+    server.json               the running server: port, pid, url, when it started, a token
+                              that proves the process is ours, and the Claude Code session
+                              that asked for it
     log.txt
 ```
 
@@ -174,6 +177,32 @@ review you posted last week is still readable.
 
 Nothing is written into your own clone but the objects a fetch brings in, one ref under
 `refs/review-cockpit/`, and the worktree registration. `clean` removes both of those.
+
+## Housekeeping
+
+Nothing here needs you to remember it. A server stops itself after 30 minutes with no cockpit
+connected: it removes its own `server.json` and exits, and a browser tab that was left open
+says the server stopped and gives you the `cockpit run` line that brings it back — about a
+second, because the document and your drafts are already on disk. When a Claude Code session
+ends, a `SessionEnd` hook stops the servers that session started. And every `cockpit run` ends
+with a `cockpit gc` pass, which removes the worktree and the `refs/review-cockpit/` ref of any
+review with no server running that nobody has come back to for seven days.
+
+| Command | What it does |
+|---|---|
+| `cockpit ps` | Every running server: pull request, port, pid, age, how long it has had nobody connected, how many cockpits are |
+| `cockpit stop <pr>` / `--all` / `--started-by <id>` | Stop servers and leave everything else where it is |
+| `cockpit gc [--days <n>] [--dry-run]` | Remove the checkouts of reviews nobody came back to |
+
+`cockpit stop` only signals a process it can show is a cockpit server: one that answers
+`/api/health` with the token from its own `server.json`, or, when it answers nothing at all,
+one whose command line is a `cockpit … serve`. A pid on its own is not enough, because pids
+are reused. Anything else alive is reported and left running.
+
+`cockpit gc` removes the checkout and nothing else. `review.json`, `drafts.json`,
+`judgment.json` and every `submitted-<ts>.json` stay, because a checkout is a commit GitHub
+still has and those files are not. It never runs `git worktree prune`, so a worktree another
+tool registered in the same clone is safe. `--dry-run` prints what it would remove.
 
 ## Uninstall
 
@@ -229,15 +258,18 @@ also its own command, which is how you debug one.
 
 | Command | What it does |
 |---|---|
-| `cockpit run <pr> [--reuse-server] [--port <n>] [--no-open] [--skip-graph] [--cwd <dir>]` | Prepare, stage 1, serve, open the browser, then the graph. Last stdout line is JSON: `{url, prDir, compact, judgmentOut, headSha}`. |
+| `cockpit run <pr> [--reuse-server] [--port <n>] [--no-open] [--skip-graph] [--idle-minutes <n>] [--session <id>] [--cwd <dir>]` | Prepare, stage 1, serve, open the browser, then the graph, then a `gc` pass. Last stdout line is JSON: `{url, prDir, compact, judgmentOut, headSha}`. |
 | `cockpit prepare <pr>` | Resolve and check out only. Prints the checkout as JSON. |
 | `cockpit analyze <pr> [--expect-judgment] [--no-fold-generated] [--skip-graph]` | Stage 1 and stage 3 into `review.json`, and `compact.md` beside it. |
 | `cockpit compact <pr>` | Rewrite `compact.md` from the document on its own. |
 | `cockpit judge-prompt <pr>` | Print the whole judgment prompt to stdout. |
 | `cockpit judge-merge <pr> [--judgment <file>]` | Validate `judgment.json`, merge it, write the document and the log. |
 | `cockpit mark-failed <pr> --stage 2 --message <text>` | Mark the judgment sections failed with a message the cockpit shows. |
-| `cockpit serve <pr> [--port <n>] [--open]` | Serve the cockpit, the document and the drafts on 127.0.0.1, or print the URL of the server already serving them. |
+| `cockpit serve <pr> [--port <n>] [--open] [--idle-minutes <n>] [--session <id>]` | Serve the cockpit, the document and the drafts on 127.0.0.1, or print the URL of the server already serving them. |
+| `cockpit stop <pr>` / `--all` / `--started-by <id>` | Stop running servers and nothing else. |
 | `cockpit clean <pr>` | Stop the server, remove the worktree and the ref, keep the document and the drafts. |
+| `cockpit gc [--days <n>] [--dry-run]` | Remove the checkout of every review with no server and a document older than `--days`, which defaults to 7. |
+| `cockpit ps` | List the running servers. |
 | `cockpit doctor` | Check the installation and print the table above. |
 | `cockpit validate <file> [--as document\|judgment\|drafts]` | Schema and referential rules. |
 | `cockpit merge <document> <judgment> [--out <file>]` | Apply a judgment file to a document. |
@@ -254,7 +286,9 @@ keeps a server that is already running and leaves its browser tab alone.
 `--expect-judgment` says a judgment pass will follow: without it the stage 2 sections are
 marked `not-attached` and the cockpit shows "Not analyzed" instead of "Analyzing…".
 `--no-fold-generated` leaves generated files unfolded and scored, and still records the rule
-that matched them. `--skip-graph` leaves stage 3 `pending`.
+that matched them. `--skip-graph` leaves stage 3 `pending`. `--idle-minutes` changes the window
+the server stops itself after and `0` turns it off; `--session` records a session id in
+`server.json`, and is taken from `CLAUDE_CODE_SESSION_ID` when the flag is absent.
 
 ### The local API
 
@@ -262,12 +296,12 @@ that matched them. `--skip-graph` leaves stage 3 `pending`.
 |---|---|
 | `GET /` | The built cockpit, one self-contained HTML file |
 | `GET /api/document` | `review.json` as it stands |
-| `GET /api/events` | Server-sent events: `{"type":"document"}` on every rewrite |
+| `GET /api/events` | Server-sent events: `{"type":"document"}` on every rewrite, and one `{"type":"shutdown","reason":"idle"}` before the server stops itself |
 | `GET /api/drafts` | The drafts file, or an empty one, plus `orphaned` when a re-attach set drafts aside |
 | `PUT /api/drafts` | Replaces the drafts file after `validateDrafts`, stamps `updatedAt`, answers with what it stored |
 | `POST /api/submit` | `{verdict, summaryBody}`: posts one review from the stored drafts |
 | `POST /api/refresh` | Re-reads the comments and the checks from GitHub and rewrites the document |
-| `GET /api/health` | Port, pid, whether a document exists, uptime |
+| `GET /api/health` | Port, pid, whether a document exists, uptime, the `server.json` token, the number of attached cockpits and how long it has had none |
 
 `POST /api/submit` answers `{url, id, comments, submitted}` on success, `409 {code:
 "head_moved", expected, actual}` when the pull request has new commits, `422 {code: "own_pr"}`

@@ -1159,3 +1159,66 @@ contributor with both gets the checkout's skill as `cockpit` and the plugin's as
 and the row read `fail` on an installation that was fine. This supersedes nothing in ADR-45:
 the symlink install is still how the tool is worked on, and it is still the only install where
 an edit to the skill is live in the next session.
+
+---
+
+## ADR-50: A review cleans up after itself: idle exit, a session-end hook, and a collector
+
+Status: accepted · 2026-09-10
+
+**Context.** `cockpit run` starts one server per pull request and the only thing that stopped it
+was `cockpit clean`, which the skill runs when the user says "done". Users do not say "done";
+they close the tab and move on. On the machine this was written on, two servers from that
+morning were still listening in the afternoon, and five pull requests held worktrees in clones
+whose reviews had been posted days earlier. Nothing was broken by it — the servers bind to
+loopback and cost nothing but a port and 40 MB — and that is the problem: the leak is invisible
+until `git worktree list` in your own clone has a dozen entries you did not make.
+
+**Options.**
+1. Leave it, and tell users to run `cockpit clean`. It is already documented and already
+   ignored.
+2. One long-lived daemon for every review, with its own lifecycle to manage. It replaces a
+   leak of servers with a thing that must never die and must know about every pull request.
+3. Make each piece end itself: the server on an idle clock, the session's servers on
+   `SessionEnd`, and the checkouts on a collector `cockpit run` already passes through.
+
+**Decision.** Option 3, all three, because each catches what the others miss. A server stops
+itself after 30 minutes with no cockpit attached; the count of open event streams is the signal,
+because an open cockpit holds one and a closed tab drops it within seconds. A `SessionEnd` hook
+stops the servers of the session that ended, which is faster than 30 minutes and is the case
+where somebody is definitely finished. And `cockpit gc` removes the checkout of any review with
+no server running and a document older than seven days.
+
+`cockpit clean` stays exactly as it was, and the skill still runs it on "done". These are the
+paths for when nobody does.
+
+**Why worktrees are collectable and the review is not.** A worktree and its
+`refs/review-cockpit/` ref are a checkout of a commit GitHub still holds: `cockpit run` makes
+them again in seconds, from the cached document, without re-analysing. `review.json`,
+`drafts.json`, `judgment.json` and each `submitted-<ts>.json` cannot be made again — a draft
+comment nobody sent exists in one place on earth. So the collector removes the first kind and
+never touches the second, and the age it reads is the document's own mtime, which every analysis
+and every post updates.
+
+**A pid is not permission to kill.** `server.json` names a pid, and pids are reused, so a file
+left behind by a crash can name an unrelated process. `cockpit stop` therefore signals only a
+process that answers `/api/health` with the token the server wrote into its own `server.json`,
+or, when it answers nothing, one whose command line is a `cockpit … serve`. Anything else alive
+is reported and left running. The same reasoning keeps `git worktree prune` out of the collector:
+only this pull request's own worktree path is ever named, which is ADR-25 again.
+
+**Consequences.** A server the reviewer wants back after lunch is gone, and comes back with one
+`cockpit run` in about a second — the analysis is cached, so it is a spawn and a health check.
+A tab left open on a server that stopped now says so: the server sends one
+`{type: "shutdown", reason: "idle"}` before it exits, and a cockpit that gets no event but four
+failed reconnections in a row stops retrying and says the same thing less certainly. The
+30 minutes is in the banner text as a constant rather than in the event, so a server started
+with `--idle-minutes 5` shows a message naming 30; that is the cost of keeping the event's shape
+as small as it is.
+
+The SessionEnd hook runs inside a 1.5-second budget that Claude Code shares between every such
+hook and does not extend for a plugin's own `timeout`, so `cockpit stop` probes with a 400 ms
+deadline and waits at most 600 ms for a signalled server to go. Measured at 0.15 s on an empty
+cache. The payload gives `session_id`, which is the id `cockpit run` records; a payload without
+one falls back to `--all` and the hook's log says so, which is the one case where a session
+ending stops a server another session started.

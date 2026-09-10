@@ -11,12 +11,12 @@ A Claude Code skill named `cockpit` turns a PR number into a running local web a
 | Component | What it is | Runs where | Owns |
 |---|---|---|---|
 | **Skill** | `skills/cockpit/SKILL.md` and the judgment prompt beside it. Teaches Claude Code what `cockpit <pr>` means and how to do the judgment pass. | Inside the Claude Code session | The conversation with the reviewer |
-| **CLI** (`cockpit`) | A Node program with subcommands: `run`, `prepare`, `analyze`, `compact`, `judge-prompt`, `judge-merge`, `mark-failed`, `serve`, `clean`, `doctor`, `validate`, `merge`. | Spawned by the skill | Orchestration, checkout, process lifecycle |
+| **CLI** (`cockpit`) | A Node program with subcommands: `run`, `prepare`, `analyze`, `compact`, `judge-prompt`, `judge-merge`, `mark-failed`, `serve`, `stop`, `clean`, `gc`, `ps`, `doctor`, `validate`, `merge`. | Spawned by the skill | Orchestration, checkout, process lifecycle |
 | **Analyzer** | A library the CLI calls. Reads the local checkout and produces the deterministic part of the review document. | Inside the CLI process | Diff parsing, git signals, tree-sitter signals, generated-code detection |
 | **Schema package** | JSON Schema for the review document plus a validator and TypeScript types. | Imported by every other component | The contract |
 | **Server** | A small HTTP server. Serves the cockpit's static files, the review document, and a local API for drafts and submit. | Background process, one per review | Live state, write-back |
 | **Cockpit** | A React app built once into static files. Renders the review document and nothing else. | The reviewer's browser | Presentation and interaction |
-| **Plugin** | `.claude-plugin/` with the marketplace and plugin manifests, `bin/cockpit`, and `hooks/hooks.json`. Packages the skill and the CLI so one `/plugin install` is the whole install. | Claude Code, at install and at session start | Distribution and the first build |
+| **Plugin** | `.claude-plugin/` with the marketplace and plugin manifests, `bin/cockpit`, and `hooks/hooks.json`. Packages the skill and the CLI so one `/plugin install` is the whole install. | Claude Code, at session start and session end | Distribution, the first build, and stopping this session's servers |
 | **Judgment pass** | The LLM step. Reads the deterministic document, returns groupings, order, reasons and risk adjustments in a strict JSON shape. | The resident Claude session | Semantic judgment |
 
 All components live in one repository as npm workspaces: `packages/schema`, `packages/analyzer`, `packages/server`, `packages/cockpit`, `packages/cli`, and `skills/`.
@@ -104,6 +104,7 @@ sequenceDiagram
   S-->>B: link to the posted review, and the posted comments as pins
   R->>K: done
   K->>C: cockpit clean 123
+  Note over S: Or nobody says done: the server stops itself<br/>after 30 idle minutes and the session-end hook<br/>stops it sooner.
 ```
 
 One command does steps 1 to 6. `cockpit run <pr>` resolves the pull request, checks it out,
@@ -159,10 +160,15 @@ the reviewer can actually see.
 server keeps running. A pull request whose server is already alive is served by that server;
 `--reuse-server` also leaves the browser tab it is serving alone.
 
+The server stops itself after 30 minutes with no cockpit connected (ADR-50). An open cockpit
+holds an event stream, so the count of attached streams is what "somebody is here" means, and
+any request starts the window again. `--idle-minutes` changes the window and 0 turns it off.
+
 The API is seven routes. `GET /` is the built cockpit, `GET /api/document` the document,
 `GET /api/events` its change stream, `GET` and `PUT /api/drafts` the drafts file,
 `POST /api/submit` posts the review, `POST /api/refresh` re-reads the comments and the checks
-from GitHub, and `GET /api/health` says the server is up. `POST /api/ask` stays reserved and
+from GitHub, and `GET /api/health` says the server is up, with the token from its `server.json`,
+the number of attached cockpits and how long it has had none. `POST /api/ask` stays reserved and
 answers 501, so the route name cannot drift. The server watches the directory holding `review.json`, not the
 file: the analyzer publishes by writing a temp file and renaming it, and a watch bound to the
 old inode goes quiet after the first write.
@@ -245,16 +251,34 @@ and costs nothing else, and the posted review is unaffected either way.
 `POST /api/refresh` runs the same fetch on demand, which is the "Refresh from GitHub" button
 next to the check pills in the cockpit header.
 
-**9. Clean up.** `cockpit clean` stops the server, removes the worktree or temp clone, and keeps the review document and drafts in the cache for later inspection.
+**9. Clean up.** `cockpit clean` stops the server, removes the worktree or temp clone, and keeps
+the review document and drafts in the cache for later inspection. It is what the skill runs when
+the user says "done", and it is no longer the only thing that ends a review, because nobody ran
+it (ADR-50).
+
+Three things clean up on their own. The server stops itself after 30 idle minutes. A `SessionEnd`
+hook runs `scripts/plugin-session-end.sh`, which runs `cockpit stop --started-by <session id>`
+from the payload's `session_id`, or `cockpit stop --all` when the payload carries none;
+`cockpit run` records that id in `server.json`, which is how the two ends match. And `cockpit gc`
+removes the worktree and the `refs/review-cockpit/` ref of every cached pull request with no
+server running and a document older than seven days, which `cockpit run` does a pass of at the
+end of a successful start.
+
+`cockpit stop` only ever signals a process it can show is a cockpit server: one that answers
+`/api/health` with the token in its own `server.json`, or, when it answers nothing, one whose
+command line is a `cockpit … serve`. A pid is not enough, because pids are reused and a
+`server.json` left by a crash would otherwise name an unrelated process. `cockpit ps` lists what
+is running, and `cockpit doctor` counts it.
 
 **Installation.** There are two of them, running the same files. The distributed one is a
 Claude Code plugin (ADR-49): `.claude-plugin/marketplace.json` makes this repository a
 marketplace holding one plugin whose source is the repository root, so adding the repository as
 a marketplace and installing `cockpit` from it is the whole install. `skills/cockpit` is the
 skill, `bin/cockpit` is the `cockpit` command — Claude Code puts an enabled plugin's `bin/` on
-the Bash tool's PATH — and a `SessionStart` hook runs `scripts/plugin-bootstrap.sh`, which
+the Bash tool's PATH — a `SessionStart` hook runs `scripts/plugin-bootstrap.sh`, which
 builds the checkout the install brought once and then costs a few file tests on every later
-start.
+start, and a `SessionEnd` hook runs `scripts/plugin-session-end.sh`, which stops the servers
+this session started.
 
 The other is for working on the cockpit itself. `scripts/install.sh` installs the dependencies,
 builds every package, puts `cockpit` on PATH — `npm link`, or a symlink in `~/.local/bin` when
@@ -317,7 +341,9 @@ status.
       drafts.json          the reviewer's unsent comments, verdict and review body
       drafts.orphaned.json     the drafts a re-analysis could not re-attach
       submitted-<ts>.json  one file per posted review, the drafts as they were sent
-      server.json          port, pid and url of the running server
+      server.json          the running server: port, pid, url, startedAt, token — which
+                           /api/health answers with, so `cockpit stop` can prove a pid is
+                           ours — and sessionId, the Claude Code session that asked for it
       log.txt
 ```
 
@@ -351,10 +377,25 @@ An optional `~/.config/review-cockpit/config.json` holds workspace roots to sear
 - **Server dies:** `cockpit serve` again finds the cached document and drafts and starts a
   server without re-analyzing. A `serve` on a pull request whose server is still alive — the
   pid in `server.json` answers signal 0 — prints that server's URL and starts nothing, so two
-  windows never fight over one drafts file. A `server.json` whose process is gone is replaced.
-- **Cockpit cannot reach the server:** the red banner says so and every change keeps going to
-  browser storage. When the event stream comes back the cockpit re-reads the drafts and sends
-  its copy if the server's is older, so the drafts typed while it was down are not lost.
+  windows never fight over one drafts file. A `server.json` whose process is gone is replaced,
+  and `cockpit stop` removes it.
+- **Server stops itself:** after 30 minutes with no cockpit attached it logs one line, sends
+  every attached cockpit `{type: "shutdown", reason: "idle"}`, removes its `server.json` and
+  exits 0. Nothing is lost, because the document and the drafts were already on disk, and
+  `cockpit run` on the same pull request starts a server again in about a second.
+- **Cockpit cannot reach the server:** the red banner says the connection dropped and every
+  change keeps going to browser storage. When the event stream comes back the cockpit re-reads
+  the drafts and sends its copy if the server's is older, so the drafts typed while it was down
+  are not lost. After four failed reconnections in a row it stops retrying and says the server
+  is not answering, with the `cockpit run` line that brings it back; a server that announced its
+  own shutdown is believed on the first event, so that banner is right at once rather than four
+  tries later.
+- **`cockpit stop` finds a pid it cannot identify:** the process is reported and left running,
+  and its `server.json` is left alone. Killing a pid on the strength of a stale file is the one
+  failure here that could cost somebody else's work.
+- **`cockpit gc` cannot remove a worktree:** the directory is deleted and the ref is still
+  removed, and the review's own files are untouched whatever happens. `git worktree prune` is
+  never run, so a registration another tool made in the same clone survives (ADR-25).
 
 ## What is deliberately not here
 
