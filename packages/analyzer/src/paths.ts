@@ -51,6 +51,14 @@ export function rejectedJudgmentFile(ref: PrRef): string {
   return join(prDir(ref), 'judgment.rejected.json');
 }
 
+export function draftsFile(ref: PrRef): string {
+  return join(prDir(ref), 'drafts.json');
+}
+
+export function orphanedDraftsFile(ref: PrRef): string {
+  return join(prDir(ref), 'drafts.orphaned.json');
+}
+
 export function serverFile(ref: PrRef): string {
   return join(prDir(ref), 'server.json');
 }

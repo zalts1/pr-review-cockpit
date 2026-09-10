@@ -90,6 +90,8 @@ export type { GoSymbol, GraphOptions, GraphResult, RepoIndex, SymbolTable } from
 export { aggregate, gitSignals, parseLogPass } from './gitsignals.js';
 export type { CommitRecord, FileHistory } from './gitsignals.js';
 export { stage1Groups } from './groups.js';
+export { diffLines, reattachDrafts, reattachStoredDrafts } from './reattach.js';
+export type { ReattachInput, ReattachOutcome, ReattachResult } from './reattach.js';
 export { extensionOf, hazardLanguageOf, isTestPath, languageOf } from './language.js';
 export type { HazardLanguage } from './language.js';
 export * from './paths.js';

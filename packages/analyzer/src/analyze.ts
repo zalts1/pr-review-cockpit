@@ -12,6 +12,8 @@ import type { FanCounts, GraphResult } from './graph.js';
 import { buildGoGraph } from './graph.js';
 import type { PrRef } from './paths.js';
 import { compactFile, documentFile, indexDir } from './paths.js';
+import type { ReattachOutcome } from './reattach.js';
+import { reattachStoredDrafts } from './reattach.js';
 import { resolvePr } from './resolve.js';
 import { modeOf, riskOf } from './score.js';
 import { analyzeStage1 } from './stage1.js';
@@ -39,6 +41,8 @@ export interface AnalyzeResult {
   graph: GraphResult | null;
   /** Whether the stage 2 of an earlier run of the same head was kept. */
   carry: CarryOutcome;
+  /** Whether the drafts stored beside the document were re-attached to the new diff. */
+  reattach: ReattachOutcome;
 }
 
 export interface PrepareResult {
@@ -172,7 +176,8 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
 
   const documentPath = documentFile(resolved.ref);
   const compactPath = compactFile(resolved.ref);
-  const carry = carryForward(documentPath, stage1.document);
+  const previous = readPrevious(documentPath);
+  const carry = carryStage2From(previous, stage1.document);
   if (carry.kind === 'carried') {
     stage1.document = carry.document;
     onProgress?.(
@@ -183,6 +188,14 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
     onProgress?.(`stage 2 not carried forward: ${carry.why}`);
   }
   writeDocument(documentPath, stage1.document);
+
+  const reattach = reattachStoredDrafts(resolved.ref, previous, stage1.document, nowIso());
+  onProgress?.(
+    reattach.kind === 'done'
+      ? `drafts re-attached: ${reattach.kept} kept, ${reattach.orphaned} could not be placed in the new diff`
+      : `drafts not re-attached: ${reattach.why}`,
+  );
+
   let compactBytes = writeCompact(compactPath, stage1.document);
   const stage1Ms = Date.now() - stage1Started;
   onProgress?.(`stage 1 written to ${documentPath} (${stage1Ms} ms total)`);
@@ -201,6 +214,7 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
       stage1Ms,
       graph: null,
       carry,
+      reattach,
     };
   }
 
@@ -232,6 +246,7 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
       stage1Ms,
       graph,
       carry,
+      reattach,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -252,15 +267,21 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
       stage1Ms,
       graph: null,
       carry,
+      reattach,
     };
   }
 }
 
-function carryForward(documentPath: string, fresh: ReviewDocument): CarryOutcome {
-  let previous: ReviewDocument;
+function readPrevious(documentPath: string): ReviewDocument | null {
   try {
-    previous = readDocument(documentPath);
+    return readDocument(documentPath);
   } catch {
+    return null;
+  }
+}
+
+function carryStage2From(previous: ReviewDocument | null, fresh: ReviewDocument): CarryOutcome {
+  if (previous === null) {
     return { kind: 'skipped', why: 'there is no cached document for this pull request' };
   }
   return carryStage2(previous, fresh, { now: nowIso() });
