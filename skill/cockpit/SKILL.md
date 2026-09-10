@@ -49,6 +49,8 @@ one line per stage with its elapsed time. The last line of stdout is one line of
 {"url":"http://127.0.0.1:8090","prDir":"…/pr-123","compact":"…/pr-123/compact.md","judgmentOut":"…/pr-123/judgment.json","headSha":"…"}
 ```
 
+It is the only line of output that starts with `{`; every other line is progress on stderr.
+
 Read that line and keep the values. `url` is the cockpit, `judgmentOut` is where your judgment
 file goes in step 3, and `prDir` holds everything about this review, including the checkout at
 `prDir/worktree`.

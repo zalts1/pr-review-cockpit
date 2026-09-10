@@ -12,7 +12,7 @@ import {
   prepare,
   readDocument,
   resolvePr,
-  run as spawnSyncCommand,
+  run as execute,
   worktreeDir,
 } from '@review-cockpit/analyzer';
 import { readServerFile, serverIsAlive } from '@review-cockpit/server';
@@ -70,7 +70,7 @@ const defaults: RunDeps = {
   analyze,
   serve: startDetachedServer,
   open(url) {
-    spawnSyncCommand('open', [url]);
+    execute('open', [url]);
   },
 };
 

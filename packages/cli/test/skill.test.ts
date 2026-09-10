@@ -35,7 +35,6 @@ function frontmatter(text: string): Frontmatter {
   return { fields, body: match[2] as string };
 }
 
-/** Every command the skill tells the session to run: inline code and fenced blocks alike. */
 function commandLines(text: string): string[] {
   const lines: string[] = [];
   for (const [, inline] of text.matchAll(/`([^`\n]+)`/g)) {
