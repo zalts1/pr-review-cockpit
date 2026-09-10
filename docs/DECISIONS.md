@@ -1216,6 +1216,14 @@ failed reconnections in a row stops retrying and says the same thing less certai
 with `--idle-minutes 5` shows a message naming 30; that is the cost of keeping the event's shape
 as small as it is.
 
+The `reason: "idle"` event usually reaches nobody, and that follows from the rule: zero attached
+streams is what starts the clock, so by the time it runs out there is nothing to send to. It is
+sent anyway because the same path serves `cockpit stop`, where a reviewer's tab is attached and
+gets `reason: "stopped"`, and because a client that reattached inside the last moment should hear
+it rather than be dropped without a word. The idle case a reviewer actually meets is a tab whose
+browser was asleep: it wakes, reconnects, fails, and after four tries says the server is not
+answering, which is why the give-up path exists as well as the event.
+
 The SessionEnd hook runs inside a 1.5-second budget that Claude Code shares between every such
 hook and does not extend for a plugin's own `timeout`, so `cockpit stop` probes with a 400 ms
 deadline and waits at most 600 ms for a signalled server to go. Measured at 0.15 s on an empty
