@@ -3,6 +3,7 @@ import type { Draft, PrInfo } from '@review-cockpit/schema';
 import { draftTarget } from '../lib/drafts';
 import { Markdown } from '../lib/markdown';
 import { shortSha } from '../lib/derive';
+import { CrossIcon, WarnIcon } from './Icons';
 
 export type Verdict = 'COMMENT' | 'REQUEST_CHANGES' | 'APPROVE';
 
@@ -29,8 +30,8 @@ export function SubmitModal({ pr, drafts, unseenHigh, onCancel, onPost }: Props)
       <div className="modal">
         <div className="modal-head">
           <span>Submit review</span>
-          <button className="btn-link" onClick={onCancel}>
-            close
+          <button className="btn btn-icon" onClick={onCancel} aria-label="Close">
+            <CrossIcon size={12} />
           </button>
         </div>
 
@@ -60,7 +61,9 @@ export function SubmitModal({ pr, drafts, unseenHigh, onCancel, onPost }: Props)
               commit <code>{shortSha(pr.head.sha)}</code>
             </div>
             {drafts.length === 0 ? (
-              <div className="file-note">No draft comments. Only the verdict will be posted.</div>
+              <div className="dry-run-note">
+                No draft comments. Only the verdict will be posted.
+              </div>
             ) : (
               <ul>
                 {drafts.map((draft) => (
@@ -75,7 +78,7 @@ export function SubmitModal({ pr, drafts, unseenHigh, onCancel, onPost }: Props)
 
           {verdict === 'APPROVE' && unseenHigh > 0 && (
             <div className="warn">
-              <span aria-hidden="true">⚠</span>
+              <WarnIcon size={13} />
               <span>
                 Approve with unseen high-risk hunks: {unseenHigh} remaining. This does not block
                 you.

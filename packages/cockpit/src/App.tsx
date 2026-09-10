@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReviewDocument, RiskLevel } from '@review-cockpit/schema';
+import type { Group, Hunk, ReviewDocument, ReviewFile } from '@review-cockpit/schema';
 import { checkVersion } from '@review-cockpit/schema/version';
-import { derive, levelRank, pendingLabel, reviewPath } from './lib/derive';
+import { derive, pendingLabel } from './lib/derive';
+import {
+  askClaudePrompt,
+  heatOf,
+  highRiskAhead,
+  nextStepLabel,
+  phaseProgress,
+  reviewOrder,
+  skippableHunkCount,
+} from './lib/plan';
+import type { RailEntry } from './lib/plan';
+import { copyText } from './lib/clipboard';
 import {
   documentSource,
   documentUrlOf,
@@ -9,22 +20,23 @@ import {
   useDocumentSource,
 } from './lib/documentSource';
 import type { CockpitDraft } from './lib/drafts';
-import { draftsFileOf, draftsKey, loadDrafts, preview, saveDrafts } from './lib/drafts';
+import { draftsFileOf, draftsKey, loadDrafts, saveDrafts } from './lib/drafts';
 import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
 import { editorTargetFromDrag } from './lib/interaction';
-import { AutopilotBar } from './components/AutopilotBar';
 import { DiffFile } from './components/DiffFile';
-import { FileTree } from './components/FileTree';
 import { GroupHeader } from './components/GroupHeader';
 import { Header } from './components/Header';
 import type { Tab } from './components/Header';
 import type { DiffHandlers } from './components/Hunk';
+import { SpinnerIcon, WarnIcon } from './components/Icons';
 import { KeyboardHelp } from './components/KeyboardHelp';
 import { MapView } from './components/MapView';
+import { PlanStrip } from './components/PlanStrip';
+import { Rail } from './components/Rail';
 import { StatusBanner } from './components/StatusBanner';
+import { StepCard } from './components/StepCard';
 import { SubmitModal } from './components/SubmitModal';
 import type { Verdict } from './components/SubmitModal';
-import { SummaryCard } from './components/SummaryCard';
 
 const fixture = documentSource.mode === 'fixture' ? documentSource.fixture : null;
 
@@ -34,18 +46,21 @@ export function App() {
   if (load.kind === 'loading') {
     return (
       <div className="centered">
-        <h1>Loading the review document…</h1>
-        <p className="empty">
-          {fixture !== null ? (
-            <>
-              Fixture <code>{fixture}</code>
-            </>
-          ) : (
-            <>
-              From the local server at <code>{documentUrlOf(documentSource)}</code>
-            </>
-          )}
-        </p>
+        <div className="centered-card">
+          <SpinnerIcon size={22} />
+          <h1>Loading the review document</h1>
+          <p className="empty">
+            {fixture !== null ? (
+              <>
+                Fixture <code>{fixture}</code>
+              </>
+            ) : (
+              <>
+                From the local server at <code>{documentUrlOf(documentSource)}</code>
+              </>
+            )}
+          </p>
+        </div>
       </div>
     );
   }
@@ -53,20 +68,23 @@ export function App() {
   if (load.kind === 'error') {
     return (
       <div className="centered">
-        <h1>The review document could not be loaded</h1>
-        <p>{load.message}</p>
-        <p className="empty">
-          {fixture !== null ? (
-            <>
-              Pick a fixture with <code>?fixture=pr-fake-1</code>.
-            </>
-          ) : (
-            <>
-              The analysis may still be running. This page loads the document as soon as the
-              server has it.
-            </>
-          )}
-        </p>
+        <div className="centered-card is-warn">
+          <WarnIcon size={22} />
+          <h1>The review document could not be loaded</h1>
+          <p>{load.message}</p>
+          <p className="empty">
+            {fixture !== null ? (
+              <>
+                Pick a fixture with <code>?fixture=pr-fake-1</code>.
+              </>
+            ) : (
+              <>
+                The analysis may still be running. This page loads the document as soon as the
+                server has it.
+              </>
+            )}
+          </p>
+        </div>
       </div>
     );
   }
@@ -75,15 +93,18 @@ export function App() {
   if (!version.ok) {
     return (
       <div className="centered">
-        <h1>This document has an unsupported schema version</h1>
-        <p>
-          The document is <code>{version.documentVersion}</code>. This cockpit renders{' '}
-          <code>{version.supportedMajor}.x</code> documents only.
-        </p>
-        <p className="empty">
-          A major version means a field changed meaning, so rendering it could show the wrong
-          diff. Re-run the analyzer to get a current document.
-        </p>
+        <div className="centered-card is-warn">
+          <WarnIcon size={22} />
+          <h1>This document has an unsupported schema version</h1>
+          <p>
+            The document is <code>{version.documentVersion}</code>. This cockpit renders{' '}
+            <code>{version.supportedMajor}.x</code> documents only.
+          </p>
+          <p className="empty">
+            A major version means a field changed meaning, so rendering it could show the wrong
+            diff. Re-run the analyzer to get a current document.
+          </p>
+        </div>
       </div>
     );
   }
@@ -96,15 +117,21 @@ interface CockpitProps {
   disconnected: boolean;
 }
 
+type PaneItem =
+  | { kind: 'file'; id: string; file: ReviewFile; hunks: Hunk[]; step: number | null }
+  | {
+      kind: 'group';
+      id: string;
+      group: Group;
+      entries: Array<{ file: ReviewFile; hunks: Hunk[] }>;
+      step: number | null;
+    };
+
 export function Cockpit({ doc, disconnected }: CockpitProps) {
   const derived = useMemo(() => derive(doc), [doc]);
-  const path = useMemo(() => reviewPath(derived), [derived]);
+  const order = useMemo(() => reviewOrder(derived), [derived]);
   const storageKey = draftsKey(doc.pr, storageSourceOf(documentSource));
 
-  const seedCollapsed = useMemo(
-    () => doc.files.filter((f) => f.generated.is).map((f) => f.id),
-    [doc.files],
-  );
   const seedExpanded = useMemo(
     () => doc.groups.filter((g) => !g.collapsedByDefault).map((g) => g.id),
     [doc.groups],
@@ -112,16 +139,19 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
 
   const [tab, setTab] = useState<Tab>('files');
   const [viewed, setViewed] = useState<Set<string>>(new Set());
-  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set(seedCollapsed));
+  const [openedByHand, setOpenedByHand] = useState<Set<string>>(new Set());
+  const [closedByHand, setClosedByHand] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(seedExpanded));
-  const [stepIndex, setStepIndex] = useState(-1);
+  const [stepIndex, setStepIndex] = useState(0);
   const [seen, setSeen] = useState<Set<string>>(new Set());
-  const [summaryCollapsed, setSummaryCollapsed] = useState(false);
-  const summaryAutoCollapse = useRef<'armed' | 'spent' | 'user'>('armed');
-  const autoCollapseSummary = useCallback(() => {
-    if (summaryAutoCollapse.current !== 'armed') return;
-    summaryAutoCollapse.current = 'spent';
-    setSummaryCollapsed(true);
+  // Open on load when there is a brief to read. With stage 2 still pending the
+  // detail is only the raw PR description, which is not worth the whole strip.
+  const [planOpen, setPlanOpen] = useState(() => derived.summary !== null);
+  const planAutoCollapse = useRef<'armed' | 'spent' | 'user'>('armed');
+  const collapsePlan = useCallback(() => {
+    if (planAutoCollapse.current !== 'armed') return;
+    planAutoCollapse.current = 'spent';
+    setPlanOpen(false);
   }, []);
   const [drafts, setDrafts] = useState<CockpitDraft[]>(() => loadDrafts(storageKey));
   const [editor, setEditor] = useState<EditorTarget | null>(null);
@@ -140,19 +170,11 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
   const hunkEls = useRef(new Map<string, HTMLElement>());
   const fileEls = useRef(new Map<string, HTMLElement>());
   const groupEls = useRef(new Map<string, HTMLElement>());
-  const seededCollapsed = useRef(new Set(seedCollapsed));
   const seededExpanded = useRef(new Set(seedExpanded));
   const stepId = useRef<string | null>(null);
 
   // The analyzer rewrites the document under a live cockpit, so each id is seeded once:
   // folding the whole seed back in would undo every fold the reviewer has toggled since.
-  useEffect(() => {
-    const added = seedCollapsed.filter((id) => !seededCollapsed.current.has(id));
-    if (added.length === 0) return;
-    for (const id of added) seededCollapsed.current.add(id);
-    setCollapsedFiles((current) => new Set([...current, ...added]));
-  }, [seedCollapsed]);
-
   useEffect(() => {
     const added = seedExpanded.filter((id) => !seededExpanded.current.has(id));
     if (added.length === 0) return;
@@ -176,7 +198,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
     const nearest = derived.steps.findIndex(
       (step) => step.ref.id === groupId || hunkIds.includes(step.ref.id),
     );
-    setStepIndex(nearest);
+    setStepIndex(Math.max(0, nearest));
     stepId.current = derived.steps[nearest]?.ref.id ?? null;
   }, [derived.steps, derived.groupOfHunk, derived.groupById]);
 
@@ -203,7 +225,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
     if (!pane || !el) return;
     const top =
       el.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
-    pane.scrollTo({ top: Math.max(0, top - pane.clientHeight / 3), behavior: 'smooth' });
+    pane.scrollTo({ top: Math.max(0, top - pane.clientHeight / 4), behavior: 'smooth' });
   }, []);
 
   useEffect(() => {
@@ -234,14 +256,12 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
 
   const highRemaining = derived.highHunkIds.filter((id) => !seenHunks.has(id)).length;
 
-  const revealFile = useCallback((fileId: string) => {
-    setCollapsedFiles((current) => {
-      if (!current.has(fileId)) return current;
-      const next = new Set(current);
-      next.delete(fileId);
-      return next;
-    });
-  }, []);
+  const currentStep = derived.steps[stepIndex];
+  const targetFileId =
+    currentStep?.ref.kind === 'hunk'
+      ? (derived.hunkById.get(currentStep.ref.id)?.file.id ?? null)
+      : null;
+  const targetGroupId = currentStep?.ref.kind === 'group' ? currentStep.ref.id : null;
 
   const goToStep = useCallback(
     (index: number) => {
@@ -250,11 +270,20 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
       setTab('files');
       setStepIndex(index);
       stepId.current = step.ref.id;
-      autoCollapseSummary();
+      collapsePlan();
 
       if (step.ref.kind === 'hunk') {
         const location = derived.hunkById.get(step.ref.id);
-        if (location) revealFile(location.file.id);
+        // The walk opening a file the reviewer had closed by hand is the walk
+        // winning: it is the reviewer who asked to go there.
+        if (location) {
+          setClosedByHand((current) => {
+            if (!current.has(location.file.id)) return current;
+            const next = new Set(current);
+            next.delete(location.file.id);
+            return next;
+          });
+        }
         setSeen((current) => new Set(current).add(step.ref.id));
       } else {
         const group = derived.groupById.get(step.ref.id);
@@ -269,8 +298,12 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
       setFlashed(step.ref.id);
       setPendingScroll(step.ref.id);
     },
-    [derived, revealFile],
+    [derived, collapsePlan],
   );
+
+  const goNext = useCallback(() => {
+    if (stepIndex + 1 < derived.steps.length) goToStep(stepIndex + 1);
+  }, [goToStep, stepIndex, derived.steps.length]);
 
   const jumpToHunk = useCallback(
     (hunkId: string) => {
@@ -284,14 +317,14 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
       const location = derived.hunkById.get(hunkId);
       if (!location) return;
       setTab('files');
-      revealFile(location.file.id);
+      setOpenedByHand((current) => new Set(current).add(location.file.id));
       const group = derived.groupOfHunk.get(hunkId);
       if (group) setExpandedGroups((current) => new Set(current).add(group.id));
       setSeen((current) => new Set(current).add(hunkId));
       setFlashed(hunkId);
       setPendingScroll(hunkId);
     },
-    [derived, goToStep, revealFile],
+    [derived, goToStep],
   );
 
   const skipToHigh = useCallback(() => {
@@ -300,22 +333,37 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
     if (next) jumpToHunk(next);
   }, [derived.highHunkIds, seenHunks, jumpToHunk]);
 
-  const toggleViewed = useCallback(
-    (fileId: string) => {
-      setViewed((current) => {
+  const toggleViewed = useCallback((fileId: string) => {
+    setViewed((current) => {
+      const next = new Set(current);
+      if (next.has(fileId)) next.delete(fileId);
+      else next.add(fileId);
+      return next;
+    });
+  }, []);
+
+  const markReviewed = useCallback(() => {
+    if (targetFileId !== null && !viewed.has(targetFileId)) toggleViewed(targetFileId);
+    goNext();
+  }, [targetFileId, viewed, toggleViewed, goNext]);
+
+  const toggleFile = useCallback(
+    (fileId: string, open: boolean) => {
+      setOpenedByHand((current) => {
         const next = new Set(current);
-        if (next.has(fileId)) next.delete(fileId);
+        if (open) next.delete(fileId);
         else next.add(fileId);
         return next;
       });
-      setCollapsedFiles((current) => {
+      setClosedByHand((current) => {
         const next = new Set(current);
-        if (viewed.has(fileId)) next.delete(fileId);
-        else next.add(fileId);
+        if (open) next.add(fileId);
+        else next.delete(fileId);
         return next;
       });
+      if (!open) setPendingScroll(fileId);
     },
-    [viewed],
+    [],
   );
 
   const toggleGroup = useCallback((groupId: string) => {
@@ -327,12 +375,27 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
     });
   }, []);
 
-  const currentStep = derived.steps[stepIndex];
-  const targetFileId =
-    currentStep?.ref.kind === 'hunk'
-      ? (derived.hunkById.get(currentStep.ref.id)?.file.id ?? null)
-      : null;
-  const targetGroupId = currentStep?.ref.kind === 'group' ? currentStep.ref.id : null;
+  const askAbout = useCallback(
+    (hunkId: string) => {
+      const at = derived.hunkById.get(hunkId);
+      if (!at) return;
+      const prompt = askClaudePrompt({
+        pr: doc.pr,
+        checkoutPath: doc.checkout.path,
+        file: at.file,
+        hunk: at.hunk,
+      });
+      void copyText(prompt).then((ok) =>
+        setToast(ok ? 'Copied' : 'The browser blocked the clipboard'),
+      );
+    },
+    [derived.hunkById, doc.pr, doc.checkout.path],
+  );
+
+  const askAboutStep = useCallback(() => {
+    if (currentStep?.ref.kind !== 'hunk') return;
+    askAbout(currentStep.ref.id);
+  }, [currentStep, askAbout]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -349,7 +412,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
 
       switch (event.key) {
         case 'n':
-          goToStep(Math.min(stepIndex + 1, derived.steps.length - 1));
+          goNext();
           break;
         case 'p':
           if (stepIndex > 0) goToStep(stepIndex - 1);
@@ -372,6 +435,9 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
           if (groupId) toggleGroup(groupId);
           break;
         }
+        case 'a':
+          askAboutStep();
+          break;
         case 'm':
           setTab((current) => (current === 'files' ? 'map' : 'files'));
           break;
@@ -392,7 +458,8 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [
-    derived.steps.length,
+    askAboutStep,
+    goNext,
     goToStep,
     hoveredGroup,
     hoveredLine,
@@ -465,31 +532,94 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
   };
 
   const heatOfHunks = useCallback(
-    (hunkIds: string[]): RiskLevel => {
-      let heat: RiskLevel = 'low';
-      for (const id of hunkIds) {
-        const level = derived.hunkById.get(id)?.hunk.risk.level;
-        if (level && levelRank[level] > levelRank[heat]) heat = level;
-      }
-      return heat;
-    },
-    [derived.hunkById],
+    (hunkIds: string[]) => heatOf(derived, hunkIds),
+    [derived],
   );
 
-  const groupEntries = doc.groups.map((group) => ({
-    group,
-    entries: derived.groupFiles.get(group.id) ?? [],
-  }));
+  const stepOf = useMemo(() => {
+    const byId = new Map<string, number>();
+    for (const entry of order.entries) byId.set(entry.id, entry.step);
+    for (const group of order.skippable) {
+      if (group.stepIndex !== null) {
+        byId.set(group.id, (derived.steps[group.stepIndex]?.step ?? 0) || 0);
+      }
+    }
+    return byId;
+  }, [order, derived.steps]);
+
+  // The pane follows the rail, so the two lists never disagree about where a
+  // file sits; anything the walk never reaches falls in after it, in file order.
+  const paneItems = useMemo<PaneItem[]>(() => {
+    const standalone = new Map(
+      derived.standaloneFiles.map((entry) => [entry.file.id, entry] as const),
+    );
+    const groupEntry = (group: Group): PaneItem => ({
+      kind: 'group',
+      id: group.id,
+      group,
+      entries: derived.groupFiles.get(group.id) ?? [],
+      step: stepOf.get(group.id) ?? null,
+    });
+
+    const items: PaneItem[] = [];
+    const placed = new Set<string>();
+    for (const entry of order.entries) {
+      if (entry.kind === 'file') {
+        const at = standalone.get(entry.fileId);
+        if (at === undefined || placed.has(entry.fileId)) continue;
+        placed.add(entry.fileId);
+        items.push({
+          kind: 'file',
+          id: at.file.id,
+          file: at.file,
+          hunks: at.hunks,
+          step: entry.step,
+        });
+        continue;
+      }
+      const group = derived.groupById.get(entry.groupId);
+      if (group === undefined || placed.has(group.id)) continue;
+      placed.add(group.id);
+      items.push(groupEntry(group));
+    }
+    for (const at of derived.standaloneFiles) {
+      if (placed.has(at.file.id)) continue;
+      placed.add(at.file.id);
+      items.push({
+        kind: 'file',
+        id: at.file.id,
+        file: at.file,
+        hunks: at.hunks,
+        step: stepOf.get(at.file.id) ?? null,
+      });
+    }
+    for (const skip of order.skippable) {
+      const group = derived.groupById.get(skip.id);
+      if (group === undefined || placed.has(group.id)) continue;
+      placed.add(group.id);
+      items.push(groupEntry(group));
+    }
+    return items;
+  }, [derived, order, stepOf]);
+
+  const isOpen = (fileId: string): boolean =>
+    openedByHand.has(fileId) || (fileId === targetFileId && !closedByHand.has(fileId));
 
   const onlyGenerated =
     doc.files.length > 0 &&
     derived.standaloneFiles.length === 0 &&
-    groupEntries.every(({ group }) => group.kind === 'generated');
+    doc.groups.length > 0 &&
+    doc.groups.every((group) => group.kind === 'generated');
+
+  const currentFile = targetFileId === null ? null : derived.fileById.get(targetFileId);
+  const currentHunk =
+    currentStep?.ref.kind === 'hunk' ? derived.hunkById.get(currentStep.ref.id) : undefined;
 
   return (
     <div className="app">
       {disconnected && (
         <div className="banner-offline" role="alert">
+          <WarnIcon size={13} />
           Disconnected from the local server. Drafts are saved locally.
         </div>
       )}
@@ -499,138 +629,141 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
         checks={doc.checks}
         checksPending={doc.status.checks.state === 'pending'}
         draftCount={drafts.length}
+        nextLabel={nextStepLabel(derived, stepIndex)}
         tab={tab}
         onTab={setTab}
+        onNext={goNext}
         onSubmit={() => setSubmitOpen(true)}
         onHelp={() => setHelpOpen(true)}
       />
+
+      {tab === 'files' && (
+        <PlanStrip
+          summary={derived.summary}
+          status={doc.status.summary}
+          prBody={doc.pr.body}
+          phases={phaseProgress(derived.steps, stepIndex)}
+          stepIndex={stepIndex}
+          stepCount={derived.steps.length}
+          highAhead={highRiskAhead(derived, stepIndex)}
+          skippable={skippableHunkCount(derived)}
+          open={planOpen}
+          onToggle={() => {
+            planAutoCollapse.current = 'user';
+            setPlanOpen((current) => !current);
+          }}
+        />
+      )}
 
       <div className="main">
         {tab === 'files' ? (
           <>
             <aside className="sidebar">
-              <FileTree
-                files={derived.standaloneFiles.map((entry) => entry.file)}
-                totalFiles={doc.files.length}
-                heatByFile={derived.heatByFile}
-                groups={groupEntries.map(({ group, entries }) => ({
-                  group,
-                  fileCount: entries.length,
-                }))}
-                groupsPending={
-                  doc.status.groups.state === 'pending' ? pendingLabel(doc.status.groups) : null
-                }
+              <Rail
+                entries={order.entries}
+                skippable={order.skippable}
+                currentIndex={stepIndex}
+                currentFileId={targetFileId}
+                currentGroupId={targetGroupId}
                 viewed={viewed}
-                targetFileId={targetFileId}
-                targetGroupId={targetGroupId}
-                onFile={(fileId) => {
-                  revealFile(fileId);
-                  setPendingScroll(fileId);
+                pathPending={
+                  doc.status.path.state === 'pending' ? pendingLabel(doc.status.path) : null
+                }
+                fileCount={doc.files.length}
+                outdated={derived.outdatedComments}
+                onEntry={(entry: RailEntry) => goToStep(entry.stepIndex)}
+                onSkippable={(groupId) => {
+                  setExpandedGroups((current) => new Set(current).add(groupId));
+                  setFlashed(groupId);
+                  setPendingScroll(groupId);
                 }}
-                onGroup={(groupId) => setPendingScroll(groupId)}
               />
-
-              {derived.outdatedComments.length > 0 && (
-                <div className="sidebar-section">
-                  <div className="sidebar-title">
-                    Outdated comments ({derived.outdatedComments.length})
-                  </div>
-                  <ul className="outdated">
-                    {derived.outdatedComments.map((comment) => (
-                      <li key={comment.id}>
-                        <span className="outdated-path">
-                          {comment.path}:{comment.line} ({comment.side})
-                        </span>
-                        <span>
-                          {comment.author}: “{preview(comment.body, 80)}” ·{' '}
-                          <a href={comment.url} target="_blank" rel="noreferrer">
-                            GitHub
-                          </a>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </aside>
 
-            <div
-              className="pane"
-              ref={paneRef}
-              onScroll={(e) => {
-                if (e.currentTarget.scrollTop > 160) autoCollapseSummary();
-              }}
-            >
+            <div className="pane-wrap">
               <StatusBanner doc={doc} />
 
-              <SummaryCard
-                summary={derived.summary}
-                status={doc.status.summary}
-                prBody={doc.pr.body}
-                path={path}
-                collapsed={summaryCollapsed}
-                onToggle={() => {
-                  summaryAutoCollapse.current = 'user';
-                  setSummaryCollapsed((current) => !current);
-                }}
-              />
-
-              {doc.files.length === 0 && (
-                <div className="card file-note">This PR has no textual changes.</div>
+              {currentStep && (
+                <StepCard
+                  step={currentStep.step}
+                  total={derived.steps.length}
+                  phase={currentStep.phase}
+                  symbol={
+                    currentHunk?.hunk.symbols[0] ??
+                    derived.groupById.get(currentStep.ref.id)?.title ??
+                    null
+                  }
+                  note={currentStep.note}
+                  fileLabel={currentFile?.path ?? currentStep.ref.id}
+                  reviewed={targetFileId !== null && viewed.has(targetFileId)}
+                  canPrev={stepIndex > 0}
+                  canAsk={currentStep.ref.kind === 'hunk'}
+                  onPrev={() => goToStep(stepIndex - 1)}
+                  onMarkReviewed={markReviewed}
+                  onAsk={askAboutStep}
+                />
               )}
 
-              {onlyGenerated && (
-                <div className="card file-note">
-                  Every change in this PR matched a generated-code pattern.
-                </div>
-              )}
+              <div className="pane" ref={paneRef}>
+                {doc.files.length === 0 && (
+                  <div className="pane-empty">
+                    <h2>No textual changes</h2>
+                    <p className="empty">
+                      This pull request changes no file content, so there is nothing to read
+                      here. The summary above says what it does.
+                    </p>
+                  </div>
+                )}
 
-              {groupEntries.length > 0 && (
-                <div className="groups">
-                  {groupEntries.map(({ group, entries }) => (
+                {onlyGenerated && (
+                  <div className="pane-empty">
+                    <h2>Everything here is generated</h2>
+                    <p className="empty">
+                      Every change in this PR matched a generated-code pattern. Expand the group
+                      below to read it anyway.
+                    </p>
+                  </div>
+                )}
+
+                {paneItems.map((item) =>
+                  item.kind === 'file' ? (
+                    <DiffFile
+                      key={item.id}
+                      file={item.file}
+                      hunks={item.hunks}
+                      open={isOpen(item.file.id)}
+                      viewed={viewed.has(item.file.id)}
+                      current={item.file.id === targetFileId}
+                      heat={derived.heatByFile.get(item.file.id) ?? 'low'}
+                      step={item.step}
+                      handlers={handlers}
+                      registerFile={(id, el) => {
+                        if (el) fileEls.current.set(id, el);
+                        else fileEls.current.delete(id);
+                      }}
+                      onToggleOpen={() => toggleFile(item.file.id, isOpen(item.file.id))}
+                      onToggleViewed={() => toggleViewed(item.file.id)}
+                    />
+                  ) : (
                     <GroupHeader
-                      key={group.id}
-                      group={group}
-                      entries={entries}
-                      expanded={expandedGroups.has(group.id)}
-                      isTarget={targetGroupId === group.id}
-                      flashed={flashed === group.id}
+                      key={item.id}
+                      group={item.group}
+                      entries={item.entries}
+                      expanded={expandedGroups.has(item.group.id)}
+                      isTarget={targetGroupId === item.group.id}
+                      flashed={flashed === item.group.id}
+                      step={item.step}
                       handlers={handlers}
                       registerGroup={(id, el) => {
                         if (el) groupEls.current.set(id, el);
                         else groupEls.current.delete(id);
                       }}
-                      onToggle={() => toggleGroup(group.id)}
+                      onToggle={() => toggleGroup(item.group.id)}
                       onHover={setHoveredGroup}
                     />
-                  ))}
-                </div>
-              )}
-
-              {derived.standaloneFiles.map(({ file, hunks }) => (
-                <DiffFile
-                  key={file.id}
-                  file={file}
-                  hunks={hunks}
-                  collapsed={collapsedFiles.has(file.id)}
-                  viewed={viewed.has(file.id)}
-                  handlers={handlers}
-                  registerFile={(id, el) => {
-                    if (el) fileEls.current.set(id, el);
-                    else fileEls.current.delete(id);
-                  }}
-                  onToggleCollapsed={() =>
-                    setCollapsedFiles((current) => {
-                      const next = new Set(current);
-                      if (next.has(file.id)) next.delete(file.id);
-                      else next.add(file.id);
-                      return next;
-                    })
-                  }
-                  onToggleViewed={() => toggleViewed(file.id)}
-                  onOverflow={() => setToast('M1: the file menu is a placeholder')}
-                />
-              ))}
+                  ),
+                )}
+              </div>
             </div>
           </>
         ) : (
@@ -644,20 +777,6 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
         )}
       </div>
 
-      <AutopilotBar
-        steps={derived.steps}
-        index={stepIndex}
-        pathPending={
-          doc.status.path.state === 'pending' ? pendingLabel(doc.status.path) : null
-        }
-        stage2Failed={doc.status.path.state === 'failed'}
-        totalHigh={derived.highHunkIds.length}
-        highRemaining={highRemaining}
-        onPrev={() => goToStep(stepIndex - 1)}
-        onNext={() => goToStep(Math.min(stepIndex + 1, derived.steps.length - 1))}
-        onSkipHigh={skipToHigh}
-      />
-
       {submitOpen && (
         <SubmitModal
           pr={doc.pr}
@@ -666,7 +785,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
           onCancel={() => setSubmitOpen(false)}
           onPost={(verdict: Verdict) => {
             setSubmitOpen(false);
-            setToast(`M1: not connected to GitHub (${verdict} with ${drafts.length} comments)`);
+            setToast(`Not connected to GitHub yet (${verdict} with ${drafts.length} comments)`);
           }}
         />
       )}

@@ -60,7 +60,16 @@ export function draftTarget(draft: Draft): string {
   return `${draft.path}:${range} (${draft.side})`;
 }
 
+/**
+ * A one-line preview. Inline markdown markers are stripped rather than
+ * rendered, because a chip that shows `**bold**` reads as a bug.
+ */
 export function preview(body: string, length = 60): string {
-  const flat = body.replace(/\s+/g, ' ').trim();
+  const flat = body
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_`>#]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   return flat.length > length ? `${flat.slice(0, length)}…` : flat;
 }

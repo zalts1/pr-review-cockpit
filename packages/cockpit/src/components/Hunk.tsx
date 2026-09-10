@@ -7,6 +7,7 @@ import { rangeOf } from '../lib/interaction';
 import { CommentPin } from './CommentPin';
 import { DraftEditor } from './DraftEditor';
 import { HeatBar, ReasonBanner } from './HeatBar';
+import { PlusIcon } from './Icons';
 
 export interface DiffHandlers {
   commentsByHunk: Map<string, Comment[]>;
@@ -135,7 +136,7 @@ export function Hunk({ hunk, file, handlers }: Props) {
                           handlers.startDrag(target);
                         }}
                       >
-                        +
+                        <PlusIcon size={11} />
                       </button>
                     )}
                   </td>

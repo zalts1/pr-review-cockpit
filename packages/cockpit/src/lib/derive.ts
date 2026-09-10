@@ -34,9 +34,7 @@ export interface Derived {
   groupFiles: Map<string, Array<{ file: ReviewFile; hunks: Hunk[] }>>;
   highHunkIds: string[];
   steps: PathStep[];
-  pathIsFallback: boolean;
   summary: ReadySummary | null;
-  totals: { hunks: number; high: number; skimmable: number };
 }
 
 function fallbackPath(files: ReviewFile[], grouped: Map<string, Group>): PathStep[] {
@@ -137,13 +135,7 @@ export function derive(doc: ReviewDocument): Derived {
     groupFiles,
     highHunkIds,
     steps,
-    pathIsFallback: !pathReady,
     summary: summaryReady ? (doc.summary as ReadySummary) : null,
-    totals: {
-      hunks: allHunks.length,
-      high: highHunkIds.length,
-      skimmable: allHunks.filter((h) => h.risk.mode === 'skim').length,
-    },
   };
 }
 
@@ -154,69 +146,13 @@ export function groupLineCount(entries: Array<{ hunks: Hunk[] }>): number {
   );
 }
 
-export function hunkIdsOfStep(step: PathStep, derived: Derived): string[] {
-  if (step.ref.kind === 'hunk') return [step.ref.id];
-  const group = derived.groupById.get(step.ref.id);
-  return group ? group.hunkIds : [];
-}
-
 export function factorText(hunk: Hunk): string {
   return hunk.risk.factors
     .map((f) => (f.detail ? `${f.signal}: ${f.detail}` : f.signal))
     .join(' · ');
 }
 
-export function fileOfHunk(id: string, derived: Derived): ReviewFile | undefined {
-  return derived.hunkById.get(id)?.file;
-}
-
 /** What a pending stage 2 section is honestly doing: nothing, unless a judgment pass is attached. */
 export function pendingLabel(status: SectionStatus): string {
   return status.message === NOT_ATTACHED ? 'Not analyzed' : 'Analyzing…';
-}
-
-export interface PathRow {
-  step: number;
-  file: string;
-  why: string;
-  what: string;
-}
-
-export interface ReviewPath {
-  rows: PathRow[];
-  more: { steps: number; phases: string[] } | null;
-}
-
-export const PATH_TABLE_ROWS = 8;
-
-/** The summary card's review path table, read off the walk so the two cannot disagree. */
-export function reviewPath(derived: Derived, cap = PATH_TABLE_ROWS): ReviewPath {
-  const rowOf = (step: PathStep): PathRow => {
-    if (step.ref.kind === 'hunk') {
-      const at = derived.hunkById.get(step.ref.id);
-      return {
-        step: step.step,
-        file: at?.file.path ?? step.ref.id,
-        why: step.note ?? '',
-        what: at?.hunk.symbols[0] ?? at?.hunk.header ?? '',
-      };
-    }
-    const group = derived.groupById.get(step.ref.id);
-    const entries = derived.groupFiles.get(step.ref.id) ?? [];
-    return {
-      step: step.step,
-      file: entries.length === 1 ? (entries[0]?.file.path ?? '') : `${entries.length} files`,
-      why: step.note ?? group?.description ?? '',
-      what: group?.title ?? '',
-    };
-  };
-
-  const rest = derived.steps.slice(cap);
-  return {
-    rows: derived.steps.slice(0, cap).map(rowOf),
-    more:
-      rest.length === 0
-        ? null
-        : { steps: rest.length, phases: [...new Set(rest.map((step) => step.phase))] },
-  };
 }

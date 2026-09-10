@@ -198,6 +198,46 @@ export function highRiskAhead(derived: Derived, index: number): number {
   return ids.size;
 }
 
+export const RAIL_PATH_CHARS = 26;
+
+/** Keeps the file name and as much of its directory as the rail is wide. */
+export function railPath(path: string, max = RAIL_PATH_CHARS): string {
+  if (path.length <= max) return path;
+  const segments = path.split('/');
+  let kept = segments[segments.length - 1] as string;
+  for (let at = segments.length - 2; at >= 0; at -= 1) {
+    const wider = `${segments[at] as string}/${kept}`;
+    if (wider.length + 2 > max) break;
+    kept = wider;
+  }
+  return `…/${kept}`;
+}
+
+export const NEXT_LABEL_CHARS = 38;
+
+/**
+ * What the header's one primary action promises: the note of the step after
+ * this one, or the code it lands on when the walk carries no note.
+ */
+export function nextStepLabel(derived: Derived, index: number, cap = NEXT_LABEL_CHARS): string | null {
+  const step = derived.steps[index + 1];
+  if (step === undefined) return null;
+
+  const clip = (text: string): string =>
+    text.length > cap ? `${text.slice(0, cap - 1).trimEnd()}…` : text;
+
+  if (step.note !== null && step.note.trim() !== '') return clip(step.note.trim());
+  if (step.ref.kind === 'group') {
+    return clip(derived.groupById.get(step.ref.id)?.title ?? 'a group of hunks');
+  }
+  const at = derived.hunkById.get(step.ref.id);
+  if (at === undefined) return null;
+  const symbol = at.hunk.symbols[0];
+  if (symbol !== undefined) return clip(symbol);
+  const slash = at.file.path.lastIndexOf('/');
+  return clip(slash === -1 ? at.file.path : at.file.path.slice(slash + 1));
+}
+
 /** The heat of a set of hunks: the highest level any of them carries. */
 export function heatOf(derived: Derived, hunkIds: string[]): RiskLevel {
   let heat: RiskLevel = 'low';

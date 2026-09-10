@@ -1,4 +1,5 @@
 import type { ReviewDocument, SectionName } from '@review-cockpit/schema';
+import { WarnIcon } from './Icons';
 
 const stage2: SectionName[] = ['groups', 'path', 'summary'];
 
@@ -17,7 +18,10 @@ export function StatusBanner({ doc }: Props) {
 
   return (
     <div className="banner" role="status">
-      ⚠ Analysis did not complete: {messages.join(' · ')}. Risk shown is from code signals only.
+      <WarnIcon size={13} />
+      <span>
+        Analysis did not complete: {messages.join(' · ')}. Risk shown is from code signals only.
+      </span>
     </div>
   );
 }
