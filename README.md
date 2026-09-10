@@ -33,7 +33,8 @@ You need:
 ### The first session builds it
 
 A plugin install is source, with no `node_modules` and no `dist`, so a `SessionStart` hook
-runs `npm ci` and `npm run build` once. That takes about a minute, and ends in one line:
+runs `npm ci` and `npm run build` once. That is ten or twenty seconds on a warm npm cache and
+under a minute on a cold one, and it ends in one line:
 
 ```
 cockpit: built v0.1.0

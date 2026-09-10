@@ -1142,8 +1142,9 @@ anyway: the lockfile resolves esbuild and rollup to per-platform binaries. Claud
 install-time hook, so the first moment the tool can build itself is a `SessionStart` hook, and
 that is where `scripts/plugin-bootstrap.sh` runs `npm ci` and `npm run build`.
 
-**Consequences.** The first session after an install or an update costs about a minute and
-prints one line, `cockpit: built vX.Y.Z`. Every session after it costs four file tests and one
+**Consequences.** The first session after an install or an update costs ten to twenty seconds
+on a warm npm cache, under a minute on a cold one, and prints one line, `cockpit: built
+vX.Y.Z`. Every session after it costs four file tests and one
 `sed`: the fast path checks the two build outputs and a stamp file holding the version it was
 built from, which is what distinguishes this version's build from one an update left behind.
 The hook exits 0 on every path, including a failed build and a missing `gh`, so a broken

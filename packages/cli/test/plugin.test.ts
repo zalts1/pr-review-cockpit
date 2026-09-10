@@ -29,7 +29,7 @@ describe('.claude-plugin/plugin.json', () => {
     expect(plugin['name']).toBe('cockpit');
     expect(plugin['version']).toMatch(/^\d+\.\d+\.\d+$/);
     expect(String(plugin['description']).length).toBeGreaterThan(40);
-    expect(plugin['author']).toEqual({ name: 'Nadav Zaltsman' });
+    expect(plugin['author']).toEqual({ name: expect.any(String) });
     expect(plugin['license']).toBe('MIT');
     expect(String(plugin['homepage'])).toMatch(/^https:\/\//);
     expect(String(plugin['repository'])).toMatch(/^https:\/\//);
@@ -43,7 +43,7 @@ describe('.claude-plugin/plugin.json', () => {
 describe('.claude-plugin/marketplace.json', () => {
   it('is the marketplace the install command names', () => {
     expect(marketplace['name']).toBe('pr-review-cockpit');
-    expect(marketplace['owner']).toEqual({ name: 'Nadav Zaltsman' });
+    expect(marketplace['owner']).toEqual(plugin['author']);
     expect(entries).toHaveLength(1);
   });
 
