@@ -4,7 +4,7 @@ const keys: Array<[string, string]> = [
   ['n / p', 'Next / previous step of the review path'],
   ['h', 'Jump to the next high-risk hunk'],
   ['v', 'Toggle Viewed on the current file'],
-  ['c', 'Comment on the line under the cursor'],
+  ['c', 'Comment on the line under the pointer, or on this step’s hunk'],
   ['e', 'Expand or collapse the group under the cursor'],
   ['a', 'Copy an Ask Claude prompt for this hunk'],
   ['m', 'Switch between the Files and Map tabs'],

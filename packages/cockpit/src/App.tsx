@@ -28,7 +28,7 @@ import type { SubmitResult } from './lib/submit';
 import { postReview } from './lib/submit';
 import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
 import { description } from './lib/prBody';
-import { editorTargetFromDrag } from './lib/interaction';
+import { editorTargetFromDrag, firstCommentableLine } from './lib/interaction';
 import { DiffFile } from './components/DiffFile';
 import { GroupHeader } from './components/GroupHeader';
 import { Header } from './components/Header';
@@ -297,6 +297,11 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
       ? (derived.hunkById.get(currentStep.ref.id)?.file.id ?? null)
       : null;
   const targetGroupId = currentStep?.ref.kind === 'group' ? currentStep.ref.id : null;
+  const targetLine = useMemo(() => {
+    if (currentStep?.ref.kind !== 'hunk') return null;
+    const location = derived.hunkById.get(currentStep.ref.id);
+    return location ? firstCommentableLine(location.file, location.hunk) : null;
+  }, [currentStep, derived.hunkById]);
 
   const goToStep = useCallback(
     (index: number) => {
@@ -501,11 +506,20 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
           if (fileId) toggleViewed(fileId);
           break;
         }
-        case 'c':
-          if (hoveredLine) {
-            setEditor({ ...hoveredLine, startLine: null, startSide: null });
+        case 'c': {
+          // The walk is a keyboard flow with no pointer in the diff, so
+          // without the step's own hunk to fall back on `c` does nothing.
+          const line = hoveredLine ?? targetLine;
+          if (!line) break;
+          // The editor renders inside the diff, so a line the reviewer is not
+          // already pointing at has to be brought on screen to be typed into.
+          if (!hoveredLine || tab !== 'files') {
+            setTab('files');
+            setPendingScroll(line.hunkId);
           }
+          setEditor({ ...line, startLine: null, startSide: null });
           break;
+        }
         case 'e': {
           const groupId = hoveredGroup ?? targetGroupId;
           if (groupId) toggleGroup(groupId);
@@ -541,8 +555,10 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
     hoveredLine,
     skipToHigh,
     stepIndex,
+    tab,
     targetFileId,
     targetGroupId,
+    targetLine,
     toggleGroup,
     toggleViewed,
   ]);

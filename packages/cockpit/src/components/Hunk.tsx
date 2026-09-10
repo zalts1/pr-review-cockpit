@@ -1,11 +1,11 @@
 import { Fragment, useMemo } from 'react';
-import type { DiffLine, Hunk as HunkModel, ReviewFile } from '@review-cockpit/schema';
+import type { Hunk as HunkModel, ReviewFile } from '@review-cockpit/schema';
 import type { CommentThread } from '../lib/derive';
 import type { CockpitDraft } from '../lib/drafts';
 import { grammarFor, highlightHunkCached } from '../lib/highlight';
 import { Markdown } from '../lib/markdown';
 import type { DragRange, EditorTarget, LineTarget } from '../lib/interaction';
-import { rangeOf } from '../lib/interaction';
+import { lineTarget, rangeOf } from '../lib/interaction';
 import { CommentPin } from './CommentPin';
 import { DraftEditor } from './DraftEditor';
 import { HeatBar, ReasonBanner } from './HeatBar';
@@ -27,22 +27,6 @@ export interface DiffHandlers {
   hoverLine(target: LineTarget | null): void;
   registerHunk(id: string, el: HTMLElement | null): void;
   flashedHunkId: string | null;
-}
-
-function lineTarget(file: ReviewFile, hunk: HunkModel, line: DiffLine): LineTarget | null {
-  if (line.newNo !== null) {
-    return {
-      fileId: file.id,
-      hunkId: hunk.id,
-      path: file.path,
-      side: 'RIGHT',
-      line: line.newNo,
-    };
-  }
-  if (line.oldNo !== null) {
-    return { fileId: file.id, hunkId: hunk.id, path: file.path, side: 'LEFT', line: line.oldNo };
-  }
-  return null;
 }
 
 interface Props {
