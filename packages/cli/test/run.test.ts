@@ -23,6 +23,7 @@ let err: string[];
 interface Recorded {
   analyzed: AnalyzeOptions[];
   served: ServeSpawn[];
+  collected: number;
   opened: string[];
   restored: number;
 }
@@ -31,7 +32,7 @@ function fakeDeps(
   cachedHead: string | null,
   serve: ServeOutcome,
 ): { deps: RunDeps; recorded: Recorded } {
-  const recorded: Recorded = { analyzed: [], served: [], opened: [], restored: 0 };
+  const recorded: Recorded = { analyzed: [], served: [], opened: [], restored: 0, collected: 0 };
   const deps: RunDeps = {
     resolve: () => ({ ref, headSha: HEAD, title: document.pr.title }),
     cachedHead: () => cachedHead,
@@ -68,6 +69,10 @@ function fakeDeps(
     open: (url) => {
       recorded.opened.push(url);
     },
+    collect: () => {
+      recorded.collected += 1;
+      return null;
+    },
   };
   return { deps, recorded };
 }
@@ -100,6 +105,23 @@ const started: ServeOutcome = {
 };
 
 describe('cockpit run', () => {
+  it('reports what the collection removed, and says nothing when it removed nothing', async () => {
+    const quiet = fakeDeps(null, started);
+    quiet.deps.collect = () => ({ removed: [], lines: [], summary: 'nothing to collect' });
+    expect(await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, skipGraph: false }, quiet.deps)).toBe(0);
+    expect(err.join('\n')).not.toContain('nothing to collect');
+
+    const busy = fakeDeps(null, started);
+    busy.deps.collect = () => ({
+      removed: [{ target: 'owner/repo#1', ageDays: 9, worktree: '/cache/worktree', gitRef: null }],
+      lines: ['[gc] removed worktree for owner/repo#1, last used 9 days ago'],
+      summary: 'collected 1 checkout',
+    });
+    expect(await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, skipGraph: false }, busy.deps)).toBe(0);
+    expect(err.join('\n')).toContain('removed worktree for owner/repo#1');
+    expect(err.join('\n')).toContain('collected 1 checkout');
+  });
+
   it('analyzes, serves and opens the browser, then prints one line of JSON', async () => {
     const { deps, recorded } = fakeDeps(null, started);
 
@@ -109,6 +131,7 @@ describe('cockpit run', () => {
     expect(recorded.analyzed[0]).toMatchObject({ expectJudgment: true, skipGraph: false });
     expect(recorded.served).toEqual([{}]);
     expect(recorded.opened).toEqual(['http://127.0.0.1:8090']);
+    expect(recorded.collected).toBe(1);
 
     expect(lastJson()).toEqual({
       url: 'http://127.0.0.1:8090',

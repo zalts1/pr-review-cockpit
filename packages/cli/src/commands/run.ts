@@ -17,6 +17,8 @@ import {
 } from '@review-cockpit/analyzer';
 import { readServerFile, serverIsAlive } from '@review-cockpit/server';
 import { progress } from '../progress.js';
+import type { GcResult } from './gc.js';
+import { collectGarbage, GC_DEFAULT_DAYS } from './gc.js';
 
 export interface RunFlags {
   cwd: string;
@@ -51,6 +53,7 @@ export interface RunDeps {
   analyze(options: AnalyzeOptions): Promise<AnalyzeResult>;
   serve(ref: PrRef, spawn: ServeSpawn): Promise<ServeOutcome>;
   open(url: string): void;
+  collect(): GcResult | null;
 }
 
 export const CLI_ENTRY = fileURLToPath(new URL('../cockpit.js', import.meta.url));
@@ -80,6 +83,14 @@ const defaults: RunDeps = {
   serve: startDetachedServer,
   open(url) {
     execute('open', [url]);
+  },
+  collect() {
+    // A collection that fails must not fail the review it was tidying up after.
+    try {
+      return collectGarbage({ days: GC_DEFAULT_DAYS, dryRun: false });
+    } catch {
+      return null;
+    }
   },
 };
 
@@ -201,6 +212,14 @@ export async function runCommand(
 
   if (box.served === null) throw new Error('stage 1 finished without starting a server');
   const { url } = box.served;
+
+  // A review nobody cleaned up leaves a worktree behind, and this is the moment the tool is
+  // already in the cache with nothing waiting on it.
+  const collected = deps.collect();
+  if (collected !== null && collected.removed.length > 0) {
+    for (const line of collected.lines) step(line);
+    step(collected.summary);
+  }
 
   console.error(`Cockpit: ${url}`);
   console.log(

@@ -5,6 +5,7 @@ import { analyzeCommand } from './commands/analyze.js';
 import { cleanCommand } from './commands/clean.js';
 import { compactCommand } from './commands/compact.js';
 import { doctorCommand } from './commands/doctor.js';
+import { gcCommand, GC_DEFAULT_DAYS } from './commands/gc.js';
 import { judgeMergeCommand } from './commands/judgeMerge.js';
 import { judgePromptCommand } from './commands/judgePrompt.js';
 import { markFailedCommand } from './commands/markFailed.js';
@@ -38,6 +39,8 @@ async function main(argv: string[]): Promise<number> {
         session: { type: 'string' },
         'started-by': { type: 'string' },
         all: { type: 'boolean' },
+        days: { type: 'string' },
+        'dry-run': { type: 'boolean' },
         stage: { type: 'string' },
         message: { type: 'string' },
         open: { type: 'boolean' },
@@ -77,6 +80,14 @@ async function main(argv: string[]): Promise<number> {
   const sessionId = values.session ?? sessionIdFromEnv();
 
   if (command === 'doctor') return doctorCommand();
+
+  if (command === 'gc') {
+    const days = values.days === undefined ? GC_DEFAULT_DAYS : Number(values.days);
+    if (!Number.isFinite(days) || days < 0) {
+      return fail(`--days must be a number of days, not "${values.days}"`);
+    }
+    return gcCommand({ days, dryRun: values['dry-run'] === true });
+  }
 
   if (command === 'stop') {
     const selector = stopSelector(values.all === true, values['started-by'], rest[0], cwd);

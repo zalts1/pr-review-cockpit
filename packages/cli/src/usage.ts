@@ -10,6 +10,7 @@ export const SUBCOMMANDS = [
   'serve',
   'stop',
   'clean',
+  'gc',
   'doctor',
   'validate',
   'merge',
@@ -32,6 +33,7 @@ Usage:
                         [--cwd <dir>]
   cockpit stop     <pr> | --all | --started-by <id>
   cockpit clean    <pr> [--cwd <dir>]
+  cockpit gc       [--days <n>] [--dry-run]
   cockpit doctor
   cockpit validate <file> [--as document|judgment|drafts]
   cockpit merge <document> <judgment> [--out <file>]
@@ -106,6 +108,15 @@ stop      Stops running servers and leaves everything else alone: one pull
 
 clean     Stops the server, removes the worktree and the review-cockpit ref,
           and keeps review.json and drafts.json.
+
+gc        Removes the checkout of every cached pull request with no server
+          running and a review document older than --days, which defaults to
+          7: the worktree and the refs/review-cockpit/ ref, both of which a
+          later run makes again in seconds. It never touches review.json,
+          drafts.json, judgment.json or a submitted-<ts>.json, and never runs
+          git worktree prune, so a worktree another tool registered is safe.
+          --dry-run prints what it would remove and removes nothing. cockpit
+          run does a non-dry pass at the end of a successful start.
 
 doctor    Checks the installation: the node version, gh and its login, the
           built cockpit and CLI, the review skill's symlink, and the optional
