@@ -8,6 +8,7 @@ export const SUBCOMMANDS = [
   'judge-merge',
   'mark-failed',
   'serve',
+  'stop',
   'clean',
   'doctor',
   'validate',
@@ -29,6 +30,7 @@ Usage:
   cockpit mark-failed  <pr> --stage 2 --message <text> [--cwd <dir>]
   cockpit serve    <pr> [--port <n>] [--open] [--idle-minutes <n>] [--session <id>]
                         [--cwd <dir>]
+  cockpit stop     <pr> | --all | --started-by <id>
   cockpit clean    <pr> [--cwd <dir>]
   cockpit doctor
   cockpit validate <file> [--as document|judgment|drafts]
@@ -94,6 +96,13 @@ serve     Serves the cockpit and the document on 127.0.0.1 and pushes every
           --session records the Claude Code session that asked for it, so
           "cockpit stop --started-by" can find it later. The session is taken
           from CLAUDE_CODE_SESSION_ID when the flag is absent.
+
+stop      Stops running servers and leaves everything else alone: one pull
+          request, every one with --all, or every one a Claude Code session
+          started with --started-by <id>. A pid that cannot be shown to be a
+          cockpit server is never signalled, and a server.json whose process
+          is gone is removed. Always exits 0, because the SessionEnd hook runs
+          it while a session is closing.
 
 clean     Stops the server, removes the worktree and the review-cockpit ref,
           and keeps review.json and drafts.json.

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
+import { resolveRef } from '@review-cockpit/analyzer';
 import { analyzeCommand } from './commands/analyze.js';
 import { cleanCommand } from './commands/clean.js';
 import { compactCommand } from './commands/compact.js';
@@ -11,6 +12,8 @@ import { mergeCommand } from './commands/merge.js';
 import { prepareCommand } from './commands/prepare.js';
 import { runCommand } from './commands/run.js';
 import { serveCommand } from './commands/serve.js';
+import type { StopSelector } from './commands/stop.js';
+import { stopCommand } from './commands/stop.js';
 import type { FileKind } from './commands/validate.js';
 import { validateCommand } from './commands/validate.js';
 import { sessionIdFromEnv } from './session.js';
@@ -33,6 +36,8 @@ async function main(argv: string[]): Promise<number> {
         port: { type: 'string' },
         'idle-minutes': { type: 'string' },
         session: { type: 'string' },
+        'started-by': { type: 'string' },
+        all: { type: 'boolean' },
         stage: { type: 'string' },
         message: { type: 'string' },
         open: { type: 'boolean' },
@@ -72,6 +77,12 @@ async function main(argv: string[]): Promise<number> {
   const sessionId = values.session ?? sessionIdFromEnv();
 
   if (command === 'doctor') return doctorCommand();
+
+  if (command === 'stop') {
+    const selector = stopSelector(values.all === true, values['started-by'], rest[0], cwd);
+    if (selector === null) return fail('stop needs a pull request, --all, or --started-by <id>');
+    return stopCommand({ selector });
+  }
 
   const prCommands = [
     'run',
@@ -153,6 +164,19 @@ async function main(argv: string[]): Promise<number> {
   }
 
   return fail(`unknown command "${command}"`);
+}
+
+/** A session id is a uuid, so `--started-by all` can only mean the hook's fallback. */
+function stopSelector(
+  all: boolean,
+  startedBy: string | undefined,
+  prArg: string | undefined,
+  cwd: string,
+): StopSelector | null {
+  if (all || startedBy === 'all') return { kind: 'all' };
+  if (startedBy !== undefined) return { kind: 'session', sessionId: startedBy };
+  if (prArg !== undefined) return { kind: 'pr', ref: resolveRef(prArg, cwd) };
+  return null;
 }
 
 function fail(message: string): number {
