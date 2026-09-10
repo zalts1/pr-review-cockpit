@@ -3,7 +3,7 @@ import { pendingLabel } from '../lib/derive';
 import type { PhaseProgress } from '../lib/plan';
 import { Markdown, MarkdownInline } from '../lib/markdown';
 import { useEffect } from 'react';
-import { ChevronDownIcon, ChevronRightIcon } from './Icons';
+import { ChevronDownIcon, ChevronRightIcon, FilesIcon } from './Icons';
 
 interface Props {
   summary: ReadySummary | null;
@@ -80,7 +80,7 @@ export function PlanStrip({
   const failed = status.state === 'failed';
   const placeholder = pending ? pendingLabel(status) : 'Summary unavailable';
   const detailLabel =
-    summary === null ? 'PR description' : 'Brief';
+    summary === null ? 'PR description' : 'Read the brief';
 
   return (
     <section className="plan">
@@ -97,8 +97,12 @@ export function PlanStrip({
 
       <div className="plan-row">
         <button className="plan-disclosure" onClick={onToggle} aria-expanded={open}>
-          {open ? <ChevronDownIcon size={11} /> : <ChevronRightIcon size={11} />}
+          <FilesIcon size={14} />
           <span>{detailLabel}</span>
+          {summary !== null && summary.watchFor.length > 0 && (
+            <span className="plan-disclosure-badge">{summary.watchFor.length} to watch for</span>
+          )}
+          {open ? <ChevronDownIcon size={11} /> : <ChevronRightIcon size={11} />}
         </button>
 
         <PhaseBars phases={phases} />
