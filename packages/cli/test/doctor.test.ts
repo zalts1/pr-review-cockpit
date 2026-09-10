@@ -9,6 +9,7 @@ const healthy: DoctorFacts = {
   cliEntry: '/checkout/packages/cli/dist/cockpit.js',
   skillSource: '/checkout/skills/cockpit',
   skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'symlink', target: '/checkout/skills/cockpit' },
+  plugin: null,
   configFile: { path: '/home/me/.config/review-cockpit/config.json', exists: true },
   workspaceRoots: [{ path: '/home/me/workspace', exists: true }],
 };
@@ -75,6 +76,45 @@ describe('cockpit doctor', () => {
       skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'directory', target: null },
     });
     expect(stateOf(copied, 'skill')).toBe('warn');
+  });
+
+  it('reports the plugin root only when the session set one', () => {
+    const installed = doctorRows({
+      ...healthy,
+      plugin: { root: '/plugins/cockpit', skillPath: '/plugins/cockpit/skills/cockpit', skillExists: true },
+    });
+    expect(installed.map((row) => row.check)).toEqual([
+      'node',
+      'gh',
+      'build',
+      'plugin root',
+      'skill',
+      'config',
+      'workspace roots',
+    ]);
+    expect(stateOf(installed, 'plugin root')).toBe('ok');
+    expect(detailOf(installed, 'plugin root')).toBe('/plugins/cockpit');
+    expect(doctorRows(healthy).map((row) => row.check)).not.toContain('plugin root');
+  });
+
+  it('accepts the plugin install as the skill, whatever the symlink says', () => {
+    const rows = doctorRows({
+      ...healthy,
+      skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'absent', target: null },
+      plugin: { root: '/plugins/cockpit', skillPath: '/plugins/cockpit/skills/cockpit', skillExists: true },
+    });
+    expect(stateOf(rows, 'skill')).toBe('ok');
+    expect(detailOf(rows, 'skill')).toContain('/plugins/cockpit/skills/cockpit');
+  });
+
+  it('warns when the plugin root holds no skill, and falls back to the symlink', () => {
+    const rows = doctorRows({
+      ...healthy,
+      plugin: { root: '/plugins/other', skillPath: '/plugins/other/skills/cockpit', skillExists: false },
+    });
+    expect(stateOf(rows, 'plugin root')).toBe('warn');
+    expect(detailOf(rows, 'plugin root')).toContain('/plugins/other');
+    expect(detailOf(rows, 'skill')).toContain('/home/me/.claude/skills/cockpit');
   });
 
   it('treats an absent config as fine and a missing workspace root as a warning', () => {

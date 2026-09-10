@@ -17,6 +17,12 @@ export interface DoctorRow {
   detail: string;
 }
 
+export interface PluginFacts {
+  root: string;
+  skillPath: string;
+  skillExists: boolean;
+}
+
 export interface LinkFacts {
   path: string;
   kind: 'symlink' | 'directory' | 'absent';
@@ -32,6 +38,8 @@ export interface DoctorFacts {
   cliEntry: string | null;
   skillSource: string | null;
   skillLink: LinkFacts;
+  /** Null unless this process was started by Claude Code with the plugin enabled. */
+  plugin: PluginFacts | null;
   configFile: { path: string; exists: boolean };
   workspaceRoots: Array<{ path: string; exists: boolean }>;
 }
@@ -53,6 +61,11 @@ export function readLinkFacts(path: string): LinkFacts {
   return { path, kind: 'symlink', target: existsSync(absolute) ? realpathSync(absolute) : absolute };
 }
 
+function pluginFacts(root: string): PluginFacts {
+  const skillPath = join(root, 'skills', 'cockpit');
+  return { root, skillPath, skillExists: existsSync(join(skillPath, 'SKILL.md')) };
+}
+
 function skillSource(): string | null {
   try {
     return dirname(findPromptTemplate());
@@ -67,6 +80,7 @@ export function readFacts(): DoctorFacts {
   const cli = fileURLToPath(new URL('../cockpit.js', import.meta.url));
   const config = configFile();
   const roots = existsSync(config) ? readUserConfig().workspaceRoots : [];
+  const pluginRoot = process.env['CLAUDE_PLUGIN_ROOT'];
 
   return {
     nodeVersion: process.version,
@@ -75,6 +89,7 @@ export function readFacts(): DoctorFacts {
     cliEntry: existsSync(cli) ? cli : null,
     skillSource: skillSource(),
     skillLink: readLinkFacts(skillLinkPath()),
+    plugin: pluginRoot === undefined || pluginRoot === '' ? null : pluginFacts(pluginRoot),
     configFile: { path: config, exists: existsSync(config) },
     workspaceRoots: roots.map((path) => ({ path, exists: existsSync(path) })),
   };
@@ -119,7 +134,22 @@ function buildRow(facts: DoctorFacts): DoctorRow {
   return { check: 'build', state: 'ok', detail: facts.uiHtml ?? '' };
 }
 
+function pluginRow(plugin: PluginFacts): DoctorRow {
+  if (!plugin.skillExists) {
+    return {
+      check: 'plugin root',
+      state: 'warn',
+      detail: `${plugin.root} holds no ${join('skills', 'cockpit', 'SKILL.md')}, so it is not a cockpit plugin install`,
+    };
+  }
+  return { check: 'plugin root', state: 'ok', detail: plugin.root };
+}
+
 function skillRow(facts: DoctorFacts): DoctorRow {
+  if (facts.plugin?.skillExists === true) {
+    return { check: 'skill', state: 'ok', detail: `${facts.plugin.skillPath}, loaded by the plugin` };
+  }
+
   const link = facts.skillLink;
   if (link.kind === 'absent') {
     return { check: 'skill', state: 'fail', detail: `${link.path} is missing. Run: scripts/install.sh` };
@@ -175,6 +205,7 @@ export function doctorRows(facts: DoctorFacts): DoctorRow[] {
     nodeRow(facts.nodeVersion),
     ghRow(facts.gh),
     buildRow(facts),
+    ...(facts.plugin === null ? [] : [pluginRow(facts.plugin)]),
     skillRow(facts),
     configRow(facts),
     rootsRow(facts),
