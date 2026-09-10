@@ -44,6 +44,18 @@ export function ClockIcon({ size = 14, className }: IconProps) {
   );
 }
 
+export function RefreshIcon({ size = 14, className }: IconProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <path d="M13.5 8a5.5 5.5 0 01-9.4 3.9" />
+      <path d="M2.5 8a5.5 5.5 0 019.4-3.9" />
+      <path d="M11.5 1.9v2.6h-2.6M4.5 14.1v-2.6h2.6" strokeWidth={1.6} />
+    </>,
+  );
+}
+
 export function DashIcon({ size = 14, className }: IconProps) {
   return svg(size, className, <path d="M4 8h8" />);
 }

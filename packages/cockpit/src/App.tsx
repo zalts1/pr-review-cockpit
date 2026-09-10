@@ -21,6 +21,7 @@ import {
 } from './lib/documentSource';
 import { draftsKey, lineOwners, placeDrafts } from './lib/drafts';
 import { useDraftsSync } from './lib/draftsSync';
+import { refreshFromGitHub } from './lib/refresh';
 import type { SubmitResult } from './lib/submit';
 import { postReview } from './lib/submit';
 import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
@@ -194,6 +195,8 @@ export function Cockpit({ doc, disconnected, revision }: CockpitProps) {
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const paneRef = useRef<HTMLDivElement>(null);
   const orphansRef = useRef<HTMLDivElement>(null);
@@ -424,6 +427,20 @@ export function Cockpit({ doc, disconnected, revision }: CockpitProps) {
     if (currentStep?.ref.kind !== 'hunk') return;
     askAbout(currentStep.ref.id);
   }, [currentStep, askAbout]);
+
+  const refresh = useCallback(() => {
+    setRefreshing(true);
+    setRefreshError(null);
+    void refreshFromGitHub().then((result) => {
+      setRefreshing(false);
+      if (result.kind === 'failed') {
+        setRefreshError(result.message);
+        setToast(`Refresh failed: ${result.message}`);
+        return;
+      }
+      setToast(`Refreshed from GitHub: ${result.comments} comments, ${result.checks} checks`);
+    });
+  }, []);
 
   const post = useCallback(() => {
     if (documentSource.mode !== 'server') {
@@ -705,6 +722,9 @@ export function Cockpit({ doc, disconnected, revision }: CockpitProps) {
         botSummaries={doc.botSummaries ?? []}
         draftCount={drafts.length}
         nextLabel={nextStepLabel(derived, stepIndex)}
+        onRefresh={documentSource.mode === 'server' ? refresh : null}
+        refreshing={refreshing}
+        refreshError={refreshError}
         tab={tab}
         onTab={setTab}
         onNext={goNext}

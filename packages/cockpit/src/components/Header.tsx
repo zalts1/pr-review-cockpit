@@ -13,6 +13,8 @@ import {
   FilesIcon,
   KeyboardIcon,
   MapIcon,
+  RefreshIcon,
+  SpinnerIcon,
 } from './Icons';
 
 export type Tab = 'files' | 'map';
@@ -25,6 +27,10 @@ interface Props {
   botSummaries: BotSummary[];
   draftCount: number;
   nextLabel: string | null;
+  /** Null in fixture mode, where there is no server to fetch from. */
+  onRefresh: (() => void) | null;
+  refreshing: boolean;
+  refreshError: string | null;
   tab: Tab;
   onTab(tab: Tab): void;
   onNext(): void;
@@ -209,6 +215,9 @@ export function Header({
   botSummaries,
   draftCount,
   nextLabel,
+  onRefresh,
+  refreshing,
+  refreshError,
   tab,
   onTab,
   onNext,
@@ -241,6 +250,23 @@ export function Header({
             {botSummaries.map((summary) => (
               <BotSummaryPill key={summary.source.name} summary={summary} />
             ))}
+            {onRefresh !== null && (
+              <button
+                type="button"
+                className={`btn btn-icon btn-refresh${refreshError === null ? '' : ' btn-refresh-failed'}`}
+                onClick={onRefresh}
+                disabled={refreshing}
+                aria-label="Refresh from GitHub"
+                title={
+                  refreshError ??
+                  (refreshing
+                    ? 'Reading the comments and checks from GitHub…'
+                    : 'Refresh from GitHub: read the comments and checks again')
+                }
+              >
+                {refreshing ? <SpinnerIcon size={12} /> : <RefreshIcon size={12} />}
+              </button>
+            )}
           </div>
         </div>
       </div>

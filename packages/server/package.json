@@ -18,6 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@review-cockpit/analyzer": "0.1.0",
     "@review-cockpit/schema": "0.1.0"
   },
   "devDependencies": {

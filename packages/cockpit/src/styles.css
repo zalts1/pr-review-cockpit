@@ -262,6 +262,17 @@ a:hover {
   color: var(--fg-muted);
 }
 
+.btn-refresh {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}
+
+.btn-refresh-failed {
+  color: var(--high);
+  border-color: var(--high);
+}
+
 .btn-link {
   border: 0;
   background: none;

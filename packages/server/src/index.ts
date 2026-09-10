@@ -7,6 +7,8 @@ import { validateDrafts } from '@review-cockpit/schema';
 import { readDrafts, readOrphanedDrafts, writeDrafts } from './drafts.js';
 import { DocumentWatcher, EventStreamHub } from './events.js';
 import { DOCUMENT_FILENAME } from './paths.js';
+import type { IngestFn, RefreshOutcome } from './refresh.js';
+import { refreshFromGitHub } from './refresh.js';
 import { removeServerFile, writeServerFile } from './server-file.js';
 import type { GhCommand, Verdict } from './submit.js';
 import { ghCommand, submitReview, VERDICTS } from './submit.js';
@@ -36,6 +38,8 @@ export type {
   SubmitOutcome,
   Verdict,
 } from './submit.js';
+export { refreshFromGitHub } from './refresh.js';
+export type { IngestFn, RefreshBody, RefreshCounts, RefreshOutcome } from './refresh.js';
 export { readServerFile, removeServerFile, serverIsAlive, writeServerFile } from './server-file.js';
 export { resolveUiHtmlPath, UI_PATH_ENV_VAR } from './ui-path.js';
 export type { ServerFile } from './server-file.js';
@@ -49,6 +53,8 @@ export interface ServerOptions {
   uiPath?: string;
   /** Injected so a test posts nothing; the default runs the gh command line. */
   gh?: GhCommand;
+  /** Injected so a test reaches no network; the default is the analyzer's ingestion. */
+  ingest?: IngestFn;
 }
 
 export interface RunningServer {
@@ -64,6 +70,7 @@ interface RequestContext {
   startedAt: number;
   port: number;
   gh: GhCommand;
+  ingest: IngestFn | undefined;
 }
 
 const ROUTE_METHODS: Record<string, string[]> = {
@@ -73,6 +80,7 @@ const ROUTE_METHODS: Record<string, string[]> = {
   '/api/health': ['GET'],
   '/api/drafts': ['GET', 'PUT'],
   '/api/submit': ['POST'],
+  '/api/refresh': ['POST'],
   '/api/ask': ['POST'],
 };
 
@@ -92,6 +100,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     startedAt: Date.now(),
     port: 0,
     gh: options.gh ?? ghCommand,
+    ingest: options.ingest,
   };
 
   const server = createServer((req, res) => {
@@ -181,6 +190,12 @@ async function handle(req: IncomingMessage, res: ServerResponse, context: Reques
     case '/api/submit':
       await serveSubmit(req, res, context);
       return;
+    case '/api/refresh': {
+      req.resume();
+      const refreshed = refresh(context);
+      sendJson(res, refreshed.status, refreshed.body);
+      return;
+    }
     case '/api/health':
       sendJson(res, 200, {
         ok: true,
@@ -288,7 +303,25 @@ async function serveSubmit(
     verdict: verdict as Verdict,
     summaryBody,
   });
+
+  // The comments were posted, so the document is one fetch behind what GitHub now holds.
+  // A refresh that fails costs the reviewer a stale document, never the posted review.
+  if (outcome.status === 200) refresh(context);
   sendJson(res, outcome.status, outcome.body);
+}
+
+function refresh(context: RequestContext): RefreshOutcome {
+  try {
+    return refreshFromGitHub(context.prDir, context.ingest);
+  } catch (error) {
+    return {
+      status: 502,
+      body: {
+        code: 'refresh_failed',
+        message: `The comments and checks could not be refreshed: ${error instanceof Error ? error.message : String(error)}`,
+      },
+    };
+  }
 }
 
 async function readBody(req: IncomingMessage): Promise<string> {
