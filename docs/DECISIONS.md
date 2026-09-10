@@ -1098,3 +1098,63 @@ del washes. `.tf` files are highlighted by the bash grammar, which is a guess th
 strings and `${…}` interpolation right and HCL's block syntax wrong; a real HCL grammar is not in
 the core distribution. Fenced code inside a comment body is still unhighlighted, but the reason
 is now only that nothing wired it up — the highlighter is already in the bundle.
+
+---
+
+## ADR-49: Distribute as a Claude Code plugin, from a marketplace in this repository
+
+Status: accepted · 2026-09-10
+
+**Context.** ADR-45 chose a symlink install from a checkout and named the plugin as the right
+answer "once the tool is distributed". Getting the tool onto a teammate's machine currently
+costs them a clone, a script, and `~/.local/bin` on their PATH before the skill exists at all;
+the first thing they saw when they tried the plugin route was `Marketplace file not found`.
+Claude Code installs a plugin from a marketplace manifest, and reads a plugin's `skills/`,
+`hooks/` and `bin/` from the plugin root — all of which this repository can hold itself.
+
+**Options.**
+1. Publish the CLI to npm and leave the skill a manual copy. Two installs, two release
+   processes, and a skill that can drift from the CLI version it was written against.
+2. A plugin in a second repository, sourcing this one with `source: github`. One more
+   repository to keep in step, for one plugin.
+3. A marketplace in this repository whose single plugin's `source` is `./`, the repository
+   root, so the root is both the marketplace and the plugin.
+
+**Decision.** Option 3. `.claude-plugin/marketplace.json` names the marketplace
+`pr-review-cockpit` and its one plugin `cockpit`; `.claude-plugin/plugin.json` names the
+plugin itself. Adding the repository as a marketplace and installing `cockpit` from it is the
+whole install, and `claude plugin validate` checks both manifests, including that the version
+in the entry agrees with the version in the manifest — which `npm run version:sync` copies from
+the root `package.json` and a test asserts.
+
+`skill/cockpit` moved to `skills/cockpit`, where Claude Code looks for a plugin's skills.
+`scripts/install.sh` symlinks the new path, so the contributor install is what it was under a
+different name. `bin/cockpit` runs `packages/cli/dist/cockpit.js`: Claude Code puts an enabled
+plugin's `bin/` on the Bash tool's PATH, so every `cockpit …` line in `SKILL.md` works from
+either install unchanged.
+
+**The build runs on the first session start, because neither `dist/` nor `node_modules/` is
+committed.** A plugin install is a checkout, and something has to turn it into a runnable tool.
+Committing `dist/` would put a 2.3 MB generated HTML file and four compiled packages into every
+diff, where a reviewer cannot tell a source change from its build and a stale build is
+invisible. Committing `node_modules/` is 206 MB, and it cannot be right for every machine
+anyway: the lockfile resolves esbuild and rollup to per-platform binaries. Claude Code has no
+install-time hook, so the first moment the tool can build itself is a `SessionStart` hook, and
+that is where `scripts/plugin-bootstrap.sh` runs `npm ci` and `npm run build`.
+
+**Consequences.** The first session after an install or an update costs about a minute and
+prints one line, `cockpit: built vX.Y.Z`. Every session after it costs four file tests and one
+`sed`: the fast path checks the two build outputs and a stamp file holding the version it was
+built from, which is what distinguishes this version's build from one an update left behind.
+The hook exits 0 on every path, including a failed build and a missing `gh`, so a broken
+toolchain costs a line of explanation rather than the session; the reason is in
+`${CLAUDE_PLUGIN_DATA}/bootstrap.log` and `cockpit doctor` says which it was. `npm ci` needs
+the lockfile to be committed and public, which `npm run lockfile:check` already guards.
+
+The two installs can coexist on one machine, because plugin skills are namespaced: a
+contributor with both gets the checkout's skill as `cockpit` and the plugin's as
+`cockpit:cockpit`. `cockpit doctor` gained a `plugin root` row and now accepts the plugin's own
+`skills/cockpit` as the skill, because a plugin install has no symlink in `~/.claude/skills`
+and the row read `fail` on an installation that was fine. This supersedes nothing in ADR-45:
+the symlink install is still how the tool is worked on, and it is still the only install where
+an edit to the skill is live in the next session.

@@ -16,6 +16,7 @@ A Claude Code skill named `cockpit` turns a PR number into a running local web a
 | **Schema package** | JSON Schema for the review document plus a validator and TypeScript types. | Imported by every other component | The contract |
 | **Server** | A small HTTP server. Serves the cockpit's static files, the review document, and a local API for drafts and submit. | Background process, one per review | Live state, write-back |
 | **Cockpit** | A React app built once into static files. Renders the review document and nothing else. | The reviewer's browser | Presentation and interaction |
+| **Plugin** | `.claude-plugin/` with the marketplace and plugin manifests, `bin/cockpit`, and `hooks/hooks.json`. Packages the skill and the CLI so one `/plugin install` is the whole install. | Claude Code, at install and at session start | Distribution and the first build |
 | **Judgment pass** | The LLM step. Reads the deterministic document, returns groupings, order, reasons and risk adjustments in a strict JSON shape. | The resident Claude session | Semantic judgment |
 
 All components live in one repository as npm workspaces: `packages/schema`, `packages/analyzer`, `packages/server`, `packages/cockpit`, `packages/cli`, and `skills/`.
@@ -246,12 +247,22 @@ next to the check pills in the cockpit header.
 
 **9. Clean up.** `cockpit clean` stops the server, removes the worktree or temp clone, and keeps the review document and drafts in the cache for later inspection.
 
-**Installation.** `scripts/install.sh` installs the dependencies, builds every package, puts
-`cockpit` on PATH — `npm link`, or a symlink in `~/.local/bin` when the global prefix is not
-writable — and symlinks `skills/cockpit` to `~/.claude/skills/cockpit` (ADR-45).
-`scripts/uninstall.sh` reverses it and keeps the cache. `cockpit doctor` reports the node
-version, `gh` and its login, the build, the skill symlink and the optional config with its
-workspace roots as a table, and exits non-zero when something has to be fixed.
+**Installation.** There are two of them, running the same files. The distributed one is a
+Claude Code plugin (ADR-49): `.claude-plugin/marketplace.json` makes this repository a
+marketplace holding one plugin whose source is the repository root, so adding the repository as
+a marketplace and installing `cockpit` from it is the whole install. `skills/cockpit` is the
+skill, `bin/cockpit` is the `cockpit` command — Claude Code puts an enabled plugin's `bin/` on
+the Bash tool's PATH — and a `SessionStart` hook runs `scripts/plugin-bootstrap.sh`, which
+builds the checkout the install brought once and then costs a few file tests on every later
+start.
+
+The other is for working on the cockpit itself. `scripts/install.sh` installs the dependencies,
+builds every package, puts `cockpit` on PATH — `npm link`, or a symlink in `~/.local/bin` when
+the global prefix is not writable — and symlinks `skills/cockpit` to
+`~/.claude/skills/cockpit` (ADR-45). `scripts/uninstall.sh` reverses it and keeps the cache.
+`cockpit doctor` reports the node version, `gh` and its login, the build, the plugin root when
+a session set one, the skill — the plugin's own or the symlink — and the optional config with
+its workspace roots as a table, and exits non-zero when something has to be fixed.
 
 ## The judgment pass: who calls the LLM
 
