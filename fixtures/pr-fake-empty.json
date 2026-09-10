@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "generatedAt": "2026-09-08T12:34:56Z",
   "tool": {
     "name": "review-cockpit",
@@ -64,6 +64,8 @@
   },
   "files": [],
   "comments": [],
+  "conversation": [],
+  "botSummaries": [],
   "checks": [
     {
       "name": "lint-and-test",

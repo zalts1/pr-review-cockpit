@@ -17,8 +17,10 @@ import {
   sqlcUpdateHunk,
 } from './content-generated.ts';
 import type {
+  BotSummary,
   Check,
   Comment,
+  ConversationComment,
   Judgment,
   Language,
   FileSignals,
@@ -30,7 +32,7 @@ import type {
   ReviewFile,
   RiskAdjustment,
 } from '@review-cockpit/schema';
-import { NOT_ATTACHED } from '@review-cockpit/schema';
+import { NOT_ATTACHED, SCHEMA_VERSION } from '@review-cockpit/schema';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -1359,6 +1361,7 @@ const path: PathStep[] = [
 const comments: Comment[] = [
   {
     id: 'c17',
+    threadId: 'PRRT_1',
     source: { kind: 'bot', name: 'Cursor Bugbot' },
     author: 'cursor[bot]',
     path: 'api/service/tenant/record.go',
@@ -1373,7 +1376,8 @@ const comments: Comment[] = [
   },
   {
     id: 'c18',
-    source: { kind: 'human', name: 'GitHub' },
+    threadId: 'PRRT_2',
+    source: { kind: 'human', name: 'danat' },
     author: 'danat',
     path: 'api/service/tenant/record.go',
     line: 101,
@@ -1387,7 +1391,8 @@ const comments: Comment[] = [
   },
   {
     id: 'c19',
-    source: { kind: 'human', name: 'GitHub' },
+    threadId: 'PRRT_3',
+    source: { kind: 'human', name: 'jdoe' },
     author: 'jdoe',
     path: 'db/migrations/0042_tenant_profile_region.sql',
     line: 3,
@@ -1401,6 +1406,7 @@ const comments: Comment[] = [
   },
   {
     id: 'c20',
+    threadId: 'PRRT_4',
     source: { kind: 'bot', name: 'Cursor Bugbot' },
     author: 'cursor[bot]',
     path: 'api/service/tenant/validate.go',
@@ -1414,7 +1420,38 @@ const comments: Comment[] = [
     severity: 'low',
   },
   {
+    id: 'c22',
+    threadId: 'PRRT_2',
+    source: { kind: 'human', name: 'jdoe' },
+    author: 'jdoe',
+    path: 'api/service/tenant/record.go',
+    line: 101,
+    side: 'RIGHT',
+    hunkId: 'f7.h2',
+    body: 'Last-write-wins is acceptable for profiles: the console re-reads after every PATCH. I added the etag check so a stale console cannot overwrite a newer region, which it does catch.',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990005',
+    createdAt: '2026-09-08T10:48:00Z',
+    resolved: false,
+    severity: null,
+  },
+  {
+    id: 'c23',
+    threadId: 'PRRT_4',
+    source: { kind: 'human', name: 'danat' },
+    author: 'danat',
+    path: 'api/service/tenant/validate.go',
+    line: 22,
+    side: 'RIGHT',
+    hunkId: 'f9.h1',
+    body: 'It was not. Fixed in `3f0a1c2`: an empty mask now validates nothing and the handler rejects it.',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990006',
+    createdAt: '2026-09-07T16:41:00Z',
+    resolved: true,
+    severity: null,
+  },
+  {
     id: 'c21',
+    threadId: 'PRRT_5',
     source: { kind: 'bot', name: 'Cursor Bugbot' },
     author: 'cursor[bot]',
     path: 'api/service/tenant/list.go',
@@ -1426,6 +1463,53 @@ const comments: Comment[] = [
     createdAt: '2026-09-06T09:12:00Z',
     resolved: false,
     severity: 'low',
+  },
+];
+
+const conversation: ConversationComment[] = [
+  {
+    id: 'ic4001',
+    source: { kind: 'human', name: 'danat' },
+    author: 'danat',
+    path: null,
+    line: null,
+    side: null,
+    hunkId: null,
+    body: 'Ran `0042` against a copy of staging: the backfill takes 41 seconds on 41k rows, so the deploy window is fine. Worth saying in the migration notes.',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234#issuecomment-4001',
+    createdAt: '2026-09-08T09:14:00Z',
+    resolved: false,
+    severity: null,
+  },
+  {
+    id: 'ic4002',
+    source: { kind: 'bot', name: 'GitHub Actions' },
+    author: 'github-actions[bot]',
+    path: null,
+    line: null,
+    side: null,
+    hunkId: null,
+    body: 'Coverage for `api/service/tenant` is 78.4% (-0.6pp). No gate configured, reporting only.',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234#issuecomment-4002',
+    createdAt: '2026-09-08T11:12:00Z',
+    resolved: false,
+    severity: null,
+  },
+];
+
+const botSummaries: BotSummary[] = [
+  {
+    source: { kind: 'bot', name: 'Cursor Bugbot' },
+    riskLevel: 'medium',
+    body: [
+      'Field-mask validation and a NOT NULL column with no default: an existing row and a partial update are the two paths to check.',
+      '',
+      '**Overview**',
+      'Replaces `TenantRecord` with `TenantProfile` and adds `region`, `tier`, `retention` and soft delete.',
+      'Update now honours `update_mask`, so a partial `PATCH` no longer clears the other fields, and the',
+      'gRPC surface keeps the old field numbers.',
+    ].join('\n'),
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234',
   },
 ];
 
@@ -1464,6 +1548,27 @@ const checks: Check[] = [
     status: 'pending',
     url: 'https://buildkite.com/northwind/app-client/builds/8821',
     completedAt: null,
+  },
+  {
+    name: 'license/cla',
+    app: 'license/cla',
+    status: 'neutral',
+    url: 'https://cla.northwind-labs.test/tenant-platform/1234',
+    completedAt: '2026-09-08T10:58:00Z',
+  },
+  {
+    name: 'deploy-preview',
+    app: 'netlify',
+    status: 'skipped',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41005',
+    completedAt: '2026-09-08T11:01:00Z',
+  },
+  {
+    name: 'e2e-smoke',
+    app: 'github-actions',
+    status: 'cancelled',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41006',
+    completedAt: '2026-09-08T11:07:00Z',
   },
 ];
 
@@ -1660,7 +1765,7 @@ const stage2At = '2026-09-08T12:36:10Z';
 const stage3At = '2026-09-08T12:37:44Z';
 
 const base: ReviewDocument = {
-  schemaVersion: '1.0.0',
+  schemaVersion: SCHEMA_VERSION,
   generatedAt: GENERATED_AT,
   tool: { name: 'review-cockpit', version: '0.1.0' },
   pr: {
@@ -1699,6 +1804,22 @@ const base: ReviewDocument = {
       '| `region` | string | none, `NOT NULL` after 0042 |',
       '| `tier` | enum | `TIER_STANDARD` |',
       '| `retention` | duration | 30d |',
+      '',
+      '<!-- CURSOR_SUMMARY -->',
+      '---',
+      '',
+      '> [!NOTE]',
+      '> **Medium Risk**',
+      '> Field-mask validation and a NOT NULL column with no default: an existing row and a partial',
+      '> update are the two paths to check.',
+      '> ',
+      '> **Overview**',
+      '> Replaces `TenantRecord` with `TenantProfile` and adds `region`, `tier`, `retention` and soft delete.',
+      '> Update now honours `update_mask`, so a partial `PATCH` no longer clears the other fields, and the',
+      '> gRPC surface keeps the old field numbers.',
+      '> ',
+      '> <sup>Reviewed by [Cursor Bugbot](https://cursor.com/bugbot) for commit d4e5f6a.</sup>',
+      '<!-- /CURSOR_SUMMARY -->',
     ].join('\n'),
     author: 'jdoe',
     draft: false,
@@ -1725,7 +1846,9 @@ const base: ReviewDocument = {
   },
   files,
   comments,
+  conversation,
   checks,
+  botSummaries,
   groups,
   path,
   summary,
@@ -1790,7 +1913,7 @@ const notAttached: ReviewDocument = {
 // step for a stage 2 group names one of its hunks, because the merge is what
 // assigns group ids.
 const judgment: Judgment = {
-  schemaVersion: '1.0.0',
+  schemaVersion: SCHEMA_VERSION,
   groups: groups
     .filter((g) => g.producedBy === 'stage2')
     .map(({ kind, title, description, hunkIds, mode, collapsedByDefault }) => ({
@@ -1858,7 +1981,7 @@ const stage2Fail: ReviewDocument = {
 };
 
 const emptyPr: ReviewDocument = {
-  schemaVersion: '1.0.0',
+  schemaVersion: SCHEMA_VERSION,
   generatedAt: GENERATED_AT,
   tool: { name: 'review-cockpit', version: '0.1.0' },
   pr: {
@@ -1893,6 +2016,8 @@ const emptyPr: ReviewDocument = {
   },
   files: [],
   comments: [],
+  conversation: [],
+  botSummaries: [],
   checks: [
     {
       name: 'lint-and-test',

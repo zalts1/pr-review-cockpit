@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "generatedAt": "2026-09-08T12:34:56Z",
   "tool": {
     "name": "review-cockpit",
@@ -11,7 +11,7 @@
     "number": 1234,
     "url": "https://github.com/northwind-labs/tenant-platform/pull/1234",
     "title": "Add tenant profile API",
-    "body": "## What\n\nReplaces the thin `TenantRecord` message with `TenantProfile`: `region`, `tier`, `retention`\nand soft delete, plus field-mask driven validation on update.\n\n### Why\n\nTP-329. The console needs per-region profiles, and the worker needs to page through them.\n\n### How to try it\n\n```bash\nbuf generate && go test ./api/... ./internal/store/...\ncurl -X PATCH localhost:8080/tenants/t-1 -d '{\"profile\":{\"region\":\"eu-west-1\"}}'\n```\n\n### Notes\n\n1. Migration `0042` adds the new columns. Run it **before** deploying the API.\n2. The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.\n3. `update_mask` is honoured on update, so a partial `PATCH` no longer clears the other fields.\n\n> The gRPC surface keeps the old field numbers, so old clients keep working.\n\n| Field | Type | Default |\n| --- | --- | --- |\n| `region` | string | none, `NOT NULL` after 0042 |\n| `tier` | enum | `TIER_STANDARD` |\n| `retention` | duration | 30d |",
+    "body": "## What\n\nReplaces the thin `TenantRecord` message with `TenantProfile`: `region`, `tier`, `retention`\nand soft delete, plus field-mask driven validation on update.\n\n### Why\n\nTP-329. The console needs per-region profiles, and the worker needs to page through them.\n\n### How to try it\n\n```bash\nbuf generate && go test ./api/... ./internal/store/...\ncurl -X PATCH localhost:8080/tenants/t-1 -d '{\"profile\":{\"region\":\"eu-west-1\"}}'\n```\n\n### Notes\n\n1. Migration `0042` adds the new columns. Run it **before** deploying the API.\n2. The rename is mechanical; the generated code is a straight regeneration from buf and sqlc.\n3. `update_mask` is honoured on update, so a partial `PATCH` no longer clears the other fields.\n\n> The gRPC surface keeps the old field numbers, so old clients keep working.\n\n| Field | Type | Default |\n| --- | --- | --- |\n| `region` | string | none, `NOT NULL` after 0042 |\n| `tier` | enum | `TIER_STANDARD` |\n| `retention` | duration | 30d |\n\n<!-- CURSOR_SUMMARY -->\n---\n\n> [!NOTE]\n> **Medium Risk**\n> Field-mask validation and a NOT NULL column with no default: an existing row and a partial\n> update are the two paths to check.\n> \n> **Overview**\n> Replaces `TenantRecord` with `TenantProfile` and adds `region`, `tier`, `retention` and soft delete.\n> Update now honours `update_mask`, so a partial `PATCH` no longer clears the other fields, and the\n> gRPC surface keeps the old field numbers.\n> \n> <sup>Reviewed by [Cursor Bugbot](https://cursor.com/bugbot) for commit d4e5f6a.</sup>\n<!-- /CURSOR_SUMMARY -->",
     "author": "jdoe",
     "draft": false,
     "labels": [
@@ -12519,6 +12519,7 @@
   "comments": [
     {
       "id": "c17",
+      "threadId": "PRRT_1",
       "source": {
         "kind": "bot",
         "name": "Cursor Bugbot"
@@ -12536,9 +12537,10 @@
     },
     {
       "id": "c18",
+      "threadId": "PRRT_2",
       "source": {
         "kind": "human",
-        "name": "GitHub"
+        "name": "danat"
       },
       "author": "danat",
       "path": "api/service/tenant/record.go",
@@ -12553,9 +12555,10 @@
     },
     {
       "id": "c19",
+      "threadId": "PRRT_3",
       "source": {
         "kind": "human",
-        "name": "GitHub"
+        "name": "jdoe"
       },
       "author": "jdoe",
       "path": "db/migrations/0042_tenant_profile_region.sql",
@@ -12570,6 +12573,7 @@
     },
     {
       "id": "c20",
+      "threadId": "PRRT_4",
       "source": {
         "kind": "bot",
         "name": "Cursor Bugbot"
@@ -12586,7 +12590,44 @@
       "severity": "low"
     },
     {
+      "id": "c22",
+      "threadId": "PRRT_2",
+      "source": {
+        "kind": "human",
+        "name": "jdoe"
+      },
+      "author": "jdoe",
+      "path": "api/service/tenant/record.go",
+      "line": 101,
+      "side": "RIGHT",
+      "hunkId": "f7.h2",
+      "body": "Last-write-wins is acceptable for profiles: the console re-reads after every PATCH. I added the etag check so a stale console cannot overwrite a newer region, which it does catch.",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990005",
+      "createdAt": "2026-09-08T10:48:00Z",
+      "resolved": false,
+      "severity": null
+    },
+    {
+      "id": "c23",
+      "threadId": "PRRT_4",
+      "source": {
+        "kind": "human",
+        "name": "danat"
+      },
+      "author": "danat",
+      "path": "api/service/tenant/validate.go",
+      "line": 22,
+      "side": "RIGHT",
+      "hunkId": "f9.h1",
+      "body": "It was not. Fixed in `3f0a1c2`: an empty mask now validates nothing and the handler rejects it.",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234#discussion_r1990006",
+      "createdAt": "2026-09-07T16:41:00Z",
+      "resolved": true,
+      "severity": null
+    },
+    {
       "id": "c21",
+      "threadId": "PRRT_5",
       "source": {
         "kind": "bot",
         "name": "Cursor Bugbot"
@@ -12601,6 +12642,42 @@
       "createdAt": "2026-09-06T09:12:00Z",
       "resolved": false,
       "severity": "low"
+    }
+  ],
+  "conversation": [
+    {
+      "id": "ic4001",
+      "source": {
+        "kind": "human",
+        "name": "danat"
+      },
+      "author": "danat",
+      "path": null,
+      "line": null,
+      "side": null,
+      "hunkId": null,
+      "body": "Ran `0042` against a copy of staging: the backfill takes 41 seconds on 41k rows, so the deploy window is fine. Worth saying in the migration notes.",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234#issuecomment-4001",
+      "createdAt": "2026-09-08T09:14:00Z",
+      "resolved": false,
+      "severity": null
+    },
+    {
+      "id": "ic4002",
+      "source": {
+        "kind": "bot",
+        "name": "GitHub Actions"
+      },
+      "author": "github-actions[bot]",
+      "path": null,
+      "line": null,
+      "side": null,
+      "hunkId": null,
+      "body": "Coverage for `api/service/tenant` is 78.4% (-0.6pp). No gate configured, reporting only.",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234#issuecomment-4002",
+      "createdAt": "2026-09-08T11:12:00Z",
+      "resolved": false,
+      "severity": null
     }
   ],
   "checks": [
@@ -12638,6 +12715,38 @@
       "status": "pending",
       "url": "https://buildkite.com/northwind/app-client/builds/8821",
       "completedAt": null
+    },
+    {
+      "name": "license/cla",
+      "app": "license/cla",
+      "status": "neutral",
+      "url": "https://cla.northwind-labs.test/tenant-platform/1234",
+      "completedAt": "2026-09-08T10:58:00Z"
+    },
+    {
+      "name": "deploy-preview",
+      "app": "netlify",
+      "status": "skipped",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41005",
+      "completedAt": "2026-09-08T11:01:00Z"
+    },
+    {
+      "name": "e2e-smoke",
+      "app": "github-actions",
+      "status": "cancelled",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234/checks?check_run_id=41006",
+      "completedAt": "2026-09-08T11:07:00Z"
+    }
+  ],
+  "botSummaries": [
+    {
+      "source": {
+        "kind": "bot",
+        "name": "Cursor Bugbot"
+      },
+      "riskLevel": "medium",
+      "body": "Field-mask validation and a NOT NULL column with no default: an existing row and a partial update are the two paths to check.\n\n**Overview**\nReplaces `TenantRecord` with `TenantProfile` and adds `region`, `tier`, `retention` and soft delete.\nUpdate now honours `update_mask`, so a partial `PATCH` no longer clears the other fields, and the\ngRPC surface keeps the old field numbers.",
+      "url": "https://github.com/northwind-labs/tenant-platform/pull/1234"
     }
   ],
   "groups": [
