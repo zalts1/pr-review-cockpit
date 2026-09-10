@@ -532,34 +532,34 @@ a:hover {
 }
 
 .plan-disclosure {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  width: 100%;
-  border: 0;
-  background: none;
-  padding: 0 20px 8px;
+  gap: 8px;
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--link);
+  border-radius: 6px;
+  background: var(--page);
   cursor: pointer;
-  text-align: left;
-  font-size: 12px;
-  color: var(--fg-muted);
-  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--link);
 }
 
-.plan-disclosure:hover {
-  color: var(--fg);
+.plan-disclosure:hover,
+.plan-disclosure[aria-expanded='true'] {
+  background: #ddf4ff;
 }
 
-.plan-disclosure-hint {
-  color: var(--fg-subtle);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.plan-disclosure-hint::before {
-  content: '· ';
+.plan-disclosure-badge {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--medium-wash);
+  color: var(--pending);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
 }
 
 .plan-detail {
