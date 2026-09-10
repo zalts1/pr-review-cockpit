@@ -4,12 +4,14 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { join, resolve } from 'node:path';
 import type { DraftsFile } from '@review-cockpit/schema';
 import { validateDrafts } from '@review-cockpit/schema';
-import { readDrafts, readOrphanedDrafts, writeDrafts } from './drafts.js';
+import { prFromPath, readDrafts, readOrphanedDrafts, writeDrafts } from './drafts.js';
+import type { ShutdownReason } from './events.js';
 import { DocumentWatcher, EventStreamHub } from './events.js';
+import { DEFAULT_IDLE_MINUTES, IdleWatch } from './idle.js';
 import { DOCUMENT_FILENAME } from './paths.js';
 import type { IngestFn, RefreshOutcome } from './refresh.js';
 import { refreshFromGitHub } from './refresh.js';
-import { removeServerFile, writeServerFile } from './server-file.js';
+import { newServerToken, removeServerFile, writeServerFile } from './server-file.js';
 import type { GhCommand, Verdict } from './submit.js';
 import { ghCommand, submitReview, VERDICTS } from './submit.js';
 import { resolveUiHtmlPath } from './ui-path.js';
@@ -22,6 +24,7 @@ export {
 } from './paths.js';
 export {
   emptyDrafts,
+  prFromPath,
   prIdentity,
   readDrafts,
   readOrphanedDrafts,
@@ -40,7 +43,17 @@ export type {
 } from './submit.js';
 export { refreshFromGitHub } from './refresh.js';
 export type { IngestFn, RefreshBody, RefreshCounts, RefreshOutcome } from './refresh.js';
-export { readServerFile, removeServerFile, serverIsAlive, writeServerFile } from './server-file.js';
+export { DEFAULT_IDLE_MINUTES, IdleWatch } from './idle.js';
+export type { IdleWatchOptions } from './idle.js';
+export type { ShutdownReason } from './events.js';
+export {
+  newServerToken,
+  pidIsAlive,
+  readServerFile,
+  removeServerFile,
+  serverIsAlive,
+  writeServerFile,
+} from './server-file.js';
 export { resolveUiHtmlPath, UI_PATH_ENV_VAR } from './ui-path.js';
 export type { ServerFile } from './server-file.js';
 
@@ -55,20 +68,36 @@ export interface ServerOptions {
   gh?: GhCommand;
   /** Injected so a test reaches no network; the default is the analyzer's ingestion. */
   ingest?: IngestFn;
+  /** Minutes with no cockpit attached before the server stops itself. 0 keeps it running. */
+  idleMinutes?: number;
+  /** The Claude Code session that asked for this server, recorded so `cockpit stop` can find it. */
+  sessionId?: string;
+  /** Injected so a test drives the clock; the default is the global timer. */
+  now?: () => number;
 }
 
 export interface RunningServer {
   url: string;
   port: number;
+  token: string;
   close(): Promise<void>;
+  /**
+   * Closes after telling every attached cockpit why. A reviewer whose session ended still has
+   * the tab open, and it has to say the server stopped rather than that the network dropped.
+   */
+  stop(reason: ShutdownReason): Promise<void>;
+  /** Resolves once the idle clock ran out and the server shut itself down. */
+  idleExit: Promise<void>;
 }
 
 interface RequestContext {
   prDir: string;
   uiPath: string | undefined;
   hub: EventStreamHub;
+  idle: IdleWatch;
   startedAt: number;
   port: number;
+  token: string;
   gh: GhCommand;
   ingest: IngestFn | undefined;
 }
@@ -93,17 +122,27 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   await mkdir(prDir, { recursive: true });
 
   const watcher = new DocumentWatcher(prDir);
+  const idle = new IdleWatch({
+    idleMinutes: options.idleMinutes ?? DEFAULT_IDLE_MINUTES,
+    clients: () => hub.size,
+    onIdle: () => void stopBecauseIdle(),
+    ...(options.now === undefined ? {} : { now: options.now }),
+  });
+  const hub = new EventStreamHub(prDir, watcher, () => idle.reset());
   const context: RequestContext = {
     prDir,
     uiPath: options.uiPath,
-    hub: new EventStreamHub(prDir, watcher),
+    hub,
+    idle,
     startedAt: Date.now(),
     port: 0,
+    token: newServerToken(),
     gh: options.gh ?? ghCommand,
     ingest: options.ingest,
   };
 
   const server = createServer((req, res) => {
+    idle.reset();
     void handle(req, res, context).catch(() => {
       if (!res.headersSent) sendJson(res, 500, { error: 'The local server failed to handle the request.' });
       res.end();
@@ -130,12 +169,15 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     pid: process.pid,
     url,
     startedAt: new Date(context.startedAt).toISOString(),
+    token: context.token,
+    ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
   });
 
   let closing: Promise<void> | null = null;
   const close = (): Promise<void> => {
     closing ??= (async () => {
-      context.hub.close();
+      idle.close();
+      hub.close();
       watcher.close();
       await new Promise<void>((closed) => {
         server.close(() => closed());
@@ -146,7 +188,27 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     return closing;
   };
 
-  return { url, port: address.port, close };
+  const stop = async (reason: ShutdownReason): Promise<void> => {
+    hub.announceShutdown(reason);
+    await close();
+  };
+
+  let exited!: () => void;
+  const idleExit = new Promise<void>((resolve) => {
+    exited = resolve;
+  });
+
+  async function stopBecauseIdle(): Promise<void> {
+    const pr = prFromPath(prDir);
+    console.error(
+      `[serve] no cockpit was connected for ${options.idleMinutes ?? DEFAULT_IDLE_MINUTES} minutes: stopping. Run "cockpit run ${pr.owner}/${pr.repo}#${pr.number}" to bring it back`,
+    );
+    await stop('idle');
+    exited();
+  }
+
+  idle.reset();
+  return { url, port: address.port, token: context.token, close, stop, idleExit };
 }
 
 async function handle(req: IncomingMessage, res: ServerResponse, context: RequestContext): Promise<void> {
@@ -202,8 +264,11 @@ async function handle(req: IncomingMessage, res: ServerResponse, context: Reques
         port: context.port,
         pid: process.pid,
         prDir: context.prDir,
+        token: context.token,
         document: existsSync(join(context.prDir, DOCUMENT_FILENAME)),
         uptimeSeconds: Number(((Date.now() - context.startedAt) / 1000).toFixed(3)),
+        clients: context.hub.size,
+        idleSeconds: Number(context.idle.idleSeconds().toFixed(3)),
       });
       return;
     default:

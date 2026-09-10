@@ -9,6 +9,19 @@ export interface ServerFile {
   pid: number;
   url: string;
   startedAt: string;
+  /**
+   * Proof of identity for `cockpit stop`. A pid on its own is not enough: pids are reused, and
+   * a stale server.json would otherwise name a process that has nothing to do with the cockpit.
+   * `/api/health` answers with the same token, so a match says the process on that port wrote
+   * this file.
+   */
+  token: string;
+  /** The Claude Code session that ran `cockpit run`, when it named itself. */
+  sessionId?: string;
+}
+
+export function newServerToken(): string {
+  return randomBytes(16).toString('hex');
 }
 
 export async function writeServerFile(prDir: string, contents: ServerFile): Promise<void> {
@@ -37,14 +50,20 @@ export function readServerFile(prDir: string): ServerFile | null {
     pid: file.pid,
     url: file.url ?? `http://127.0.0.1:${file.port}`,
     startedAt: file.startedAt ?? '',
+    token: typeof file.token === 'string' ? file.token : '',
+    ...(typeof file.sessionId === 'string' ? { sessionId: file.sessionId } : {}),
   };
 }
 
-/** Signal 0 asks the kernel whether the process exists without touching it. */
 export function serverIsAlive(file: ServerFile): boolean {
-  if (file.pid === process.pid) return true;
+  return pidIsAlive(file.pid);
+}
+
+/** Signal 0 asks the kernel whether the process exists without touching it. */
+export function pidIsAlive(pid: number): boolean {
+  if (pid === process.pid) return true;
   try {
-    process.kill(file.pid, 0);
+    process.kill(pid, 0);
     return true;
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'EPERM';

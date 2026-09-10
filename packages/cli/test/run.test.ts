@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { AnalyzeOptions, PrRef } from '@review-cockpit/analyzer';
 import type { ReviewDocument } from '@review-cockpit/schema';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RunDeps, ServeOutcome } from '../src/commands/run.js';
+import type { RunDeps, ServeOutcome, ServeSpawn } from '../src/commands/run.js';
 import { runCommand } from '../src/commands/run.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -22,7 +22,7 @@ let err: string[];
 
 interface Recorded {
   analyzed: AnalyzeOptions[];
-  served: Array<{ ref: PrRef; port: number | undefined }>;
+  served: ServeSpawn[];
   opened: string[];
   restored: number;
 }
@@ -61,8 +61,8 @@ function fakeDeps(
         reattach: { kind: 'skipped', why: 'test' },
       };
     },
-    serve: async (target, port) => {
-      recorded.served.push({ ref: target, port });
+    serve: async (_target, spawn) => {
+      recorded.served.push(spawn);
       return serve;
     },
     open: (url) => {
@@ -107,7 +107,7 @@ describe('cockpit run', () => {
 
     expect(recorded.analyzed).toHaveLength(1);
     expect(recorded.analyzed[0]).toMatchObject({ expectJudgment: true, skipGraph: false });
-    expect(recorded.served).toEqual([{ ref, port: undefined }]);
+    expect(recorded.served).toEqual([{}]);
     expect(recorded.opened).toEqual(['http://127.0.0.1:8090']);
 
     expect(lastJson()).toEqual({
@@ -177,7 +177,7 @@ describe('cockpit run', () => {
 
     await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, skipGraph: true, port: 8090 }, deps);
 
-    expect(recorded.served).toEqual([{ ref, port: 8090 }]);
+    expect(recorded.served).toEqual([{ port: 8090 }]);
     expect(recorded.analyzed[0]).toMatchObject({ skipGraph: true });
   });
 

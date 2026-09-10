@@ -19,14 +19,16 @@ export type Subcommand = (typeof SUBCOMMANDS)[number];
 export const usage = `cockpit — the PR review cockpit command line tool
 
 Usage:
-  cockpit run      <pr> [--reuse-server] [--port <n>] [--no-open] [--skip-graph] [--cwd <dir>]
+  cockpit run      <pr> [--reuse-server] [--port <n>] [--no-open] [--skip-graph]
+                        [--idle-minutes <n>] [--session <id>] [--cwd <dir>]
   cockpit prepare  <pr> [--cwd <dir>]
   cockpit analyze  <pr> [--expect-judgment] [--no-fold-generated] [--skip-graph] [--cwd <dir>]
   cockpit compact  <pr> [--cwd <dir>]
   cockpit judge-prompt <pr> [--cwd <dir>]
   cockpit judge-merge  <pr> [--judgment <file>] [--cwd <dir>]
   cockpit mark-failed  <pr> --stage 2 --message <text> [--cwd <dir>]
-  cockpit serve    <pr> [--port <n>] [--open] [--cwd <dir>]
+  cockpit serve    <pr> [--port <n>] [--open] [--idle-minutes <n>] [--session <id>]
+                        [--cwd <dir>]
   cockpit clean    <pr> [--cwd <dir>]
   cockpit doctor
   cockpit validate <file> [--as document|judgment|drafts]
@@ -43,7 +45,8 @@ run       One command from a pull request to an open cockpit: prepare, stage 1,
           A cached document at the pull request's current head is served as it
           is, with no analysis. --reuse-server keeps a server that is already
           running and leaves its browser tab alone. --no-open serves without
-          opening a browser.
+          opening a browser. --idle-minutes and --session are passed to the
+          server it starts.
 
 prepare   Resolves the pull request through gh and checks it out: a worktree on
           a local clone when one is found, a cached clone when not. Prints the
@@ -85,7 +88,12 @@ mark-failed
 serve     Serves the cockpit and the document on 127.0.0.1 and pushes every
           change to review.json over server-sent events. Prints the URL. A
           pull request whose server is already running prints that server's
-          URL instead of starting a second one.
+          URL instead of starting a second one. It stops itself after 30
+          minutes with no cockpit connected, telling any cockpit that is still
+          there why; --idle-minutes changes that and 0 turns it off.
+          --session records the Claude Code session that asked for it, so
+          "cockpit stop --started-by" can find it later. The session is taken
+          from CLAUDE_CODE_SESSION_ID when the flag is absent.
 
 clean     Stops the server, removes the worktree and the review-cockpit ref,
           and keeps review.json and drafts.json.

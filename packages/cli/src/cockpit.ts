@@ -13,6 +13,7 @@ import { runCommand } from './commands/run.js';
 import { serveCommand } from './commands/serve.js';
 import type { FileKind } from './commands/validate.js';
 import { validateCommand } from './commands/validate.js';
+import { sessionIdFromEnv } from './session.js';
 import { usage } from './usage.js';
 
 const kinds: FileKind[] = ['document', 'judgment', 'drafts'];
@@ -30,6 +31,8 @@ async function main(argv: string[]): Promise<number> {
         cwd: { type: 'string' },
         judgment: { type: 'string' },
         port: { type: 'string' },
+        'idle-minutes': { type: 'string' },
+        session: { type: 'string' },
         stage: { type: 'string' },
         message: { type: 'string' },
         open: { type: 'boolean' },
@@ -61,6 +64,13 @@ async function main(argv: string[]): Promise<number> {
     return fail(`--port must be a port number, not "${values.port}"`);
   }
 
+  const idleMinutes = values['idle-minutes'] === undefined ? undefined : Number(values['idle-minutes']);
+  if (idleMinutes !== undefined && (!Number.isFinite(idleMinutes) || idleMinutes < 0)) {
+    return fail(`--idle-minutes must be minutes, or 0 to never stop, not "${values['idle-minutes']}"`);
+  }
+
+  const sessionId = values.session ?? sessionIdFromEnv();
+
   if (command === 'doctor') return doctorCommand();
 
   const prCommands = [
@@ -86,6 +96,8 @@ async function main(argv: string[]): Promise<number> {
         open: values['no-open'] !== true,
         skipGraph: values['skip-graph'] === true,
         ...(port === undefined ? {} : { port }),
+        ...(idleMinutes === undefined ? {} : { idleMinutes }),
+        ...(sessionId === undefined ? {} : { sessionId }),
       });
     }
     if (command === 'prepare') return prepareCommand(prArg, cwd);
@@ -116,6 +128,8 @@ async function main(argv: string[]): Promise<number> {
         cwd,
         open: values.open === true,
         ...(port === undefined ? {} : { port }),
+        ...(idleMinutes === undefined ? {} : { idleMinutes }),
+        ...(sessionId === undefined ? {} : { sessionId }),
       });
     }
     return cleanCommand(prArg, cwd);

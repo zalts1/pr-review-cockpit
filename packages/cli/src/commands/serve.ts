@@ -1,11 +1,13 @@
 import { existsSync } from 'node:fs';
 import { documentFile, prDir, resolveRef, run } from '@review-cockpit/analyzer';
-import { readServerFile, serverIsAlive, startServer } from '@review-cockpit/server';
+import { DEFAULT_IDLE_MINUTES, readServerFile, serverIsAlive, startServer } from '@review-cockpit/server';
 
 export interface ServeFlags {
   cwd: string;
   port?: number;
   open: boolean;
+  idleMinutes?: number;
+  sessionId?: string;
 }
 
 export async function serveCommand(prArg: string, flags: ServeFlags): Promise<number> {
@@ -23,9 +25,20 @@ export async function serveCommand(prArg: string, flags: ServeFlags): Promise<nu
     return 0;
   }
 
-  const server = await startServer({ prDir: directory, ...(flags.port === undefined ? {} : { port: flags.port }) });
+  const idleMinutes = flags.idleMinutes ?? DEFAULT_IDLE_MINUTES;
+  const server = await startServer({
+    prDir: directory,
+    idleMinutes,
+    ...(flags.port === undefined ? {} : { port: flags.port }),
+    ...(flags.sessionId === undefined ? {} : { sessionId: flags.sessionId }),
+  });
 
   console.error(`[serve] ${ref.owner}/${ref.repo}#${ref.number} from ${directory}`);
+  console.error(
+    idleMinutes > 0
+      ? `[serve] stops itself after ${idleMinutes} minutes with no cockpit connected`
+      : '[serve] no idle timeout: it runs until it is stopped',
+  );
   if (!existsSync(document)) {
     console.error('[serve] no review.json yet: run cockpit analyze, the page picks it up on its own');
   }
@@ -34,11 +47,11 @@ export async function serveCommand(prArg: string, flags: ServeFlags): Promise<nu
   if (flags.open) run('open', [server.url]);
 
   const stop = (): void => {
-    void server.close().then(() => process.exit(0));
+    void server.stop('stopped').then(() => process.exit(0));
   };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
 
-  await new Promise<void>(() => {});
+  await server.idleExit;
   return 0;
 }

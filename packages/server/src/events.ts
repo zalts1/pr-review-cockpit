@@ -9,6 +9,12 @@ export const HEARTBEAT_MS = 20_000;
 const DOCUMENT_EVENT = 'data: {"type":"document"}\n\n';
 const HEARTBEAT_LINE = ': ping\n\n';
 
+export type ShutdownReason = 'idle' | 'stopped';
+
+function shutdownEvent(reason: ShutdownReason): string {
+  return `data: ${JSON.stringify({ type: 'shutdown', reason })}\n\n`;
+}
+
 export type Unsubscribe = () => void;
 
 /**
@@ -83,7 +89,12 @@ export class EventStreamHub {
   constructor(
     private readonly prDir: string,
     private readonly watcher: DocumentWatcher,
+    private readonly onClientsChanged: () => void = () => undefined,
   ) {}
+
+  get size(): number {
+    return this.clients.size;
+  }
 
   attach(res: ServerResponse): void {
     res.writeHead(200, {
@@ -95,10 +106,19 @@ export class EventStreamHub {
 
     this.clients.add(res);
     if (this.clients.size === 1) this.startSources();
+    this.onClientsChanged();
 
     res.on('close', () => this.detach(res));
 
     if (existsSync(join(this.prDir, DOCUMENT_FILENAME))) res.write(DOCUMENT_EVENT);
+  }
+
+  /**
+   * The last thing a client hears. Without it a cockpit cannot tell a server that stopped on
+   * purpose from a connection that dropped, and shows the wrong banner for the next few tries.
+   */
+  announceShutdown(reason: ShutdownReason): void {
+    this.broadcast(shutdownEvent(reason));
   }
 
   close(): void {
@@ -112,6 +132,7 @@ export class EventStreamHub {
   private detach(res: ServerResponse): void {
     if (!this.clients.delete(res)) return;
     if (this.clients.size === 0) this.stopSources();
+    this.onClientsChanged();
   }
 
   private startSources(): void {

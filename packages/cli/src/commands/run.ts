@@ -24,6 +24,15 @@ export interface RunFlags {
   open: boolean;
   skipGraph: boolean;
   port?: number;
+  idleMinutes?: number;
+  sessionId?: string;
+}
+
+/** What the detached `cockpit serve` is started with. */
+export interface ServeSpawn {
+  port?: number;
+  idleMinutes?: number;
+  sessionId?: string;
 }
 
 export interface ServeOutcome {
@@ -40,7 +49,7 @@ export interface RunDeps {
   cachedHead(ref: PrRef): string | null;
   restoreCheckout(prArg: string, cwd: string, step: (message: string) => void): void;
   analyze(options: AnalyzeOptions): Promise<AnalyzeResult>;
-  serve(ref: PrRef, port: number | undefined): Promise<ServeOutcome>;
+  serve(ref: PrRef, spawn: ServeSpawn): Promise<ServeOutcome>;
   open(url: string): void;
 }
 
@@ -79,7 +88,7 @@ const defaults: RunDeps = {
  * JSON back, and then works in the same terminal. So the server is a detached `cockpit serve`
  * whose own server.json is the handshake, rather than an http server in this process.
  */
-export async function startDetachedServer(ref: PrRef, port: number | undefined): Promise<ServeOutcome> {
+export async function startDetachedServer(ref: PrRef, spawnWith: ServeSpawn): Promise<ServeOutcome> {
   const directory = prDir(ref);
   const existing = readServerFile(directory);
   if (existing !== null && serverIsAlive(existing)) {
@@ -90,7 +99,14 @@ export async function startDetachedServer(ref: PrRef, port: number | undefined):
   const log = openSync(logFile(ref), 'a');
   const child = spawn(
     process.execPath,
-    [CLI_ENTRY, 'serve', targetOf(ref), ...(port === undefined ? [] : ['--port', String(port)])],
+    [
+      CLI_ENTRY,
+      'serve',
+      targetOf(ref),
+      ...(spawnWith.port === undefined ? [] : ['--port', String(spawnWith.port)]),
+      ...(spawnWith.idleMinutes === undefined ? [] : ['--idle-minutes', String(spawnWith.idleMinutes)]),
+      ...(spawnWith.sessionId === undefined ? [] : ['--session', spawnWith.sessionId]),
+    ],
     { detached: true, stdio: ['ignore', log, log] },
   );
   child.unref();
@@ -141,7 +157,11 @@ export async function runCommand(
 
   const box: { served: ServeOutcome | null } = { served: null };
   const serveAndOpen = async (): Promise<void> => {
-    const served = await deps.serve(ref, flags.port);
+    const served = await deps.serve(ref, {
+      ...(flags.port === undefined ? {} : { port: flags.port }),
+      ...(flags.idleMinutes === undefined ? {} : { idleMinutes: flags.idleMinutes }),
+      ...(flags.sessionId === undefined ? {} : { sessionId: flags.sessionId }),
+    });
     box.served = served;
     step(
       served.started
