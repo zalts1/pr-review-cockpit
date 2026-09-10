@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { configFile, readUserConfig, run } from '@review-cockpit/analyzer';
 import { resolveUiHtmlPath } from '@review-cockpit/server';
 import { findPromptTemplate } from '../prompt.js';
+import { hasLiveServer, recordedServers } from '../servers.js';
 
 /** The engines field of every package in the workspace. */
 const MIN_NODE_MAJOR = 24;
@@ -42,6 +43,13 @@ export interface DoctorFacts {
   plugin: PluginFacts | null;
   configFile: { path: string; exists: boolean };
   workspaceRoots: Array<{ path: string; exists: boolean }>;
+  servers: ServerCount;
+}
+
+export interface ServerCount {
+  live: number;
+  /** server.json files with no live server behind them, which `cockpit stop` clears. */
+  stale: number;
 }
 
 export function skillLinkPath(): string {
@@ -81,6 +89,8 @@ export function readFacts(): DoctorFacts {
   const config = configFile();
   const roots = existsSync(config) ? readUserConfig().workspaceRoots : [];
   const pluginRoot = process.env['CLAUDE_PLUGIN_ROOT'];
+  const recorded = recordedServers();
+  const live = recorded.filter((server) => hasLiveServer(server.dir)).length;
 
   return {
     nodeVersion: process.version,
@@ -92,6 +102,7 @@ export function readFacts(): DoctorFacts {
     plugin: pluginRoot === undefined || pluginRoot === '' ? null : pluginFacts(pluginRoot),
     configFile: { path: config, exists: existsSync(config) },
     workspaceRoots: roots.map((path) => ({ path, exists: existsSync(path) })),
+    servers: { live, stale: recorded.length - live },
   };
 }
 
@@ -171,6 +182,18 @@ function skillRow(facts: DoctorFacts): DoctorRow {
   return { check: 'skill', state: 'ok', detail: `${link.path} → ${link.target ?? ''}` };
 }
 
+function serversRow(servers: ServerCount): DoctorRow {
+  const live = servers.live === 0 ? 'none running' : `${servers.live} running`;
+  return {
+    check: 'servers',
+    state: 'ok',
+    detail:
+      servers.stale === 0
+        ? `${live}. cockpit ps lists them`
+        : `${live}, and ${servers.stale} server.json left behind by a server that stopped. cockpit stop --all clears those`,
+  };
+}
+
 function configRow(facts: DoctorFacts): DoctorRow {
   return facts.configFile.exists
     ? { check: 'config', state: 'ok', detail: facts.configFile.path }
@@ -207,6 +230,7 @@ export function doctorRows(facts: DoctorFacts): DoctorRow[] {
     buildRow(facts),
     ...(facts.plugin === null ? [] : [pluginRow(facts.plugin)]),
     skillRow(facts),
+    serversRow(facts.servers),
     configRow(facts),
     rootsRow(facts),
   ];

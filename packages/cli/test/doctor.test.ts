@@ -12,6 +12,7 @@ const healthy: DoctorFacts = {
   plugin: null,
   configFile: { path: '/home/me/.config/review-cockpit/config.json', exists: true },
   workspaceRoots: [{ path: '/home/me/workspace', exists: true }],
+  servers: { live: 0, stale: 0 },
 };
 
 function stateOf(rows: DoctorRow[], check: string): string {
@@ -27,9 +28,26 @@ afterEach(() => {
 });
 
 describe('cockpit doctor', () => {
+  it('counts the servers that are running, and the server.json files that outlived one', () => {
+    expect(detailOf(doctorRows(healthy), 'servers')).toContain('none running');
+
+    const busy = doctorRows({ ...healthy, servers: { live: 2, stale: 1 } });
+    expect(stateOf(busy, 'servers')).toBe('ok');
+    expect(detailOf(busy, 'servers')).toContain('2 running');
+    expect(detailOf(busy, 'servers')).toContain('cockpit stop --all');
+  });
+
   it('passes every check on a healthy installation', () => {
     const rows = doctorRows(healthy);
-    expect(rows.map((row) => row.check)).toEqual(['node', 'gh', 'build', 'skill', 'config', 'workspace roots']);
+    expect(rows.map((row) => row.check)).toEqual([
+      'node',
+      'gh',
+      'build',
+      'skill',
+      'servers',
+      'config',
+      'workspace roots',
+    ]);
     expect(rows.every((row) => row.state === 'ok')).toBe(true);
   });
 
@@ -89,6 +107,7 @@ describe('cockpit doctor', () => {
       'build',
       'plugin root',
       'skill',
+      'servers',
       'config',
       'workspace roots',
     ]);
@@ -137,7 +156,7 @@ describe('cockpit doctor', () => {
     expect(doctorCommand(healthy)).toBe(0);
     const lines = out.join('\n').split('\n');
     expect(lines[0]).toMatch(/^check\s+status\s+detail$/);
-    expect(lines).toHaveLength(7);
+    expect(lines).toHaveLength(8);
     expect(lines[1]).toContain('ok');
 
     out.length = 0;

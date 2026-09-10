@@ -11,6 +11,7 @@ export const SUBCOMMANDS = [
   'stop',
   'clean',
   'gc',
+  'ps',
   'doctor',
   'validate',
   'merge',
@@ -34,6 +35,7 @@ Usage:
   cockpit stop     <pr> | --all | --started-by <id>
   cockpit clean    <pr> [--cwd <dir>]
   cockpit gc       [--days <n>] [--dry-run]
+  cockpit ps
   cockpit doctor
   cockpit validate <file> [--as document|judgment|drafts]
   cockpit merge <document> <judgment> [--out <file>]
@@ -118,10 +120,15 @@ gc        Removes the checkout of every cached pull request with no server
           --dry-run prints what it would remove and removes nothing. cockpit
           run does a non-dry pass at the end of a successful start.
 
+ps        Lists the servers that are running: the pull request, the port, the
+          pid, how long ago it started, how long it has had no cockpit
+          connected, and how many are connected now.
+
 doctor    Checks the installation: the node version, gh and its login, the
           built cockpit and CLI, the review skill's symlink, and the optional
-          config file with its workspace roots. Prints a table and exits
-          non-zero when something has to be fixed.
+          config file with its workspace roots, and how many servers are
+          running. Prints a table and exits non-zero when something has to be
+          fixed.
 
 validate  Checks a file against its JSON Schema and the referential rules.
           The kind is detected from the file unless --as says otherwise.

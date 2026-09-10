@@ -11,6 +11,7 @@ import { judgePromptCommand } from './commands/judgePrompt.js';
 import { markFailedCommand } from './commands/markFailed.js';
 import { mergeCommand } from './commands/merge.js';
 import { prepareCommand } from './commands/prepare.js';
+import { psCommand } from './commands/ps.js';
 import { runCommand } from './commands/run.js';
 import { serveCommand } from './commands/serve.js';
 import type { StopSelector } from './commands/stop.js';
@@ -80,6 +81,7 @@ async function main(argv: string[]): Promise<number> {
   const sessionId = values.session ?? sessionIdFromEnv();
 
   if (command === 'doctor') return doctorCommand();
+  if (command === 'ps') return psCommand();
 
   if (command === 'gc') {
     const days = values.days === undefined ? GC_DEFAULT_DAYS : Number(values.days);
