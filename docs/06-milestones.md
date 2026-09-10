@@ -129,14 +129,27 @@ Order matters. M1 tests the thesis before anything expensive is built. M2 turns 
 - Progress output in the terminal matching the stages.
 - Failure behaviours from `02-architecture.md`: `gh` not authenticated, invalid judgment twice, graph failure, server restart with a cached document.
 - README with install and first-use instructions.
+- After a successful post, the server refetches comments and checks from GitHub and pushes the document, so posted comments reappear as pinned threads within seconds. A manual "Refresh from GitHub" action does the same.
 
 **Verify.** From a fresh terminal in a target repository clone, `review <pr>` on a live PR the user is actually reviewing that day. Time it. Ask questions in the terminal. Post the review. Run "done".
 
 **Done when.** The user reviews one real PR end to end without touching anything but the command and the browser. This starts the two-week evaluation from `01-product-brief.md`.
 
+## M8 — Re-review
+
+**Goal.** When the author pushes new commits, the reviewer sees only what needs a second look. Scheduled after the first week of real use, so the flow is shaped by how the user actually re-reviews.
+
+**Delivers.**
+- Head-moved detection: the server checks the PR head every minute and on window focus; a banner offers "Re-analyze".
+- Changes-since-your-review: the analyzer diffs the previous head against the new one and tags every hunk unchanged, changed or new. The re-review walk covers changed and new hunks plus every hunk the user commented on; the rest folds as already reviewed.
+- Threads: author replies under the user's pins; reply and resolve from the cockpit.
+- Judgment on the delta only, so a re-review stays under a minute.
+
+**Done when.** The user re-reviews a real PR after new commits without opening GitHub.
+
 ## After M7
 
-Not planned in detail. Candidates, in the order they were raised: cockpit-to-agent questions through the wake loop, headless judgment through `claude -p`, thread replies, split diff view, TypeScript call graph, calibration command from cached documents, per-vendor parsing of Wiz and CodeQL findings, plugin marketplace listing.
+Not planned in detail. Candidates, in the order they were raised: cockpit-to-agent questions through the wake loop, headless judgment through `claude -p`, split diff view, TypeScript call graph, calibration command from cached documents, per-vendor parsing of Wiz and CodeQL findings, plugin marketplace listing.
 
 ## Working rules for every milestone
 
