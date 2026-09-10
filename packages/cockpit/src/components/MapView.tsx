@@ -257,7 +257,7 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
         <h2>The call graph could not be built</h2>
         <p>{status.message ?? 'No message given.'}</p>
         <p className="empty">
-          Re-run from the terminal with <code>review {prNumber} --graph</code>.
+          Re-run from the terminal with <code>cockpit run {prNumber}</code>.
         </p>
       </MapMessage>
     );

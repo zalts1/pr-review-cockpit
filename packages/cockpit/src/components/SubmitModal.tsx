@@ -129,7 +129,7 @@ export function SubmitModal({
               <span>
                 The PR has new commits since this review started ({shortSha(result.expected)} →{' '}
                 {shortSha(result.actual)}). Your drafts are saved. Run{' '}
-                <code>review {pr.number}</code> again to re-attach them.
+                <code>cockpit run {pr.number}</code> again to re-attach them.
               </span>
             </div>
           )}

@@ -133,10 +133,10 @@ When the user says "done", "finish", "clean up" or anything else that ends the r
 cockpit clean <pr>
 ```
 
-That stops the server, removes the worktree from their clone, and deletes the ref the checkout
-added. It keeps everything about the review itself. Report where those files are:
+That stops the server, removes the worktree it made, and deletes the ref it added to the clone
+it checked out from. It keeps everything about the review itself. Report where those files are:
 
-> Cleaned up. The server is stopped and the worktree is gone from your clone. What you wrote is
+> Cleaned up. The server is stopped and the worktree is gone. What you wrote is
 > kept in `<prDir>`: `review.json` is the analysed pull request, `drafts.json` holds any
 > comment you did not send, and each review you posted is a `submitted-<timestamp>.json`.
 
