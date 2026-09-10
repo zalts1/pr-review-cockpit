@@ -145,10 +145,12 @@ the reviewer can actually see.
 
 **4. Serve and open.** Start the server on a free port. Print the URL. The skill opens the browser. The cockpit is usable from this moment, with the recommended order and the graph tab showing a loading state.
 
-The server reserves `POST /api/drafts`, `POST /api/submit` and `POST /api/ask` and answers
-501 on them until M6, so the route names cannot drift. It watches the directory holding
-`review.json`, not the file: the analyzer publishes by writing a temp file and renaming it,
-and a watch bound to the old inode goes quiet after the first write.
+The API is five routes. `GET /` is the built cockpit, `GET /api/document` the document,
+`GET /api/events` its change stream, `GET` and `PUT /api/drafts` the drafts file, and
+`POST /api/submit` posts the review. `POST /api/ask` stays reserved and answers 501, so the
+route name cannot drift. The server watches the directory holding `review.json`, not the
+file: the analyzer publishes by writing a temp file and renaming it, and a watch bound to the
+old inode goes quiet after the first write.
 
 `cockpit analyze --expect-judgment` says that step 5 will follow. Without the flag the stage
 2 sections are written `pending` with the message `not-attached`, and the cockpit says "Not
@@ -193,9 +195,30 @@ file path and blob SHA, so the next pull request of the same repository reparses
 files whose content changed. Measured on a repository with 839 Go files in the checkout: 3.3
 seconds cold, 0.13 warm, and 794 of 852 files reused across two different pull requests.
 
-**7. Review.** The reviewer works in the browser. Drafts are saved to the server on every keystroke and stored beside the document, so a server restart loses nothing. Questions about the code go to Claude in the terminal, which still has the checkout and the document in context.
+**7. Review.** The reviewer works in the browser. Every change to a draft, the verdict or the
+review body is written to browser storage at once and sent to the server 300 ms later, so a
+burst of typing is one `PUT /api/drafts` and a crash loses at most that. The server validates
+the file with `validateDrafts`, writes it beside the document by rename, and answers with what
+it stored, stamped with its own clock; the cockpit keeps that stamp, so on reload the two
+copies are ordered by one clock and the newer one wins (ADR-42). A server that has never been
+written to answers with an empty file carrying no `updatedAt`, which is how the cockpit reads
+"the server holds nothing" and keeps its own copy. Questions about the code go to Claude in the
+terminal, which still has the checkout and the document in context.
 
-**8. Submit.** The cockpit shows a dry-run preview: every draft comment with its file, line and side, and the verdict. On confirm, the server first checks that the PR head on GitHub still matches the recorded SHA. If it moved, it stops and tells the reviewer to re-run the review. Otherwise it posts one review through `gh api` with all comments attached.
+**8. Submit.** The cockpit shows a dry-run preview: every draft comment with its file, line and
+side, and the verdict. `POST /api/submit` carries the verdict and the review body and nothing
+else: the drafts come off disk, so what the dry-run list showed is what is posted (ADR-43).
+The server runs `gh pr view <n> --repo <owner>/<repo> --json headRefOid` first and refuses with
+409 `{code: "head_moved", expected, actual}` when it differs from `pr.head.sha`. Otherwise it
+posts one review, `gh api repos/{owner}/{repo}/pulls/{n}/reviews -X POST --input -` with
+`commit_id`, `body`, `event` and the comments as `path`, `line`, `side` and, for a range,
+`start_line` and `start_side`. On success it answers `{url, id, comments, submitted}`, moves
+`drafts.json` to `submitted-<timestamp>.json` and leaves an empty drafts file behind. On
+failure the drafts are untouched and the answer says why: `{code: "own_pr"}` in one plain
+sentence when GitHub refuses an approval or a change request on the reviewer's own pull
+request, and `{code: "gh_failed", message, exitCode}` with the `gh` error otherwise. A comment
+review with no drafts and an empty body is refused by the cockpit before it becomes a
+request, because GitHub would post nothing at all.
 
 **9. Clean up.** `cockpit clean` stops the server, removes the worktree or temp clone, and keeps the review document and drafts in the cache for later inspection.
 
@@ -223,7 +246,16 @@ GitHub's review API takes one call with a list of comments. Each comment needs `
 
 Multi-line comments use `start_line` and `start_side` as well. Comments on lines outside the diff are not allowed by GitHub, and the cockpit refuses to create them.
 
-The server posts as the user's own `gh` identity. The tool never holds a token of its own.
+The server posts as the user's own `gh` identity. The tool never holds a token of its own, and
+the `gh` runner is injected, so the tests exercise every path without a network.
+
+Measured against a scratch pull request: a single-line `RIGHT` comment, a `start_line`/`line`
+range on `RIGHT`, and a comment on a deleted line on `LEFT` all came back from
+`pulls/{n}/comments` on exactly the path, line and side they were sent with. GitHub's own
+refusals are mapped rather than passed through raw: `Can not approve your own pull request` and
+`Can not request changes on your own pull request` both become `{code: "own_pr"}` with one
+plain sentence, because the reviewer needs to know to switch verdict, not to read an HTTP
+status.
 
 ## Storage layout
 
@@ -240,8 +272,10 @@ The server posts as the user's own `gh` identity. The tool never holds a token o
       compact.md           the pull request as text for the judgment pass
       judgment.json        raw LLM output, kept for debugging
       judgment.rejected.json   the last judgment that failed validation
-      drafts.json          the reviewer's unsent comments and verdict
-      server.json          port and pid of the running server
+      drafts.json          the reviewer's unsent comments, verdict and review body
+      drafts.orphaned.json     the drafts a re-analysis could not re-attach
+      submitted-<ts>.json  one file per posted review, the drafts as they were sent
+      server.json          port, pid and url of the running server
       log.txt
 ```
 
@@ -266,8 +300,18 @@ An optional `~/.config/review-cockpit/config.json` holds workspace roots to sear
 - **`gh` cannot answer for comments or checks:** the section is marked `failed` with the `gh`
   error, the header says "Checks unavailable" rather than "No checks reported", and every
   other part of stage 1 is written.
-- **PR head moved before submit:** submit is refused with a clear message. Drafts are kept. `review 123` again re-analyzes and re-attaches drafts whose file and line still exist, and lists the ones it could not place.
-- **Server dies:** `review 123` again finds the cached document and drafts and restarts the server without re-analyzing, unless the head SHA changed.
+- **PR head moved before submit:** submit is refused with 409 and a message naming both
+  shas. Nothing is posted and the drafts are kept. `cockpit analyze` again re-attaches every
+  draft whose line the new commits left in the diff, updates its `commitId`, and moves the
+  rest to `drafts.orphaned.json`; the counts go to stderr and the cockpit shows an amber
+  banner over the list (ADR-44).
+- **Server dies:** `cockpit serve` again finds the cached document and drafts and starts a
+  server without re-analyzing. A `serve` on a pull request whose server is still alive — the
+  pid in `server.json` answers signal 0 — prints that server's URL and starts nothing, so two
+  windows never fight over one drafts file. A `server.json` whose process is gone is replaced.
+- **Cockpit cannot reach the server:** the red banner says so and every change keeps going to
+  browser storage. When the event stream comes back the cockpit re-reads the drafts and sends
+  its copy if the server's is older, so the drafts typed while it was down are not lost.
 
 ## What is deliberately not here
 

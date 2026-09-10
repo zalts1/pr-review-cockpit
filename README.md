@@ -8,13 +8,20 @@ blast-radius map of what the change touches.
 The design lives in `docs/`. Start with `docs/01-product-brief.md`, then
 `docs/02-architecture.md`.
 
-**This repository is at milestone M5** (`docs/06-milestones.md`): a real pull request
-produces a real document. `packages/analyzer` resolves the pull request through `gh`, checks
+**This repository is at milestone M6** (`docs/06-milestones.md`): a real pull request
+produces a real document, and the review goes back to GitHub. `packages/analyzer` resolves the pull request through `gh`, checks
 it out as a worktree on a local clone, parses the diff, measures git history and Go structure
 with tree-sitter, scores every hunk, and writes `review.json`; `packages/server` serves that
 document to the cockpit and pushes every rewrite of it over server-sent events;
 `packages/cli` drives all of it as `cockpit prepare`, `analyze`, `judge-prompt`, `judge-merge`,
 `serve` and `clean`.
+
+Drafts, the verdict and the review body live in `drafts.json` beside the document: the cockpit
+saves them through the server on a 300 ms debounce, keeps a browser-storage copy for a server
+that is not there, and the later of the two wins on reload. Submit posts one GitHub review
+through `gh api` after checking that the head has not moved, and answers with the review's URL
+or with the reason it refused. New commits on the pull request re-attach every draft whose line
+survived and set the rest aside where the reviewer can see them.
 
 The judgment pass groups the change, orders the walk and writes the brief, and the merge
 clamps whatever it proposes against the deterministic floor. Stage 1 also ingests what the
@@ -24,9 +31,8 @@ and the summary Cursor Bugbot writes into the pull request body as a pill with t
 behind it. The map reads the graph at two levels, packages first and one package's functions
 on click, and every body the cockpit shows is rendered as sanitised markdown.
 
-What is not here yet: write-back, so Submit posts nothing and the drafts, submit and ask
-routes answer 501 (M6), and the `review <pr>` skill that runs the whole thing from one command
-(M7).
+What is not here yet: the `review <pr>` skill that runs the whole thing from one command (M7).
+`POST /api/ask`, the cockpit-to-agent channel, still answers 501.
 
 ## Run it
 
@@ -85,17 +91,39 @@ npx cockpit judge-merge  456
 `analyze` prints progress and timings per step to stderr and the path of `review.json` to
 stdout, including how many comments it placed, how many it could not, and the checks by
 status. Running it again on a pull request whose head has not moved keeps the judgment pass's
-work: stage 2 is re-merged onto the fresh stage 1, and the line above the timings says so. `serve` prints the URL, serves the built cockpit at `/` and the document at
+work: stage 2 is re-merged onto the fresh stage 1, and the line above the timings says so.
+Running it after new commits re-attaches the drafts and says how many it kept and how many it
+could not place. `serve` prints the URL, serves the built cockpit at `/` and the document at
 `/api/document`, and pushes `{"type":"document"}` over `/api/events` every time the document
-is rewritten, so the page picks up the graph stage without a reload. When you are done:
+is rewritten, so the page picks up the graph stage without a reload. A `serve` on a pull
+request whose server is still running prints that server's URL and starts nothing. When you
+are done:
 
 ```sh
 npx cockpit clean 456              # stop the server, remove the worktree and the ref
 ```
 
-`clean` keeps `review.json`. Nothing is ever written into your own clone but the objects a
-fetch brings in, one ref under `refs/review-cockpit/`, and the worktree registration, and
-`clean` removes both of those.
+`clean` keeps `review.json` and `drafts.json`. Nothing is ever written into your own clone but
+the objects a fetch brings in, one ref under `refs/review-cockpit/`, and the worktree
+registration, and `clean` removes both of those.
+
+### The local API
+
+| Route | What it does |
+|---|---|
+| `GET /` | The built cockpit, one self-contained HTML file |
+| `GET /api/document` | `review.json` as it stands |
+| `GET /api/events` | Server-sent events: `{"type":"document"}` on every rewrite |
+| `GET /api/drafts` | The drafts file, or an empty one, plus `orphaned` when a re-attach set drafts aside |
+| `PUT /api/drafts` | Replaces the drafts file after `validateDrafts`, stamps `updatedAt`, answers with what it stored |
+| `POST /api/submit` | `{verdict, summaryBody}`: posts one review from the stored drafts |
+| `GET /api/health` | Port, pid, whether a document exists, uptime |
+
+`POST /api/submit` answers `{url, id, comments, submitted}` on success, `409 {code:
+"head_moved", expected, actual}` when the pull request has new commits, `422 {code: "own_pr"}`
+when GitHub refuses a verdict on your own pull request, and `502 {code: "gh_failed", message,
+exitCode}` with the `gh` error otherwise. Only the first of those touches the drafts: it moves
+them to `submitted-<timestamp>.json` and leaves an empty file behind.
 
 | Command | What it does |
 |---|---|
@@ -104,8 +132,8 @@ fetch brings in, one ref under `refs/review-cockpit/`, and the worktree registra
 | `cockpit compact <pr> [--cwd <dir>]` | Rewrite `compact.md` from the document on its own. |
 | `cockpit judge-prompt <pr> [--cwd <dir>]` | Print the whole judgment prompt to stdout. |
 | `cockpit judge-merge <pr> [--judgment <file>] [--cwd <dir>]` | Validate `judgment.json`, merge it, write the document and the log. |
-| `cockpit serve <pr> [--port <n>] [--open] [--cwd <dir>]` | Serve the cockpit and the document on 127.0.0.1. |
-| `cockpit clean <pr> [--cwd <dir>]` | Stop the server, remove the worktree and the ref, keep the document. |
+| `cockpit serve <pr> [--port <n>] [--open] [--cwd <dir>]` | Serve the cockpit, the document and the drafts on 127.0.0.1, or print the URL of the server already serving them. |
+| `cockpit clean <pr> [--cwd <dir>]` | Stop the server, remove the worktree and the ref, keep the document and the drafts. |
 | `cockpit validate <file> [--as document\|judgment\|drafts]` | Schema and referential rules. |
 | `cockpit merge <document> <judgment> [--out <file>]` | Apply a judgment file to a document. |
 
@@ -116,9 +144,10 @@ sections are marked `not-attached` and the cockpit shows "Not analyzed" instead 
 "Analyzing…".
 
 Everything lives under `~/.cache/review-cockpit/<owner>/<repo>/`: `pr-<n>/review.json`,
-`pr-<n>/compact.md`, `pr-<n>/judgment.json`, `pr-<n>/log.txt`, `pr-<n>/worktree`,
-`pr-<n>/server.json`, and an `index/` of parsed Go symbols shared by every pull request of
-that repository. `docs/02-architecture.md` has the layout.
+`pr-<n>/compact.md`, `pr-<n>/judgment.json`, `pr-<n>/drafts.json`,
+`pr-<n>/drafts.orphaned.json`, `pr-<n>/submitted-<timestamp>.json`, `pr-<n>/log.txt`,
+`pr-<n>/worktree`, `pr-<n>/server.json`, and an `index/` of parsed Go symbols shared by every
+pull request of that repository. `docs/02-architecture.md` has the layout.
 
 ## The judgment pass
 
@@ -228,7 +257,7 @@ checked by the same rules. `docs/03-review-document-schema.md` lists them.
 ```
 packages/schema/      the contract: JSON Schema, generated types, validator, judgment merge
 packages/analyzer/    diff, git history, tree-sitter, risk, the Go call graph, review.json
-packages/server/      node:http on 127.0.0.1: the cockpit, the document, its change events
+packages/server/      node:http on 127.0.0.1: the cockpit, the document, the drafts, submit
 packages/cli/         the cockpit command: prepare, analyze, serve, clean, validate, merge
 packages/cockpit/     the React app: renders the review document and nothing else
 fixtures/             hand-authored review documents, their generator and their checker

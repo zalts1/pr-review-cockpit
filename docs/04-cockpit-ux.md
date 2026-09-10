@@ -105,7 +105,19 @@ A thread is one chip rather than one chip per comment: on a real pull request th
 
 ### Drafting comments
 
-Unchanged from M1, and deliberately identical to GitHub: hovering a line shows a `+` in the gutter, clicking it opens an inline editor under the line, dragging from one `+` to another makes a range comment. Drafts render as a yellow-bordered block on their line and count in the header. `Cmd`/`Ctrl` `Enter` saves, `Esc` cancels. Drafts live in browser storage; the server endpoint is still 501, which the disconnected banner is honest about.
+Unchanged from M1, and deliberately identical to GitHub: hovering a line shows a `+` in the gutter, clicking it opens an inline editor under the line, dragging from one `+` to another makes a range comment. Drafts render as a yellow-bordered block on their line and count in the header. `Cmd`/`Ctrl` `Enter` saves, `Esc` cancels.
+
+Every draft, the verdict and the review body go to browser storage as they are typed and to
+`PUT /api/drafts` 300 ms later, so a burst of typing is one request. On load the cockpit reads
+the server's file and its own copy and keeps the one written later; when the server has none,
+its own copy stands and is sent. A draft whose line the analyzer moved is re-placed under the
+hunk that now holds that line, so a re-analysis does not make a draft disappear from the diff.
+
+**Drafts that did not re-attach.** After new commits, an amber banner over the header says
+"N drafts could not be re-attached after new commits" with a link to the list, which sits in
+the rail under `Outdated comments` as `Drafts that did not re-attach`: each one with its
+`path:line (side)` and the first line of its body, so the text can be copied onto a line the
+current diff has. They are not posted and not counted as drafts.
 
 The `+` never appears on a line outside the diff, because GitHub would reject the comment.
 
@@ -187,10 +199,13 @@ A modal over either tab.
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-- The list is the dry run. Every comment shows exactly the path, line and side it will be posted with.
+- The list is the dry run. Every comment shows exactly the path, line and side it will be posted with, and the server posts the file it served rather than anything the modal sends, so the two cannot disagree.
+- The verdict and the summary are part of the drafts file, so closing the modal or reloading the page keeps both.
 - Choosing **Approve** while high-risk hunks remain unseen shows a warning line. It does not block. The reviewer decides.
-- **Post to GitHub** disables the button, shows a spinner, then either a link to the posted review or the error text from `gh`.
-- If the server finds that the PR head moved, the modal shows: "The PR has new commits since this review started. Your drafts are saved. Run `review 1234` again to re-attach them." Nothing is posted.
+- **Post to GitHub** disables the button, shows a spinner, then a green line with the number of comments posted and a link to the review on GitHub. The drafts are cleared, because they are comments now; they come back as pinned comments on the next re-analysis, and nothing is faked in the meantime.
+- A **comment** review with no drafts and an empty summary is refused before it is sent: the button is disabled and a line says a comment review needs a summary or at least one comment.
+- If the server finds that the PR head moved, the modal shows: "The PR has new commits since this review started (d4e5f6a → 9ab12cd). Your drafts are saved. Run `review 1234` again to re-attach them." Nothing is posted.
+- GitHub refusing an approval or a change request on the reviewer's own pull request shows as one plain sentence. Any other `gh` failure shows the error `gh` printed, verbatim, under the button.
 
 ## Loading and status states
 
@@ -208,7 +223,7 @@ Every section of the document has a state. The UI shows it in place, never as a 
 | any stage 2 section | A yellow line above the diff: "Analysis did not complete: &lt;message&gt;. Risk shown is from code signals only." The cockpit keeps working. |
 | `graph` | The Map tab shows the message and "Re-run from the terminal with `review 1234 --graph`." |
 
-**Connection lost.** If the server-sent events stream drops, a red banner at the top says "Disconnected from the local server. Drafts are saved locally." Drafts are also kept in browser storage as a fallback and replayed to the server on reconnect.
+**Connection lost.** If the server-sent events stream drops, a red banner at the top says "Disconnected from the local server. Drafts are saved locally." Every change keeps going to browser storage while it is down, and when the stream comes back the cockpit re-reads the server's drafts and sends its own copy if the server's is older.
 
 ## Empty states
 

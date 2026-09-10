@@ -403,13 +403,25 @@ The reviewer's unsent comments, stored as `drafts.json` beside the document. Wri
 
 ```jsonc
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.2.0",
   "pr": { "owner": "northwind-labs", "repo": "tenant-platform", "number": 1234 },
   "verdict": "COMMENT",            // COMMENT | REQUEST_CHANGES | APPROVE | null while unchosen
   "summaryBody": "",               // the review body posted with the verdict
-  "drafts": [ /* Draft[] */ ]
+  "drafts": [ /* Draft[] */ ],
+  "updatedAt": "2026-09-10T12:41:12Z",  // optional; when this file was last written
+  "orphaned": [ /* Draft[] */ ]         // optional; drafts a re-analysis could not re-attach
 }
 ```
+
+`updatedAt` is stamped by the server on every write and is how the cockpit orders its
+browser-storage copy against the stored file: both times come from the server's clock, so the
+newer copy wins and the older one is replaced (ADR-42). A file with no `updatedAt` has never
+been written, and loses to one that has.
+
+`orphaned` is written by the re-attach after a re-analysis, into `drafts.orphaned.json`, and
+served as a field of `GET /api/drafts`. The cockpit never writes it: a `PUT` that carries it
+has it dropped, so a cockpit cannot resurrect an orphan list the analyzer has cleared. Ids do
+not repeat across `drafts` and `orphaned`.
 
 ```jsonc
 {
@@ -430,7 +442,7 @@ The reviewer's unsent comments, stored as `drafts.json` beside the document. Wri
 
 ## Versioning
 
-- `schemaVersion` follows semantic versioning. It is `1.1.0`: `conversation`, `botSummaries` and `threadId` arrived as optional fields, so a cached `1.0.0` document still validates and still renders.
+- `schemaVersion` follows semantic versioning. It is `1.2.0`: the drafts file gained the optional `updatedAt` and `orphaned` fields, as `conversation`, `botSummaries` and `threadId` arrived in `1.1.0`, so a cached `1.0.0` document still validates and still renders.
 - **Minor** bump: a new optional field, a new enum value the cockpit can ignore. The cockpit accepts any document with the same major version.
 - **Major** bump: a renamed or removed field, a changed meaning. The cockpit refuses a document with a different major version and shows the two versions.
 - The analyzer always writes the newest version. There are no migrations in v1; a stale cached document is re-analyzed.

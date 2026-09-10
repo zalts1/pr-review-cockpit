@@ -819,3 +819,101 @@ whether stage 2 was kept and why not when it was not. The graph stage, which res
 stage 1, now has to keep a carried raise: it holds the level at the higher of the raise and the
 new floor, and clears `adjustedBy` when the floor has caught up with the raise, so the raise the
 reviewer sees is always one the code signals did not already make.
+
+---
+
+## ADR-42: The drafts file on disk is the source of truth, and the later write wins
+
+Status: accepted · 2026-09-10
+
+**Context.** The reviewer types drafts into a browser tab. Two copies of them exist: the one in
+browser storage, which survives a server that is not running, and `drafts.json` beside the
+document, which survives the tab being closed and is the only copy the submit step and the
+re-attach can read. Something has to decide which of the two is right when they disagree.
+
+**Options.**
+1. Browser storage is the truth and the file is a backup written on submit. The re-attach after
+   new commits would then have nothing to work on, and a closed tab would lose the drafts.
+2. The file is the truth and browser storage is dropped. A server that is down, or restarting,
+   would lose every keystroke since it went away, and the connection-lost banner would be a
+   promise the tool does not keep.
+3. The file is the truth, browser storage is the fallback, and the two are ordered by one clock.
+
+**Decision.** Option 3. Every change is written to browser storage at once and sent to
+`PUT /api/drafts` after 300 ms, so a burst of typing is one request. The server validates the
+file, writes it by rename, and answers with what it stored stamped with its own clock; the
+cockpit adopts that stamp. On load, and again whenever the event stream reconnects, the cockpit
+compares its `updatedAt` against the served one: the later copy wins, and a local copy that is
+later is sent. A served file with no `updatedAt` has never been written and loses to a local
+copy that has.
+
+**Consequences.** One clock orders the two copies, so a browser clock that is off does not
+decide which drafts survive. The rule is "the later write wins", not a merge: a draft typed in
+a second tab while the first tab was down is lost when the first tab saves. Two tabs on one
+pull request are not a case the tool supports, and `cockpit serve` refuses to start a second
+server for a pull request that already has one. The debounce and the comparison are pure
+functions in `packages/cockpit/src/lib/draftsSync.ts`, tested without a browser.
+
+---
+
+## ADR-43: Submit reads the drafts from disk, not from the request
+
+Status: accepted · 2026-09-10
+
+**Context.** The submit modal shows a dry-run list: every comment with the path, line and side
+it will be posted with. `POST /api/submit` could carry those comments, which is the obvious
+shape for an API where the browser holds the state.
+
+**Options.**
+1. The request carries the drafts. One round trip, and the posted review is exactly what the
+   modal had in memory.
+2. The request carries only the verdict and the review body, and the server posts the file it
+   served.
+
+**Decision.** Option 2. The dry-run list is the promise the tool makes about what will be
+posted, and the only way to keep it is for the preview and the post to read one artefact. A
+request that carried its own comments would also let a stale tab post drafts the reviewer had
+deleted, and would make the drafts file a cache rather than the record.
+
+**Consequences.** The debounced save has to land before the request, or a draft typed in the
+last 300 ms would not be in the file the server reads. Post therefore cancels the debounce and
+awaits the `PUT` before it sends the `POST`. The response says how many comments were posted,
+so a mismatch with the dry-run list is visible rather than silent. On success the server moves
+the file to `submitted-<timestamp>.json` and leaves an empty one, so what was posted is kept as
+a record and cannot be posted twice.
+
+---
+
+## ADR-44: A draft re-attaches by its line's text, and is set aside rather than moved blindly
+
+Status: accepted · 2026-09-10
+
+**Context.** New commits on the pull request move the lines under the drafts. Re-analysing
+writes a new diff with new hunk ids and new line numbers, and every draft is bound to the old
+head through `commitId`. Posting a comment against a line that has moved puts the comment on
+whatever code now occupies that number, which is worse than not posting it.
+
+**Options.**
+1. Keep every draft and let GitHub decide. A comment on a line outside the new diff is a 422
+   that fails the whole review, and one on a line that still exists but changed meaning is a
+   comment on the wrong code.
+2. Drop every draft whenever the head moves. Honest, and throws away work the reviewer did.
+3. Match each draft's line by its text in the new diff, keep the ones that survive, and set the
+   rest aside where the reviewer can see them.
+
+**Decision.** Option 3. The cached document holds the text the draft was written against, at
+that path, side and line. A line whose text is unchanged at the same number stays where it is;
+a line the new commits moved is followed to the nearest position in the same file and side
+holding that exact text; anything else is an orphan. A multi-line draft moves as a block — its
+start line has to survive the same shift as its end line — because GitHub takes a range or
+nothing. Without a cached document to read the text from, only the position can be trusted, and
+a draft whose position is gone is an orphan. Kept drafts have their `commitId` set to the new
+head.
+
+**Consequences.** The rule is text equality, so a draft on a line the new commits reformatted is
+an orphan even though the code means the same thing. A draft on a line whose text is trivial and
+repeated — a bare `}` — can follow the wrong one of several identical lines; the nearest
+position wins, which is the closest thing to the reviewer's intent that the text alone supports.
+Orphans go to `drafts.orphaned.json`, are served with the drafts, and are shown as an amber
+banner over a list in the rail; they are carried into the next re-attach, so a line that comes
+back re-attaches its draft. A submit does not clear them: nothing in that file was posted.
