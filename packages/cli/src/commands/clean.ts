@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import {
   cloneDir,
   documentFile,
@@ -7,26 +7,16 @@ import {
   prRefName,
   readDocument,
   resolveRef,
-  serverFile,
   worktreeDir,
 } from '@review-cockpit/analyzer';
+import { stopServers } from './stop.js';
 
-export function cleanCommand(prArg: string, cwd: string): number {
+export async function cleanCommand(prArg: string, cwd: string): Promise<number> {
   const ref = resolveRef(prArg, cwd);
   const done: string[] = [];
 
-  const server = serverFile(ref);
-  if (existsSync(server)) {
-    const { pid } = JSON.parse(readFileSync(server, 'utf8')) as { pid?: number };
-    if (typeof pid === 'number' && pid !== process.pid) {
-      try {
-        process.kill(pid, 'SIGTERM');
-        done.push(`stopped the server (pid ${pid})`);
-      } catch {
-        done.push(`no server running for pid ${pid}`);
-      }
-    }
-    rmSync(server, { force: true });
+  for (const outcome of await stopServers({ selector: { kind: 'pr', ref } })) {
+    done.push(outcome.detail);
   }
 
   const document = documentFile(ref);

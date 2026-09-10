@@ -108,8 +108,8 @@ stop      Stops running servers and leaves everything else alone: one pull
           is gone is removed. Always exits 0, because the SessionEnd hook runs
           it while a session is closing.
 
-clean     Stops the server, removes the worktree and the review-cockpit ref,
-          and keeps review.json and drafts.json.
+clean     Stops the server the way stop does, removes the worktree and the
+          review-cockpit ref, and keeps review.json and drafts.json.
 
 gc        Removes the checkout of every cached pull request with no server
           running and a review document older than --days, which defaults to

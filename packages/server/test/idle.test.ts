@@ -182,6 +182,19 @@ describe('a server that has been left alone', () => {
     await reader?.cancel();
   });
 
+  it('counts a request as somebody being here, and a health probe as nobody', async () => {
+    const server = await startServer({ prDir, uiPath, idleMinutes: 30 });
+    running.push(server);
+
+    await new Promise((wake) => setTimeout(wake, 60));
+    const probed = (await (await fetch(`${server.url}/api/health`)).json()) as { idleSeconds: number };
+    expect(probed.idleSeconds).toBeGreaterThan(0);
+
+    await fetch(`${server.url}/api/document`);
+    const afterUse = (await (await fetch(`${server.url}/api/health`)).json()) as { idleSeconds: number };
+    expect(afterUse.idleSeconds).toBeLessThan(probed.idleSeconds);
+  });
+
   it('never stops itself when the clock is disabled', async () => {
     const server = await startServer({ prDir, uiPath, idleMinutes: 0 });
     running.push(server);

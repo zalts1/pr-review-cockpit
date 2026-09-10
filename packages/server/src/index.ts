@@ -113,6 +113,8 @@ const ROUTE_METHODS: Record<string, string[]> = {
   '/api/ask': ['POST'],
 };
 
+const HEALTH_PATH = '/api/health';
+
 const NOT_IMPLEMENTED: Record<string, { milestone: string; what: string }> = {
   '/api/ask': { milestone: 'post-v1', what: 'asking the agent a question from the cockpit' },
 };
@@ -142,7 +144,6 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   };
 
   const server = createServer((req, res) => {
-    idle.reset();
     void handle(req, res, context).catch(() => {
       if (!res.headersSent) sendJson(res, 500, { error: 'The local server failed to handle the request.' });
       res.end();
@@ -215,6 +216,11 @@ async function handle(req: IncomingMessage, res: ServerResponse, context: Reques
   const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
   const methods = ROUTE_METHODS[pathname];
 
+  // Every request but the liveness probe is somebody using the server. `cockpit ps` and
+  // `cockpit stop` probe /api/health, and a probe that reset the clock would both keep an
+  // abandoned server alive and report its idle time as zero every time it was asked.
+  if (pathname !== HEALTH_PATH) context.idle.reset();
+
   if (methods === undefined) {
     sendJson(res, 404, { error: `No such endpoint: ${pathname}` });
     return;
@@ -258,7 +264,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, context: Reques
       sendJson(res, refreshed.status, refreshed.body);
       return;
     }
-    case '/api/health':
+    case HEALTH_PATH:
       sendJson(res, 200, {
         ok: true,
         port: context.port,
