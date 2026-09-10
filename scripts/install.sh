@@ -5,7 +5,7 @@ set -uo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cli_entry="$root/packages/cli/dist/cockpit.js"
-skill_source="$root/skill/cockpit"
+skill_source="$root/skills/cockpit"
 skill_link="$HOME/.claude/skills/cockpit"
 local_bin="$HOME/.local/bin"
 

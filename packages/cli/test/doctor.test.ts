@@ -7,8 +7,8 @@ const healthy: DoctorFacts = {
   gh: { code: 0, output: 'github.com\n  ✓ Logged in to github.com account octocat\n' },
   uiHtml: '/checkout/packages/cockpit/dist/index.html',
   cliEntry: '/checkout/packages/cli/dist/cockpit.js',
-  skillSource: '/checkout/skill/cockpit',
-  skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'symlink', target: '/checkout/skill/cockpit' },
+  skillSource: '/checkout/skills/cockpit',
+  skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'symlink', target: '/checkout/skills/cockpit' },
   configFile: { path: '/home/me/.config/review-cockpit/config.json', exists: true },
   workspaceRoots: [{ path: '/home/me/workspace', exists: true }],
 };
@@ -66,7 +66,7 @@ describe('cockpit doctor', () => {
 
     const elsewhere = doctorRows({
       ...healthy,
-      skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'symlink', target: '/other/skill/cockpit' },
+      skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'symlink', target: '/other/skills/cockpit' },
     });
     expect(stateOf(elsewhere, 'skill')).toBe('warn');
 

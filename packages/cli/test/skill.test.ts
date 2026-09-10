@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { SUBCOMMANDS, usage } from '../src/usage.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const skill = readFileSync(join(repoRoot, 'skill', 'cockpit', 'SKILL.md'), 'utf8');
+const skill = readFileSync(join(repoRoot, 'skills', 'cockpit', 'SKILL.md'), 'utf8');
 
 interface Frontmatter {
   fields: Record<string, string>;
@@ -46,7 +46,7 @@ function commandLines(text: string): string[] {
   return lines.map((line) => line.trim()).filter((line) => line.startsWith('cockpit '));
 }
 
-describe('skill/cockpit/SKILL.md', () => {
+describe('skills/cockpit/SKILL.md', () => {
   it('carries frontmatter Claude Code can load', () => {
     const { fields } = frontmatter(skill);
     expect(fields['name']).toBe('cockpit');

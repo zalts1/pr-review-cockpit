@@ -10,7 +10,7 @@ A Claude Code skill named `cockpit` turns a PR number into a running local web a
 
 | Component | What it is | Runs where | Owns |
 |---|---|---|---|
-| **Skill** | `skill/cockpit/SKILL.md` and the judgment prompt beside it. Teaches Claude Code what `cockpit <pr>` means and how to do the judgment pass. | Inside the Claude Code session | The conversation with the reviewer |
+| **Skill** | `skills/cockpit/SKILL.md` and the judgment prompt beside it. Teaches Claude Code what `cockpit <pr>` means and how to do the judgment pass. | Inside the Claude Code session | The conversation with the reviewer |
 | **CLI** (`cockpit`) | A Node program with subcommands: `run`, `prepare`, `analyze`, `compact`, `judge-prompt`, `judge-merge`, `mark-failed`, `serve`, `clean`, `doctor`, `validate`, `merge`. | Spawned by the skill | Orchestration, checkout, process lifecycle |
 | **Analyzer** | A library the CLI calls. Reads the local checkout and produces the deterministic part of the review document. | Inside the CLI process | Diff parsing, git signals, tree-sitter signals, generated-code detection |
 | **Schema package** | JSON Schema for the review document plus a validator and TypeScript types. | Imported by every other component | The contract |
@@ -18,7 +18,7 @@ A Claude Code skill named `cockpit` turns a PR number into a running local web a
 | **Cockpit** | A React app built once into static files. Renders the review document and nothing else. | The reviewer's browser | Presentation and interaction |
 | **Judgment pass** | The LLM step. Reads the deterministic document, returns groupings, order, reasons and risk adjustments in a strict JSON shape. | The resident Claude session | Semantic judgment |
 
-All components live in one repository as npm workspaces: `packages/schema`, `packages/analyzer`, `packages/server`, `packages/cockpit`, `packages/cli`, and `skill/`.
+All components live in one repository as npm workspaces: `packages/schema`, `packages/analyzer`, `packages/server`, `packages/cockpit`, `packages/cli`, and `skills/`.
 
 ## Data flow
 
@@ -181,7 +181,7 @@ otherwise.
 `cockpit judge-prompt <pr>` prints the whole prompt to stdout: the instructions, the judgment
 JSON Schema embedded from `packages/schema/schemas`, the floor rules, the merge rules, the
 shape of the summary, and the compact view at the end. The prompt text lives in
-`skill/cockpit/judgment-prompt.md` with `{{placeholders}}` the CLI fills (ADR-32), so it is
+`skills/cockpit/judgment-prompt.md` with `{{placeholders}}` the CLI fills (ADR-32), so it is
 reviewable as text rather than buried in a string. It names one output path and one next
 command.
 
@@ -248,7 +248,7 @@ next to the check pills in the cockpit header.
 
 **Installation.** `scripts/install.sh` installs the dependencies, builds every package, puts
 `cockpit` on PATH — `npm link`, or a symlink in `~/.local/bin` when the global prefix is not
-writable — and symlinks `skill/cockpit` to `~/.claude/skills/cockpit` (ADR-45).
+writable — and symlinks `skills/cockpit` to `~/.claude/skills/cockpit` (ADR-45).
 `scripts/uninstall.sh` reverses it and keeps the cache. `cockpit doctor` reports the node
 version, `gh` and its login, the build, the skill symlink and the optional config with its
 workspace roots as a table, and exits non-zero when something has to be fixed.

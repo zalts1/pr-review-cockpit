@@ -69,7 +69,7 @@ Order matters. M1 tests the thesis before anything expensive is built. M2 turns 
 **Delivers.**
 - `compact.md` generation in the analyzer.
 - The summary in the `pr-summary` shape: TL;DR, where it fits, before and after flow, one concrete example, watch-for bullets. The prompt tells the session to gather the same context that skill gathers: PR body, commits, and the code around the change, not only the diff.
-- `skill/SKILL.md` with the judgment prompt: the schema for the judgment file embedded, the floor rules stated, instructions to read the compact view and open files from the checkout only as needed.
+- `skills/cockpit/SKILL.md` with the judgment prompt: the schema for the judgment file embedded, the floor rules stated, instructions to read the compact view and open files from the checkout only as needed.
 - `cockpit judge-merge <pr>`: validate, merge, write stage 2, with the one-retry loop returning errors to the session.
 - Logging of every dropped or clamped proposal.
 
@@ -123,7 +123,7 @@ Order matters. M1 tests the thesis before anything expensive is built. M2 turns 
 **Goal.** One command from Claude Code to a fully loaded cockpit, and clean teardown.
 
 **Delivers.**
-- `skill/SKILL.md` completed: resolve the PR argument, run prepare and analyze, open the browser, run the judgment pass, run judge-merge, stay resident for questions, run `cockpit clean` on "done".
+- `skills/cockpit/SKILL.md` completed: resolve the PR argument, run prepare and analyze, open the browser, run the judgment pass, run judge-merge, stay resident for questions, run `cockpit clean` on "done".
 - Install step: one script that builds the cockpit, links the CLI, and registers the skill.
 - `cockpit clean <pr>`: stop the server, remove the worktree or leave the clone, keep the document and drafts.
 - Progress output in the terminal matching the stages.

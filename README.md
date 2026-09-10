@@ -41,7 +41,7 @@ check            status  detail
 node             ok      v24.15.0
 gh               ok      ✓ Logged in to github.com account you
 build            ok      …/packages/cockpit/dist/index.html
-skill            ok      ~/.claude/skills/cockpit → …/skill/cockpit
+skill            ok      ~/.claude/skills/cockpit → …/skills/cockpit
 config           ok      ~/.config/review-cockpit/config.json is absent, which is fine: it is optional
 workspace roots  ok      none configured: a repository with no local clone is cloned into the cache
 ```
@@ -236,7 +236,7 @@ packages/analyzer/    diff, git history, tree-sitter, risk, the Go call graph, r
 packages/server/      node:http on 127.0.0.1: the cockpit, the document, the drafts, submit
 packages/cli/         the cockpit command
 packages/cockpit/     the React app: renders the review document and nothing else
-skill/cockpit/        SKILL.md, the procedure the Claude session follows, and its prompt
+skills/cockpit/       SKILL.md, the procedure the Claude session follows, and its prompt
 fixtures/             hand-authored review documents, their generator and their checker
 docs/                 the design: brief, architecture, schema, UX, risk model, milestones
 ```
@@ -298,11 +298,11 @@ cockpit judge-prompt owner/repo#123      # read the prompt, write judgment.json 
 cockpit judge-merge  owner/repo#123
 ```
 
-The prompt lives in `skill/cockpit/judgment-prompt.md` with `{{placeholders}}` the CLI fills,
+The prompt lives in `skills/cockpit/judgment-prompt.md` with `{{placeholders}}` the CLI fills,
 so it is reviewable as text rather than buried in a string. `judge-merge` prints every proposal
 it dropped or clamped and appends the same lines to `log.txt`. A rejected judgment is kept as
 `judgment.rejected.json`, the first five errors are printed in plain words, nothing is written,
-and the exit code is non-zero. `skill/cockpit/SKILL.md` holds the retry: fix once, try once
+and the exit code is non-zero. `skills/cockpit/SKILL.md` holds the retry: fix once, try once
 more, then `cockpit mark-failed`.
 
 ### Validate and merge
