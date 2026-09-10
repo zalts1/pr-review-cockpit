@@ -1,11 +1,11 @@
-import { useState } from 'react';
 import type { Draft, PrInfo } from '@review-cockpit/schema';
 import { draftTarget } from '../lib/drafts';
 import { Markdown } from '../lib/markdown';
 import { shortSha } from '../lib/derive';
-import { CrossIcon, WarnIcon } from './Icons';
+import type { SubmitResult, Verdict } from '../lib/submit';
+import { CheckIcon, CrossIcon, SpinnerIcon, WarnIcon } from './Icons';
 
-export type Verdict = 'COMMENT' | 'REQUEST_CHANGES' | 'APPROVE';
+export type { Verdict } from '../lib/submit';
 
 const verdicts: Array<{ value: Verdict; label: string }> = [
   { value: 'COMMENT', label: 'Comment' },
@@ -17,13 +17,33 @@ interface Props {
   pr: PrInfo;
   drafts: Draft[];
   unseenHigh: number;
+  verdict: Verdict;
+  body: string;
+  posting: boolean;
+  result: SubmitResult | null;
+  onVerdict(verdict: Verdict): void;
+  onBody(body: string): void;
   onCancel(): void;
-  onPost(verdict: Verdict, body: string): void;
+  onPost(): void;
 }
 
-export function SubmitModal({ pr, drafts, unseenHigh, onCancel, onPost }: Props) {
-  const [verdict, setVerdict] = useState<Verdict>('COMMENT');
-  const [body, setBody] = useState('');
+export function SubmitModal({
+  pr,
+  drafts,
+  unseenHigh,
+  verdict,
+  body,
+  posting,
+  result,
+  onVerdict,
+  onBody,
+  onCancel,
+  onPost,
+}: Props) {
+  // GitHub takes a comment review with neither a body nor a comment as nothing
+  // at all, so the button says so rather than posting an empty review.
+  const empty = drafts.length === 0 && verdict === 'COMMENT' && body.trim().length === 0;
+  const posted = result?.kind === 'posted';
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Submit review">
@@ -43,7 +63,8 @@ export function SubmitModal({ pr, drafts, unseenHigh, onCancel, onPost }: Props)
                   type="radio"
                   name="verdict"
                   checked={verdict === option.value}
-                  onChange={() => setVerdict(option.value)}
+                  disabled={posting || posted}
+                  onChange={() => onVerdict(option.value)}
                 />
                 {option.label}
               </label>
@@ -52,7 +73,11 @@ export function SubmitModal({ pr, drafts, unseenHigh, onCancel, onPost }: Props)
 
           <label className="field">
             Review summary (optional)
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} />
+            <textarea
+              value={body}
+              disabled={posting || posted}
+              onChange={(e) => onBody(e.target.value)}
+            />
           </label>
 
           <div className="dry-run">
@@ -76,7 +101,7 @@ export function SubmitModal({ pr, drafts, unseenHigh, onCancel, onPost }: Props)
             )}
           </div>
 
-          {verdict === 'APPROVE' && unseenHigh > 0 && (
+          {verdict === 'APPROVE' && unseenHigh > 0 && !posted && (
             <div className="warn">
               <WarnIcon size={13} />
               <span>
@@ -85,14 +110,55 @@ export function SubmitModal({ pr, drafts, unseenHigh, onCancel, onPost }: Props)
               </span>
             </div>
           )}
+
+          {result?.kind === 'posted' && (
+            <div className="submit-result" role="status">
+              <CheckIcon size={13} />
+              <span>
+                Posted {result.comments} {result.comments === 1 ? 'comment' : 'comments'}.{' '}
+                <a href={result.url} target="_blank" rel="noreferrer">
+                  Open the review on GitHub
+                </a>
+              </span>
+            </div>
+          )}
+
+          {result?.kind === 'head_moved' && (
+            <div className="warn" role="alert">
+              <WarnIcon size={13} />
+              <span>
+                The PR has new commits since this review started ({shortSha(result.expected)} →{' '}
+                {shortSha(result.actual)}). Your drafts are saved. Run{' '}
+                <code>review {pr.number}</code> again to re-attach them.
+              </span>
+            </div>
+          )}
+
+          {result?.kind === 'refused' && (
+            <div className="warn" role="alert">
+              <WarnIcon size={13} />
+              <span className="submit-error">{result.message}</span>
+            </div>
+          )}
+
+          {empty && !posted && (
+            <div className="dry-run-note">
+              Nothing to post: a comment review needs a summary or at least one comment.
+            </div>
+          )}
         </div>
 
         <div className="modal-foot">
           <button className="btn" onClick={onCancel}>
-            Cancel
+            {posted ? 'Close' : 'Cancel'}
           </button>
-          <button className="btn btn-primary" onClick={() => onPost(verdict, body)}>
-            Post to GitHub
+          <button
+            className="btn btn-primary"
+            disabled={posting || posted || empty}
+            onClick={onPost}
+          >
+            {posting && <SpinnerIcon size={12} />}
+            {posting ? 'Posting…' : 'Post to GitHub'}
           </button>
         </div>
       </div>

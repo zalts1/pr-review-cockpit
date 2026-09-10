@@ -17,6 +17,8 @@ export type DocumentLoad =
 export interface DocumentState {
   load: DocumentLoad;
   disconnected: boolean;
+  /** Counts the documents this page has read, so a reader can act on a re-analysis. */
+  revision: number;
 }
 
 export function sourceFromSearch(search: string): DocumentSource {
@@ -39,6 +41,7 @@ export function storageSourceOf(source: DocumentSource): string {
 export function useDocumentSource(source: DocumentSource): DocumentState {
   const [load, setLoad] = useState<DocumentLoad>({ kind: 'loading' });
   const [disconnected, setDisconnected] = useState(false);
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     const url = documentUrlOf(source);
@@ -49,7 +52,10 @@ export function useDocumentSource(source: DocumentSource): DocumentState {
         const response = await fetch(url, { cache: 'no-store' });
         if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
         const doc = (await response.json()) as ReviewDocument;
-        if (live) setLoad({ kind: 'ready', doc });
+        if (live) {
+          setLoad({ kind: 'ready', doc });
+          setRevision((current) => current + 1);
+        }
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         const message =
@@ -87,7 +93,7 @@ export function useDocumentSource(source: DocumentSource): DocumentState {
     };
   }, [source]);
 
-  return { load, disconnected };
+  return { load, disconnected, revision };
 }
 
 function isDocumentEvent(data: unknown): boolean {

@@ -19,8 +19,10 @@ import {
   storageSourceOf,
   useDocumentSource,
 } from './lib/documentSource';
-import type { CockpitDraft } from './lib/drafts';
-import { draftsFileOf, draftsKey, loadDrafts, saveDrafts } from './lib/drafts';
+import { draftsKey, lineOwners, placeDrafts } from './lib/drafts';
+import { useDraftsSync } from './lib/draftsSync';
+import type { SubmitResult } from './lib/submit';
+import { postReview } from './lib/submit';
 import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
 import { description } from './lib/prBody';
 import { editorTargetFromDrag } from './lib/interaction';
@@ -37,12 +39,11 @@ import { Rail } from './components/Rail';
 import { StatusBanner } from './components/StatusBanner';
 import { StepCard } from './components/StepCard';
 import { SubmitModal } from './components/SubmitModal';
-import type { Verdict } from './components/SubmitModal';
 
 const fixture = documentSource.mode === 'fixture' ? documentSource.fixture : null;
 
 export function App() {
-  const { load, disconnected } = useDocumentSource(documentSource);
+  const { load, disconnected, revision } = useDocumentSource(documentSource);
 
   if (load.kind === 'loading') {
     return (
@@ -110,12 +111,14 @@ export function App() {
     );
   }
 
-  return <Cockpit doc={load.doc} disconnected={disconnected} />;
+  return <Cockpit doc={load.doc} disconnected={disconnected} revision={revision} />;
 }
 
 interface CockpitProps {
   doc: ReviewDocument;
   disconnected: boolean;
+  /** Counts the document loads, so a re-analysis re-reads the drafts beside it. */
+  revision: number;
 }
 
 type PaneItem =
@@ -128,7 +131,7 @@ type PaneItem =
       step: number | null;
     };
 
-export function Cockpit({ doc, disconnected }: CockpitProps) {
+export function Cockpit({ doc, disconnected, revision }: CockpitProps) {
   const derived = useMemo(() => derive(doc), [doc]);
   const order = useMemo(() => reviewOrder(derived), [derived]);
   const storageKey = draftsKey(doc.pr, storageSourceOf(documentSource));
@@ -170,7 +173,15 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
     planAutoCollapse.current = 'spent';
     setPlanOpen(false);
   }, []);
-  const [drafts, setDrafts] = useState<CockpitDraft[]>(() => loadDrafts(storageKey));
+  const store = useDraftsSync({
+    pr: doc.pr,
+    storageKey,
+    toServer: documentSource.mode === 'server',
+    disconnected,
+    documentRevision: revision,
+  });
+  const owners = useMemo(() => lineOwners(doc.files), [doc.files]);
+  const drafts = useMemo(() => placeDrafts(store.drafts, owners), [store.drafts, owners]);
   const [editor, setEditor] = useState<EditorTarget | null>(null);
   const [drag, setDrag] = useState<DragRange | null>(null);
   const [hoveredLine, setHoveredLine] = useState<LineTarget | null>(null);
@@ -179,10 +190,13 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
   const [flashed, setFlashed] = useState<string | null>(null);
   const [pendingScroll, setPendingScroll] = useState<string | null>(null);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const paneRef = useRef<HTMLDivElement>(null);
+  const orphansRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragRange | null>(null);
   const hunkEls = useRef(new Map<string, HTMLElement>());
   const fileEls = useRef(new Map<string, HTMLElement>());
@@ -218,11 +232,6 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
     setStepIndex(Math.max(0, nearest));
     stepId.current = derived.steps[nearest]?.ref.id ?? null;
   }, [derived.steps, derived.groupOfHunk, derived.groupById]);
-
-  useEffect(
-    () => saveDrafts(storageKey, draftsFileOf(doc.pr, drafts)),
-    [storageKey, doc.pr, drafts],
-  );
 
   useEffect(() => {
     if (!toast) return;
@@ -416,6 +425,25 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
     askAbout(currentStep.ref.id);
   }, [currentStep, askAbout]);
 
+  const post = useCallback(() => {
+    if (documentSource.mode !== 'server') {
+      setSubmitResult({
+        kind: 'refused',
+        message: 'This is a fixture opened from a file, so there is no server to post through.',
+      });
+      return;
+    }
+    setPosting(true);
+    setSubmitResult(null);
+    void postReview(store.verdict ?? 'COMMENT', store.summaryBody).then((result) => {
+      setPosting(false);
+      setSubmitResult(result);
+      // The posted comments come back as pinned comments on the next analysis,
+      // so nothing is faked here beyond dropping the drafts that became them.
+      if (result.kind === 'posted') store.clear();
+    });
+  }, [store]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -508,7 +536,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
       const location = derived.hunkById.get(target.hunkId);
       if (!location) return;
       const now = new Date().toISOString();
-      setDrafts((current) => [
+      store.setDrafts((current) => [
         ...current,
         {
           id: `d${Date.now()}${current.length}`,
@@ -527,7 +555,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
       ]);
       setEditor(null);
     },
-    removeDraft: (id) => setDrafts((current) => current.filter((d) => d.id !== id)),
+    removeDraft: (id) => store.setDrafts((current) => current.filter((d) => d.id !== id)),
     drag,
     startDrag: (target) => {
       dragRef.current = { start: target, end: target };
@@ -643,6 +671,26 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
         </div>
       )}
 
+      {store.orphaned.length > 0 && (
+        <div className="banner-drafts" role="status">
+          <WarnIcon size={13} />
+          <span>
+            {store.orphaned.length}{' '}
+            {store.orphaned.length === 1 ? 'draft' : 'drafts'} could not be re-attached after new
+            commits.{' '}
+            <button
+              className="banner-link"
+              onClick={() => {
+                setTab('files');
+                orphansRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
+            >
+              See the list
+            </button>
+          </span>
+        </div>
+      )}
+
       <Header
         pr={doc.pr}
         checks={doc.checks}
@@ -692,6 +740,8 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
                 }
                 fileCount={doc.files.length}
                 outdated={derived.outdatedComments}
+                orphaned={store.orphaned}
+                orphansRef={orphansRef}
                 conversation={doc.conversation ?? []}
                 onEntry={(entry: RailEntry) => goToStep(entry.stepIndex)}
                 onSkippable={(groupId) => {
@@ -804,11 +854,17 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
           pr={doc.pr}
           drafts={drafts}
           unseenHigh={highRemaining}
-          onCancel={() => setSubmitOpen(false)}
-          onPost={(verdict: Verdict) => {
+          verdict={store.verdict ?? 'COMMENT'}
+          body={store.summaryBody}
+          posting={posting}
+          result={submitResult}
+          onVerdict={store.setVerdict}
+          onBody={store.setSummaryBody}
+          onCancel={() => {
             setSubmitOpen(false);
-            setToast(`Not connected to GitHub yet (${verdict} with ${drafts.length} comments)`);
+            setSubmitResult(null);
           }}
+          onPost={post}
         />
       )}
 

@@ -894,7 +894,8 @@ a.pill:hover {
   color: var(--fg-muted);
 }
 
-.rail-outdated a {
+.rail-outdated a,
+.rail-orphan-target {
   font-family: var(--mono);
   font-size: 11px;
 }
@@ -970,6 +971,31 @@ a.pill:hover {
   font-size: 13px;
   font-weight: 500;
   flex: none;
+}
+
+.banner-drafts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--draft-border);
+  background: var(--draft-bg);
+  color: var(--fg);
+  padding: 8px 20px;
+  font-size: 13px;
+  flex: none;
+}
+
+.banner-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--link);
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.banner-link:hover {
+  text-decoration: underline;
 }
 
 .label-pending {
@@ -2145,6 +2171,23 @@ tr:hover .plus {
   border-radius: 6px;
   padding: 6px 10px;
   font-size: 13px;
+}
+
+.submit-result {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  border: 1px solid var(--success);
+  background: #dafbe1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.submit-error {
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  font-size: 12px;
 }
 
 .toast {

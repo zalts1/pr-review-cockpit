@@ -1,5 +1,6 @@
-import type { Comment, ConversationComment, RiskLevel } from '@review-cockpit/schema';
-import { preview } from '../lib/drafts';
+import type { RefObject } from 'react';
+import type { Comment, ConversationComment, Draft, RiskLevel } from '@review-cockpit/schema';
+import { draftTarget, preview } from '../lib/drafts';
 import type { RailEntry, SkippableEntry } from '../lib/plan';
 import { railPath } from '../lib/plan';
 import { CheckIcon, ChevronRightIcon } from './Icons';
@@ -15,6 +16,9 @@ interface Props {
   pathPending: string | null;
   fileCount: number;
   outdated: Comment[];
+  /** Drafts a re-analysis could not place in the new diff. */
+  orphaned: Draft[];
+  orphansRef: RefObject<HTMLDivElement>;
   conversation: ConversationComment[];
   onEntry(entry: RailEntry): void;
   onSkippable(groupId: string): void;
@@ -41,6 +45,8 @@ export function Rail({
   pathPending,
   fileCount,
   outdated,
+  orphaned,
+  orphansRef,
   conversation,
   onEntry,
   onSkippable,
@@ -164,6 +170,27 @@ export function Rail({
             ))}
           </ul>
         </>
+      )}
+      {orphaned.length > 0 && (
+        <div ref={orphansRef}>
+          <div className="rail-divider" />
+          <div className="rail-head">
+            <span className="rail-title">Drafts that did not re-attach</span>
+            <span className="rail-count">{orphaned.length}</span>
+          </div>
+          <div className="rail-note">
+            New commits moved or removed these lines. Copy what you still want to say onto a
+            line the current diff has.
+          </div>
+          <ul className="rail-outdated">
+            {orphaned.map((draft) => (
+              <li key={draft.id}>
+                <span className="rail-orphan-target">{draftTarget(draft)}</span>
+                <span>{preview(draft.body, 72)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {conversation.length > 0 && (
         <>
