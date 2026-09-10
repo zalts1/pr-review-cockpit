@@ -1456,6 +1456,61 @@ a.pill:hover {
   background: #ddf4ff;
 }
 
+/* highlight.js output, in GitHub's light syntax palette. Every selector holds a single
+   class, because the sanitiser keeps one hljs- class per span and drops the tiered rest.
+   hljs-meta, hljs-punctuation, hljs-operator, hljs-params and hljs-function are left at the
+   cell colour on purpose: they wrap whole spans of text that read louder than they mean. */
+.diff .hljs-keyword,
+.diff .hljs-doctag,
+.diff .hljs-name,
+.diff .hljs-selector-tag,
+.diff .hljs-tag {
+  color: #cf222e;
+}
+
+.diff .hljs-string,
+.diff .hljs-regexp,
+.diff .hljs-char,
+.diff .hljs-link {
+  color: #0a3069;
+}
+
+.diff .hljs-comment,
+.diff .hljs-quote,
+.diff .hljs-code {
+  color: #6e7781;
+}
+
+.diff .hljs-number,
+.diff .hljs-literal,
+.diff .hljs-built_in,
+.diff .hljs-section,
+.diff .hljs-selector-class,
+.diff .hljs-selector-id {
+  color: #0550ae;
+}
+
+.diff .hljs-title {
+  color: #8250df;
+}
+
+.diff .hljs-type,
+.diff .hljs-variable,
+.diff .hljs-attr,
+.diff .hljs-attribute,
+.diff .hljs-symbol,
+.diff .hljs-bullet {
+  color: #953800;
+}
+
+.diff .hljs-strong {
+  font-weight: 600;
+}
+
+.diff .hljs-emphasis {
+  font-style: italic;
+}
+
 .plus-cell {
   text-align: center;
   padding-left: 4px !important;

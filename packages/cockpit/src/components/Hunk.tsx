@@ -1,7 +1,8 @@
-import { Fragment } from 'react';
+import { Fragment, useMemo } from 'react';
 import type { DiffLine, Hunk as HunkModel, ReviewFile } from '@review-cockpit/schema';
 import type { CommentThread } from '../lib/derive';
 import type { CockpitDraft } from '../lib/drafts';
+import { grammarFor, highlightHunkCached } from '../lib/highlight';
 import { Markdown } from '../lib/markdown';
 import type { DragRange, EditorTarget, LineTarget } from '../lib/interaction';
 import { rangeOf } from '../lib/interaction';
@@ -51,6 +52,8 @@ interface Props {
 }
 
 export function Hunk({ hunk, file, handlers }: Props) {
+  const grammar = grammarFor(file);
+  const code = useMemo(() => highlightHunkCached(hunk, grammar), [hunk, grammar]);
   const threads = handlers.threadsByHunk.get(hunk.id) ?? [];
   const drafts = handlers.drafts.filter((d) => d.hunkId === hunk.id);
   const selection = handlers.drag && handlers.drag.start.hunkId === hunk.id
@@ -88,6 +91,7 @@ export function Hunk({ hunk, file, handlers }: Props) {
 
           {hunk.lines.map((line, i) => {
             const target = lineTarget(file, hunk, line);
+            const html = code[i] ?? null;
             const selected =
               selection !== null &&
               target !== null &&
@@ -148,7 +152,7 @@ export function Hunk({ hunk, file, handlers }: Props) {
                   <td className="num">{line.newNo ?? ''}</td>
                   <td className="code">
                     {line.type === 'add' ? '+' : line.type === 'del' ? '-' : ' '}
-                    {line.text}
+                    {html === null ? line.text : <span dangerouslySetInnerHTML={{ __html: html }} />}
                   </td>
                 </tr>
 
