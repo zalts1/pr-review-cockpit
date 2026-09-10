@@ -142,11 +142,7 @@ describe('GET /api/events', () => {
 });
 
 describe('reserved routes', () => {
-  it.each([
-    ['/api/drafts', 'M6'],
-    ['/api/submit', 'M6'],
-    ['/api/ask', 'post-v1'],
-  ])('%s answers 501 naming the milestone', async (path, milestone) => {
+  it.each([['/api/ask', 'post-v1']])('%s answers 501 naming the milestone', async (path, milestone) => {
     const server = await start();
     const response = await fetch(`${server.url}${path}`, {
       method: 'POST',

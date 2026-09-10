@@ -17,6 +17,9 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@review-cockpit/schema": "0.1.0"
+  },
   "devDependencies": {
     "vitest": "^3.2.7"
   }

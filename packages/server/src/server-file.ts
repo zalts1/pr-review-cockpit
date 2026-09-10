@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { SERVER_FILENAME } from './paths.js';
@@ -19,6 +20,34 @@ export async function writeServerFile(prDir: string, contents: ServerFile): Prom
   } catch (error) {
     await unlink(temp).catch(() => undefined);
     throw error;
+  }
+}
+
+export function readServerFile(prDir: string): ServerFile | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(join(prDir, SERVER_FILENAME), 'utf8'));
+  } catch {
+    return null;
+  }
+  const file = parsed as Partial<ServerFile> | null;
+  if (typeof file?.pid !== 'number' || typeof file.port !== 'number') return null;
+  return {
+    port: file.port,
+    pid: file.pid,
+    url: file.url ?? `http://127.0.0.1:${file.port}`,
+    startedAt: file.startedAt ?? '',
+  };
+}
+
+/** Signal 0 asks the kernel whether the process exists without touching it. */
+export function serverIsAlive(file: ServerFile): boolean {
+  if (file.pid === process.pid) return true;
+  try {
+    process.kill(file.pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
 }
 
