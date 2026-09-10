@@ -1,7 +1,7 @@
 {
   "name": "review-cockpit",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "PR Review Cockpit — a local web app that renders a review document for one pull request.",
   "license": "MIT",
   "workspaces": [

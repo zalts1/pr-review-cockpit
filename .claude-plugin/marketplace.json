@@ -9,7 +9,7 @@
       "name": "cockpit",
       "source": "./",
       "description": "Turns one GitHub pull request into a guided local review: a risk-scored diff, mechanical changes folded into groups, existing comments pinned to their lines, a reading order and a brief on every hunk.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Nadav Zaltsman"
       },
