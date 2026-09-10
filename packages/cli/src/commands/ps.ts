@@ -58,9 +58,14 @@ async function row(server: RecordedServer, at: number): Promise<PsRow> {
     port: server.file.port,
     pid: server.file.pid,
     started: age(server.file.startedAt, at),
-    idleFor: health === null ? '?' : duration(health.idleSeconds),
-    clients: health === null ? '?' : String(health.clients),
+    idleFor: shown(health?.idleSeconds ?? null, duration),
+    clients: shown(health?.clients ?? null, String),
   };
+}
+
+/** A server that did not answer, or answered without the field, is not claimed to be idle. */
+function shown(value: number | null, format: (value: number) => string): string {
+  return value === null ? '?' : format(value);
 }
 
 function age(startedAt: string, at: number): string {

@@ -18,8 +18,9 @@ export interface RecordedServer extends CachedPr {
 }
 
 export interface Health {
-  clients: number;
-  idleSeconds: number;
+  /** Null on a server started before 0.2.0, which does not report either. */
+  clients: number | null;
+  idleSeconds: number | null;
 }
 
 /**
@@ -93,8 +94,8 @@ export async function healthOf(url: string): Promise<Health | null> {
   const health = await probe(url);
   if (health === null) return null;
   return {
-    clients: typeof health.clients === 'number' ? health.clients : 0,
-    idleSeconds: typeof health.idleSeconds === 'number' ? health.idleSeconds : 0,
+    clients: typeof health.clients === 'number' ? health.clients : null,
+    idleSeconds: typeof health.idleSeconds === 'number' ? health.idleSeconds : null,
   };
 }
 
