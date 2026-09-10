@@ -23,12 +23,36 @@ const CHAR_WIDTH = 6.4;
 const LABEL_PADDING = 26;
 const MIN_WIDTH = 118;
 const MAX_WIDTH = 300;
-const MIN_HEIGHT = 28;
-const MAX_HEIGHT = 46;
 const FUNCTION_HEIGHT = 26;
 const MAX_EDGE_WIDTH = 6;
 
+/** Members listed on a package card before the rest become "and N more". */
+export const CARD_MEMBERS = 3;
+
+// The card is measured, not guessed: the layout places boxes by these numbers
+// and `.map-card` in styles.css draws the same padding, gaps and line heights.
+const CARD_MIN_WIDTH = 190;
+const CARD_MAX_WIDTH = 380;
+const CARD_PAD_X = 12;
+const CARD_PAD_Y = 10;
+const CARD_GAP = 6;
+const CARD_NAME_HEIGHT = 16;
+const CARD_META_HEIGHT = 15;
+const CARD_MEMBER_HEIGHT = 16;
+const CARD_MEMBER_GAP = 3;
+const CARD_LINK_HEIGHT = 15;
+const MEMBER_CHAR = 6.7;
+const MEMBER_COLUMN_GAP = 12;
+
 export type HeatOf = (hunkIds: string[]) => RiskLevel;
+
+export interface CardMember {
+  id: string;
+  label: string;
+  callers: number;
+  heat: RiskLevel;
+  hunkIds: string[];
+}
 
 export interface PlacedNode {
   id: string;
@@ -49,6 +73,11 @@ export interface PlacedNode {
   fanOut: number;
   changedFunctions: number;
   foldedNeighbours: number;
+  /** The most-called changed functions, for the card body at level 1. */
+  members: CardMember[];
+  /** Changed functions the card counts but does not list. */
+  hiddenMembers: number;
+  highFunctions: number;
   clickable: boolean;
 }
 
@@ -95,10 +124,12 @@ export function packageOf(node: GraphNode): string {
   return slash === -1 ? '(repository root)' : node.file.slice(0, slash);
 }
 
-/** The last two segments, so a deep Go package path still fits in a node. */
-export function shortPackage(path: string): string {
+export const PACKAGE_SEGMENTS = 3;
+
+/** The last few segments, so a deep Go package path still fits on a card. */
+export function shortPackage(path: string, keep = PACKAGE_SEGMENTS): string {
   const segments = path.split('/');
-  return segments.length <= 2 ? path : `…/${segments.slice(-2).join('/')}`;
+  return segments.length <= keep ? path : `…/${segments.slice(-keep).join('/')}`;
 }
 
 function labelWidth(label: string): number {
@@ -310,8 +341,8 @@ function route(wires: Wire[], position: (id: string) => Rect): PlacedEdge[] {
   });
 }
 
-/** Level 1: one node per package, one edge per package pair, weighted by resolved calls. */
-export function packageLevel(graph: Graph, heatOf: HeatOf): MapLayout {
+/** Level 1: one card per package, one edge per package pair, weighted by resolved calls. */
+export function packageLevel(graph: Graph, heatOf: HeatOf, cardMembers = CARD_MEMBERS): MapLayout {
   const packages = graph.nodes.filter((node) => node.kind === 'package');
   const byLabel = new Map(packages.map((node) => [node.label, node] as const));
   const packageOfNode = new Map(
@@ -328,24 +359,76 @@ export function packageLevel(graph: Graph, heatOf: HeatOf): MapLayout {
     weights.set(key, (weights.get(key) ?? 0) + 1);
   }
 
+  const degrees = degreesOf(graph);
+  const membersByPackage = new Map<string, CardMember[]>();
+  for (const node of graph.nodes) {
+    if (node.kind === 'package' || !node.changed) continue;
+    const label = packageOf(node);
+    const list = membersByPackage.get(label) ?? [];
+    list.push({
+      id: node.id,
+      label: node.label,
+      callers: degrees.fanIn.get(node.id) ?? 0,
+      heat: heatOf(node.hunkIds),
+      hunkIds: node.hunkIds,
+    });
+    membersByPackage.set(label, list);
+  }
+  for (const list of membersByPackage.values()) {
+    list.sort((a, b) => b.callers - a.callers || a.label.localeCompare(b.label));
+  }
+
   const changedFunctionsOf = (node: GraphNode): number => node.count?.changedFunctions ?? 0;
-  const most = Math.max(0, ...packages.map(changedFunctionsOf));
 
   // A package with changed hunks but no changed function, such as a generated
   // proto package, has nothing to show at level 2, so it does not open.
-  const openable = new Set(
-    graph.nodes
-      .filter((node) => node.kind !== 'package' && node.changed)
-      .map((node) => packageOf(node)),
-  );
+  const openable = new Set(membersByPackage.keys());
+
+  const cardOf = (node: GraphNode) => {
+    const all = membersByPackage.get(node.label) ?? [];
+    const shown = all.slice(0, cardMembers);
+    const hidden = all.length - shown.length;
+    const changedFunctions = Math.max(changedFunctionsOf(node), all.length);
+    const name = shortPackage(node.label);
+    const meta = `${changedFunctions} changed ${changedFunctions === 1 ? 'function' : 'functions'}`;
+    const rows = [
+      name.length * CHAR_WIDTH,
+      (meta.length + 8) * MEMBER_CHAR,
+      ...shown.map(
+        (member) =>
+          (member.label.length + String(member.callers).length + 8) * MEMBER_CHAR +
+          MEMBER_COLUMN_GAP,
+      ),
+      hidden > 0 ? `and ${hidden} more`.length * MEMBER_CHAR : 0,
+    ];
+    const listed = shown.length + (hidden > 0 ? 1 : 0);
+    const height =
+      CARD_PAD_Y * 2 +
+      CARD_NAME_HEIGHT +
+      CARD_GAP +
+      CARD_META_HEIGHT +
+      (listed === 0
+        ? 0
+        : CARD_GAP + 2 + listed * CARD_MEMBER_HEIGHT + (listed - 1) * CARD_MEMBER_GAP) +
+      (openable.has(node.label) ? CARD_GAP + CARD_LINK_HEIGHT : 0);
+    return {
+      members: shown,
+      hiddenMembers: hidden,
+      changedFunctions,
+      highFunctions: all.filter((member) => member.heat === 'high').length,
+      width: Math.min(
+        CARD_MAX_WIDTH,
+        Math.max(CARD_MIN_WIDTH, Math.ceil(Math.max(...rows) + CARD_PAD_X * 2)),
+      ),
+      height,
+    };
+  };
+
+  const cards = new Map(packages.map((node) => [node.id, cardOf(node)] as const));
 
   const sized: Sized[] = packages.map((node) => {
-    const share = most === 0 ? 0 : Math.log1p(changedFunctionsOf(node)) / Math.log1p(most);
-    return {
-      id: node.id,
-      width: Math.min(MAX_WIDTH, labelWidth(shortPackage(node.label)) + 70 * share),
-      height: MIN_HEIGHT + (MAX_HEIGHT - MIN_HEIGHT) * share,
-    };
+    const card = cards.get(node.id) as NonNullable<ReturnType<typeof cardOf>>;
+    return { id: node.id, width: card.width, height: card.height };
   });
 
   const wires: Wire[] = [...weights].map(([key, weight]) => {
@@ -373,7 +456,7 @@ export function packageLevel(graph: Graph, heatOf: HeatOf): MapLayout {
   return {
     nodes: packages.map((node) => {
       const fan = fanOfPackage.get(node.label) ?? { in: 0, out: 0 };
-      const changedFunctions = changedFunctionsOf(node);
+      const card = cards.get(node.id) as NonNullable<ReturnType<typeof cardOf>>;
       return {
         id: node.id,
         kind: 'package' as const,
@@ -381,13 +464,16 @@ export function packageLevel(graph: Graph, heatOf: HeatOf): MapLayout {
         title: node.label,
         ...laid.position(node.id),
         changed: node.changed,
-        filled: changedFunctions > 0,
+        filled: card.changedFunctions > 0,
         heat: heatOf(node.hunkIds),
         hunkIds: node.hunkIds,
         fanIn: fan.in,
         fanOut: fan.out,
-        changedFunctions,
+        changedFunctions: card.changedFunctions,
         foldedNeighbours: node.count?.foldedNeighbours ?? 0,
+        members: card.members,
+        hiddenMembers: card.hiddenMembers,
+        highFunctions: card.highFunctions,
         clickable: openable.has(node.label),
       };
     }),
@@ -397,7 +483,7 @@ export function packageLevel(graph: Graph, heatOf: HeatOf): MapLayout {
       nodes: packages.length,
       changedFunctions: packages.reduce((total, node) => total + changedFunctionsOf(node), 0),
       hiddenFunctions: 0,
-      neighbours: packages.filter((node) => changedFunctionsOf(node) === 0).length,
+      neighbours: packages.filter((node) => !openable.has(node.label)).length,
       folded: packages.reduce((total, node) => total + (node.count?.foldedNeighbours ?? 0), 0),
     },
     width: laid.width,
@@ -479,9 +565,10 @@ export function functionLevel(
   const callerNodes = neighbours.filter((node) => callersOf.has(node.id));
   const calleeNodes = neighbours.filter((node) => !callersOf.has(node.id));
 
+  // A changed row carries a heat dot before its label, which labelWidth does not know about.
   const cellOf = (id: string, label: string): Cell => ({
     id,
-    width: labelWidth(label),
+    width: labelWidth(label) + 14,
     height: FUNCTION_HEIGHT,
   });
   // The open package can appear in more than one column, as its own unchanged
@@ -534,6 +621,9 @@ export function functionLevel(
     fanOut: fanOut.get(node.id) ?? 0,
     changedFunctions: 0,
     foldedNeighbours: 0,
+    members: [],
+    hiddenMembers: 0,
+    highFunctions: 0,
     clickable: node.changed && node.hunkIds.length > 0,
   }));
 
@@ -551,6 +641,9 @@ export function functionLevel(
     fanOut: 0,
     changedFunctions: count,
     foldedNeighbours: count,
+    members: [],
+    hiddenMembers: 0,
+    highFunctions: 0,
     clickable: false,
   });
 

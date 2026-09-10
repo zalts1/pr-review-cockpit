@@ -2,16 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Graph, RiskLevel, SectionStatus } from '@review-cockpit/schema';
 import type { MapLayout, PlacedNode } from '../lib/mapLayout';
 import { functionLevel, packageLevel } from '../lib/mapLayout';
+import { ArrowRightIcon, ChevronRightIcon, WarnIcon } from './Icons';
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
 const FIT_ZOOM = 1.4;
-
-const heatColor: Record<RiskLevel, string> = {
-  high: 'var(--high)',
-  medium: 'var(--medium)',
-  low: 'var(--link)',
-};
+/** A pointer that travelled further than this was panning, not clicking a card. */
+const CLICK_SLOP = 4;
 
 type Level = { kind: 'packages' } | { kind: 'package'; id: string };
 
@@ -33,17 +30,141 @@ function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
 }
 
+/**
+ * A package the analyzer tracked no changed function in, such as regenerated
+ * protobuf output, still carries changed hunks: count those instead of saying
+ * "0 changed functions" about a package the reviewer can see in the diff.
+ */
+function cardMeta(node: PlacedNode): string {
+  if (!node.changed) {
+    return `calls in · ${node.fanIn} ${node.fanIn === 1 ? 'call' : 'calls'}`;
+  }
+  if (node.changedFunctions > 0) {
+    return `${node.changedFunctions} changed ${
+      node.changedFunctions === 1 ? 'function' : 'functions'
+    }`;
+  }
+  const hunks = node.hunkIds.length;
+  return `${hunks} changed ${hunks === 1 ? 'hunk' : 'hunks'}`;
+}
+
+function heatWord(node: PlacedNode): string {
+  if (node.highFunctions > 0) {
+    return `${node.highFunctions} high`;
+  }
+  return node.changed ? node.heat : 'unchanged';
+}
+
+function PackageCard({
+  node,
+  open,
+  onOpen,
+  onHover,
+}: {
+  node: PlacedNode;
+  open: boolean;
+  onOpen(): void;
+  onHover(node: PlacedNode | null): void;
+}) {
+  const muted = !node.changed;
+  const heat = heatWord(node);
+  const Tag = node.clickable ? 'button' : 'div';
+
+  return (
+    <Tag
+      className={[
+        'map-card',
+        muted ? 'is-muted' : 'is-changed',
+        muted ? '' : `heat-card-${node.heat}`,
+        node.clickable ? 'is-clickable' : '',
+        open ? 'is-open' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={{ left: node.x, top: node.y, width: node.width, minHeight: node.height }}
+      onClick={node.clickable ? onOpen : undefined}
+      onMouseEnter={() => onHover(node)}
+      onMouseLeave={() => onHover(null)}
+      title={node.title}
+    >
+      <div className="map-card-name">{node.label}</div>
+      <div className="map-card-meta">
+        <span>{cardMeta(node)}</span>
+        {node.changed && <span className={`map-card-heat-${node.heat}`}>{heat}</span>}
+      </div>
+
+      {node.members.length > 0 && (
+        <div className="map-members">
+          {node.members.map((member) => (
+            <div className="map-member" key={member.id}>
+              <span className={`map-member-${member.heat}`}>{member.label}</span>
+              <span className="map-member-callers">
+                {member.callers} {member.callers === 1 ? 'caller' : 'callers'}
+              </span>
+            </div>
+          ))}
+          {node.hiddenMembers > 0 && (
+            <div className="map-more">and {node.hiddenMembers} more</div>
+          )}
+        </div>
+      )}
+
+      {node.clickable && (
+        <span className="map-open">
+          Open package <ArrowRightIcon size={10} />
+        </span>
+      )}
+    </Tag>
+  );
+}
+
+function FunctionNode({
+  node,
+  onClick,
+  onHover,
+}: {
+  node: PlacedNode;
+  onClick(): void;
+  onHover(node: PlacedNode | null): void;
+}) {
+  const Tag = node.clickable ? 'button' : 'div';
+  return (
+    <Tag
+      className={[
+        'map-node',
+        node.changed ? 'is-changed' : '',
+        node.changed ? `heat-card-${node.heat}` : '',
+        node.kind === 'folded' ? 'is-folded' : '',
+        node.clickable ? 'is-clickable' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
+      onClick={node.clickable ? onClick : undefined}
+      onMouseEnter={() => onHover(node)}
+      onMouseLeave={() => onHover(null)}
+      title={node.title}
+    >
+      {node.changed && node.heat !== 'low' && (
+        <span className={`rail-dot rail-dot-${node.heat}`} title={`${node.heat} risk`} />
+      )}
+      <span className="map-node-label">{node.label}</span>
+    </Tag>
+  );
+}
+
 export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: Props) {
   const [level, setLevel] = useState<Level>({ kind: 'packages' });
   const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 });
   const [hovered, setHovered] = useState<PlacedNode | null>(null);
   const [panning, setPanning] = useState(false);
   const dragFrom = useRef<{ x: number; y: number } | null>(null);
+  const travelled = useRef(0);
   const canvas = useRef<HTMLDivElement>(null);
 
   const ready = status.state === 'ready' && graph.nodes.length > 0;
-
-  const openPackage = level.kind === 'package' ? graph.nodes.find((n) => n.id === level.id) : null;
+  const openPackage =
+    level.kind === 'package' ? graph.nodes.find((n) => n.id === level.id) : null;
 
   const laid: MapLayout | null = useMemo(() => {
     if (!ready) return null;
@@ -55,7 +176,11 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
   const fit = useCallback(() => {
     const box = canvas.current?.getBoundingClientRect();
     if (!box || !laid || laid.width === 0 || laid.height === 0) return;
-    const k = clamp(Math.min(box.width / laid.width, box.height / laid.height), MIN_ZOOM, FIT_ZOOM);
+    const k = clamp(
+      Math.min(box.width / laid.width, box.height / laid.height),
+      MIN_ZOOM,
+      FIT_ZOOM,
+    );
     setView({ x: (box.width - laid.width * k) / 2, y: (box.height - laid.height * k) / 2, k });
   }, [laid]);
 
@@ -92,7 +217,7 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
     return (
       <div className="map">
         <div className="map-message">
-          <p>Building call graph… this can take up to a minute on large repositories.</p>
+          <p>Building the call graph. This can take up to a minute on a large repository.</p>
         </div>
       </div>
     );
@@ -102,10 +227,9 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
     return (
       <div className="map">
         <div className="map-message">
-          <p>
-            {status.message ?? 'The call graph could not be built.'}
-            <br />
-            <br />
+          <WarnIcon size={20} />
+          <p>{status.message ?? 'The call graph could not be built.'}</p>
+          <p className="empty">
             Re-run from the terminal with <code>review {prNumber} --graph</code>.
           </p>
         </div>
@@ -134,6 +258,13 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
 
   const packages = level.kind === 'packages';
   const counts = laid.counts;
+  const hoverAt =
+    hovered === null
+      ? null
+      : {
+          left: hovered.x * view.k + view.x,
+          top: (hovered.y + hovered.height) * view.k + view.y + 8,
+        };
 
   return (
     <div className="map">
@@ -146,58 +277,69 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
               <button className="btn-link" onClick={() => setLevel({ kind: 'packages' })}>
                 All packages
               </button>
-              <span aria-hidden="true">›</span>
+              <ChevronRightIcon size={10} />
               <strong title={openPackage?.label}>{openPackage?.label}</strong>
             </>
           )}
         </span>
         <span className="map-count">
           {packages
-            ? `${counts.nodes} packages · ${counts.changedFunctions} changed functions · click a changed package`
-            : `${counts.changedFunctions}${counts.hiddenFunctions > 0 ? ` of ${counts.changedFunctions + counts.hiddenFunctions}` : ''} changed functions · ${counts.neighbours} neighbours${counts.folded > 0 ? ` · ${counts.folded} callers folded` : ''}`}
+            ? `· ${counts.nodes} packages touched, ${counts.neighbours} with no changed function of their own`
+            : `· level 2 · ${counts.changedFunctions}${
+                counts.hiddenFunctions > 0
+                  ? ` of ${counts.changedFunctions + counts.hiddenFunctions}`
+                  : ''
+              } changed, ${counts.neighbours} callers and callees shown${
+                counts.folded > 0 ? `, ${counts.folded} folded` : ''
+              }`}
         </span>
-        <div className="header-spacer" />
         <div className="map-legend">
           {packages ? (
             <>
               <span className="legend-item">
-                <span className="legend-swatch is-changed" /> has a changed function
+                <span className="legend-swatch is-high" /> changed, high
               </span>
               <span className="legend-item">
-                <span className="legend-swatch" /> caller or callee only
+                <span className="legend-swatch is-medium" /> changed, medium
               </span>
               <span className="legend-item">
-                <span className="legend-line is-thick" /> more calls
+                <span className="legend-swatch is-muted" /> unchanged caller
+              </span>
+              <span className="legend-item">
+                <span className="legend-line" /> calls, thicker = more
               </span>
             </>
           ) : (
             <>
               <span className="legend-item">
-                <span className="legend-swatch is-changed" /> changed in this PR
+                <span className="legend-swatch is-high" /> changed in this PR
               </span>
               <span className="legend-item">
                 <span className="legend-swatch" /> unchanged caller or callee
               </span>
               <span className="legend-item">
-                <span className="legend-swatch is-folded" /> counted, not drawn
+                <span className="legend-swatch is-muted" /> counted, not drawn
               </span>
             </>
           )}
-        </div>
-        {!packages && (
-          <button className="btn btn-small" onClick={() => setLevel({ kind: 'packages' })}>
-            Back
+          {!packages && (
+            <button className="btn btn-small" onClick={() => setLevel({ kind: 'packages' })}>
+              Back
+            </button>
+          )}
+          <button className="btn btn-small" onClick={fit}>
+            Fit
           </button>
-        )}
-        <button className="btn btn-small" onClick={fit}>
-          Fit
-        </button>
+        </div>
       </div>
 
       {packages && graph.truncated && (
         <div className="banner">
-          ⚠ Some packages have more callers than the map draws. Open one to see how many were
-          folded into it.
+          <WarnIcon size={13} />
+          <span>
+            Some packages have more callers than the map draws. Open one to see how many were
+            folded into it.
+          </span>
         </div>
       )}
 
@@ -208,11 +350,13 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
           if (e.button !== 0) return;
           e.currentTarget.setPointerCapture(e.pointerId);
           dragFrom.current = { x: e.clientX - view.x, y: e.clientY - view.y };
+          travelled.current = 0;
           setPanning(true);
         }}
         onPointerMove={(e) => {
           const from = dragFrom.current;
           if (from === null) return;
+          travelled.current += Math.abs(e.movementX) + Math.abs(e.movementY);
           setView((current) => ({ ...current, x: e.clientX - from.x, y: e.clientY - from.y }));
         }}
         onPointerUp={() => {
@@ -223,140 +367,108 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
           dragFrom.current = null;
           setPanning(false);
         }}
+        onClickCapture={(e) => {
+          if (travelled.current > CLICK_SLOP) e.stopPropagation();
+        }}
         onDoubleClick={fit}
       >
-        <svg width="100%" height="100%" role="img" aria-label="Blast radius map">
-          <defs>
-            <marker
-              id="arrow-calls"
-              viewBox="0 0 10 10"
-              refX="9"
-              refY="5"
-              markerWidth="7"
-              markerHeight="7"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fg-muted)" />
-            </marker>
-            <marker
-              id="arrow-folded"
-              viewBox="0 0 10 10"
-              refX="9"
-              refY="5"
-              markerWidth="7"
-              markerHeight="7"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fg-subtle)" />
-            </marker>
-          </defs>
-
-          <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
-            {laid.boxes.map((box) => (
-              <g key={box.id}>
-                <rect
-                  x={box.x}
-                  y={box.y}
-                  width={box.width}
-                  height={box.height}
-                  rx={8}
-                  fill="var(--panel)"
-                  stroke="var(--border)"
-                />
-                <text
-                  x={box.x + 8}
-                  y={box.y + 14}
-                  fontSize={11}
-                  fill="var(--fg-muted)"
-                  fontFamily="var(--mono)"
-                >
-                  {box.label}
-                  <title>{box.title}</title>
-                </text>
-              </g>
-            ))}
-
+        <div
+          className="map-scene"
+          style={{
+            width: laid.width,
+            height: laid.height,
+            transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`,
+          }}
+        >
+          <svg className="map-edges" width={laid.width} height={laid.height} fill="none">
+            <defs>
+              <marker
+                id="arrow-calls"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fg-subtle)" />
+              </marker>
+            </defs>
             {laid.edges.map((edge) => (
               <polyline
                 key={edge.key}
                 points={edge.points.map((p) => `${p.x},${p.y}`).join(' ')}
-                fill="none"
-                stroke={edge.folded ? 'var(--fg-subtle)' : 'var(--fg-muted)'}
+                stroke="var(--fg-subtle)"
                 strokeWidth={edge.width}
-                strokeDasharray={edge.folded ? '4 3' : undefined}
-                markerEnd={`url(#arrow-${edge.folded ? 'folded' : 'calls'})`}
+                strokeDasharray={edge.folded ? '4 4' : undefined}
+                markerEnd="url(#arrow-calls)"
               />
             ))}
+          </svg>
 
-            {laid.nodes.map((node) => (
-              <g
+          {laid.boxes.map((box) => (
+            <div
+              className="map-box"
+              key={box.id}
+              style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
+            >
+              <span className="map-box-label" title={box.title}>
+                {box.label}
+              </span>
+            </div>
+          ))}
+
+          {laid.nodes.map((node) =>
+            node.kind === 'package' ? (
+              <PackageCard
                 key={node.id}
-                onMouseEnter={() => setHovered(node)}
-                onMouseLeave={() => setHovered(null)}
+                node={node}
+                open={false}
+                onOpen={() => setLevel({ kind: 'package', id: node.id })}
+                onHover={setHovered}
+              />
+            ) : (
+              <FunctionNode
+                key={node.id}
+                node={node}
                 onClick={() => {
-                  if (!node.clickable) return;
-                  if (node.kind === 'package') {
-                    setLevel({ kind: 'package', id: node.id });
-                    return;
-                  }
                   const first = node.hunkIds[0];
                   if (first !== undefined) onJumpToHunk(first);
                 }}
-                style={{ cursor: node.clickable ? 'pointer' : 'default' }}
-              >
-                <rect
-                  x={node.x}
-                  y={node.y}
-                  width={node.width}
-                  height={node.height}
-                  rx={6}
-                  fill={node.filled ? '#ddf4ff' : 'var(--page)'}
-                  stroke={node.changed ? heatColor[node.heat] : 'var(--border)'}
-                  strokeWidth={node.changed ? 2 : 1}
-                  strokeDasharray={node.kind === 'folded' ? '4 3' : undefined}
-                />
-                <text
-                  x={node.x + 8}
-                  y={node.y + node.height / 2 + 4}
-                  fontSize={11}
-                  fontFamily="var(--mono)"
-                  fill={node.changed ? 'var(--fg)' : 'var(--fg-muted)'}
-                >
-                  {node.kind === 'folded' ? '' : node.filled ? '■ ' : '□ '}
-                  {node.label}
-                  <title>{node.title}</title>
-                </text>
-              </g>
-            ))}
-          </g>
-        </svg>
+                onHover={setHovered}
+              />
+            ),
+          )}
+        </div>
 
-        {hovered && (
-          <div className="map-hover">
+        {hovered && hoverAt && (
+          <div className="map-hover" style={{ left: hoverAt.left, top: hoverAt.top }}>
             <div className="map-hover-title">{hovered.title}</div>
             {hovered.kind === 'package' ? (
               <>
-                <div>
-                  {hovered.changedFunctions} changed functions · {hovered.foldedNeighbours} callers
-                  folded
-                </div>
-                <div>
-                  calls in {hovered.fanIn} · calls out {hovered.fanOut}
-                </div>
-                <div>{hovered.changed ? `${hovered.heat} risk` : 'unchanged'}</div>
+                <span>
+                  {hovered.changedFunctions} changed · {hovered.fanIn} calls in ·{' '}
+                  {hovered.fanOut} calls out
+                  {hovered.foldedNeighbours > 0 && ` · ${hovered.foldedNeighbours} callers folded`}
+                </span>
+                <span>
+                  {hovered.clickable
+                    ? 'Click to see its functions. A changed function jumps to its diff.'
+                    : 'No changed function of its own, so it does not open.'}
+                </span>
               </>
             ) : hovered.kind === 'folded' ? (
-              <div>Callers counted on the package node instead of drawn.</div>
+              <span>Counted on the package node instead of drawn.</span>
             ) : (
               <>
-                <div>
+                <span>
                   fan-in {hovered.fanIn} · fan-out {hovered.fanOut}
-                </div>
-                <div>
+                </span>
+                <span>
                   {hovered.changed
-                    ? `hunks: ${hovered.hunkIds.join(', ')} · ${hovered.heat} risk`
+                    ? `${hovered.heat} risk · click to open its diff`
                     : 'unchanged'}
-                </div>
+                </span>
               </>
             )}
           </div>
