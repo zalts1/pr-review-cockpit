@@ -284,6 +284,8 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
             return next;
           });
         }
+        const inGroup = derived.groupOfHunk.get(step.ref.id);
+        if (inGroup) setExpandedGroups((current) => new Set(current).add(inGroup.id));
         setSeen((current) => new Set(current).add(step.ref.id));
       } else {
         const group = derived.groupById.get(step.ref.id);

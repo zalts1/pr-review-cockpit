@@ -9,6 +9,7 @@ const MAX_ZOOM = 3;
 const FIT_ZOOM = 1.4;
 /** A pointer that travelled further than this was panning, not clicking a card. */
 const CLICK_SLOP = 4;
+const TOP_MARGIN = 24;
 
 type Level = { kind: 'packages' } | { kind: 'package'; id: string };
 
@@ -36,8 +37,11 @@ function clamp(value: number, low: number, high: number): number {
  * "0 changed functions" about a package the reviewer can see in the diff.
  */
 function cardMeta(node: PlacedNode): string {
+  const plural = (n: number): string => (n === 1 ? 'call' : 'calls');
   if (!node.changed) {
-    return `calls in · ${node.fanIn} ${node.fanIn === 1 ? 'call' : 'calls'}`;
+    return node.fanOut > 0
+      ? `calls in · ${node.fanOut} ${plural(node.fanOut)}`
+      : `called · ${node.fanIn} ${plural(node.fanIn)}`;
   }
   if (node.changedFunctions > 0) {
     return `${node.changedFunctions} changed ${
@@ -181,7 +185,13 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
       MIN_ZOOM,
       FIT_ZOOM,
     );
-    setView({ x: (box.width - laid.width * k) / 2, y: (box.height - laid.height * k) / 2, k });
+    // A wide, shallow graph centred vertically floats in a field of white, so
+    // anything shorter than the canvas is anchored near the top instead.
+    setView({
+      x: (box.width - laid.width * k) / 2,
+      y: Math.min((box.height - laid.height * k) / 2, TOP_MARGIN),
+      k,
+    });
   }, [laid]);
 
   // Each level lays out on its own scale, so the view is fitted when one opens
@@ -380,7 +390,12 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
             transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`,
           }}
         >
-          <svg className="map-edges" width={laid.width} height={laid.height} fill="none">
+          <svg
+            className={`map-edges${packages ? '' : ' is-dense'}`}
+            width={laid.width}
+            height={laid.height}
+            fill="none"
+          >
             <defs>
               <marker
                 id="arrow-calls"

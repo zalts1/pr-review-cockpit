@@ -47,8 +47,11 @@ export function Rail({
     <nav className="rail" aria-label="Review path">
       <div className="rail-head">
         <span className="rail-title">Review path</span>
-        <span className="rail-count">
-          {fileCount} {fileCount === 1 ? 'file' : 'files'}
+        <span
+          className="rail-count"
+          title={`${fileCount} ${fileCount === 1 ? 'file' : 'files'} changed in this PR`}
+        >
+          {fileCount} changed
         </span>
       </div>
 

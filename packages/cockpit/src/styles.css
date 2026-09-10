@@ -1632,6 +1632,12 @@ tr:hover .plus {
   pointer-events: none;
 }
 
+/* Level 2 draws one edge per call, so at a hundred of them the lines would
+   read louder than the function names they connect. */
+.map-edges.is-dense {
+  opacity: 0.5;
+}
+
 .map-card {
   position: absolute;
   display: flex;
@@ -1717,8 +1723,15 @@ tr:hover .plus {
   white-space: nowrap;
 }
 
+.map-member > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .map-member-callers {
   color: var(--fg-subtle);
+  flex: none;
 }
 
 .map-member-high {

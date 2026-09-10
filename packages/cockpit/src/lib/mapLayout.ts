@@ -32,7 +32,7 @@ export const CARD_MEMBERS = 3;
 // The card is measured, not guessed: the layout places boxes by these numbers
 // and `.map-card` in styles.css draws the same padding, gaps and line heights.
 const CARD_MIN_WIDTH = 190;
-const CARD_MAX_WIDTH = 380;
+const CARD_MAX_WIDTH = 420;
 const CARD_PAD_X = 12;
 const CARD_PAD_Y = 10;
 const CARD_GAP = 6;
@@ -41,7 +41,7 @@ const CARD_META_HEIGHT = 15;
 const CARD_MEMBER_HEIGHT = 16;
 const CARD_MEMBER_GAP = 3;
 const CARD_LINK_HEIGHT = 15;
-const MEMBER_CHAR = 6.7;
+const MEMBER_CHAR = 6.9;
 const MEMBER_COLUMN_GAP = 12;
 
 export type HeatOf = (hunkIds: string[]) => RiskLevel;
