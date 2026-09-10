@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { BotSummary, Check, PrInfo } from '@review-cockpit/schema';
 import { shortSha } from '../lib/derive';
@@ -154,24 +155,48 @@ function shortBotName(name: string): string {
 function BotSummaryPill({ summary }: { summary: BotSummary }) {
   const level = summary.riskLevel;
   const className = level === 'high' ? 'pill-fail' : level === 'medium' ? 'pill-running' : 'pill-muted';
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
   return (
-    <div className="pill-hover">
-      <a
+    <div className="pill-hover" ref={root}>
+      <button
+        type="button"
         className={`pill ${className}`}
-        href={summary.url}
-        target="_blank"
-        rel="noreferrer"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
       >
         <BotIcon size={10} /> {shortBotName(summary.source.name)}:{' '}
         {level === null ? 'summary' : `${level} risk`}
-      </a>
-      <div className="hovercard" role="note">
-        <span className="hovercard-head">
-          {summary.source.name}
-          {level !== null && ` · ${level} risk`}
-        </span>
-        <Markdown text={summary.body} className="hovercard-body" />
-      </div>
+      </button>
+      {open && (
+        <div className="hovercard" role="dialog">
+          <span className="hovercard-head">
+            {summary.source.name}
+            {level !== null && ` · ${level} risk`}
+            <a href={summary.url} target="_blank" rel="noreferrer" className="hovercard-link">
+              Open on GitHub
+            </a>
+          </span>
+          <Markdown text={summary.body} className="hovercard-body" />
+        </div>
+      )}
     </div>
   );
 }

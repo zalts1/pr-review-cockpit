@@ -318,8 +318,6 @@ a.pill:hover {
   filter: brightness(0.97);
 }
 
-/* A pill with a card behind it: the bot summary is too long for a title attribute. */
-
 .pill-hover {
   position: relative;
   display: inline-flex;
@@ -330,7 +328,6 @@ a.pill:hover {
   top: calc(100% + 6px);
   left: 0;
   z-index: 40;
-  display: none;
   width: 460px;
   max-height: 420px;
   overflow-y: auto;
@@ -344,9 +341,16 @@ a.pill:hover {
   text-align: left;
 }
 
-.pill-hover:hover .hovercard,
-.pill-hover:focus-within .hovercard {
-  display: block;
+.pill-hover > .pill {
+  cursor: pointer;
+  border-style: solid;
+}
+
+.hovercard-link {
+  float: right;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .hovercard-head {
