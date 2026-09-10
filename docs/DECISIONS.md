@@ -577,3 +577,15 @@ skill's progress reporting — until then a second failure is a message in the t
 label in the cockpit. `--judgment <file>` reads a judgment from elsewhere and still writes the
 rejected copy into the pull request's cache directory, so the name the docs promise is always
 where the docs say.
+
+---
+
+## ADR-34: The M4b redesign follows direction B, "Calm GitHub", with two pieces from C
+
+Status: accepted · 2026-09-10
+
+**Context.** After M4 the user found the cockpit too dense, unclear about where to start, unfinished-looking, and awkward to navigate. Three directions were mocked up on one axis, how much of the PR is on screen at once: A focus mode (one step at a time), B calm GitHub (full diff, current file open, quiet heat), C plan rail (brief and steps in a wide rail beside the plain diff).
+
+**Decision.** B. Engineers trust the diff, not a narrative about it; B keeps the full diff one click away and matches GitHub muscle memory. From C it takes the before/after flow and watch-for shown once in the plan strip, and step notes on rail hover. Adds "Ask Claude about this hunk", which copies a ready prompt, as the cheap first version of the cockpit-to-agent channel. Focus mode may return later as a toggle.
+
+**Consequences.** The bottom autopilot bar is removed; its function moves to the header button and the plan strip. The rail changes from a file tree to a review-order list. Reference mockups in `docs/design/m4b/`.

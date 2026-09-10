@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; color: #1f2328; background: #ffffff; }
+    a { color: #0969da; text-decoration: none; } a:hover { text-decoration: underline; }
+    .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+    .num { color: #818b98; text-align: right; padding: 0 10px; user-select: none; width: 48px; }
+    .row { display: grid; grid-template-columns: 48px 48px 1fr; font: 13px/22px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+    .add { background: #e6ffec; } .add .num { background: #ccffd8; }
+    .del { background: #ffebe9; } .del .num { background: #ffd7d5; }
+    .ctx .num { background: #ffffff; }
+    .step { display: flex; align-items: center; gap: 8px; padding: 4px 16px; font-size: 12px; color: #59636e; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 900px; overflow: hidden; background: #f6f8fa; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid #d0d7de; background: #ffffff;">
+    <div style="display: flex; align-items: baseline; gap: 8px;">
+      <span style="color: #59636e;">tenant-platform</span><span style="font-size: 16px; font-weight: 600;">Add tenant record API</span><span style="color: #818b98;">#1234</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: #59636e;">
+      <span>Focus</span>
+      <span style="display: inline-flex; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden;"><span style="padding: 3px 10px; background: #1f2328; color: #ffffff;">One step</span><span style="padding: 3px 10px; background: #ffffff;">Full diff</span></span>
+      <span>2 drafts</span>
+      <button style="height: 30px; padding: 0 12px; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; font: inherit; font-size: 13px;">Submit review</button>
+    </div>
+  </div>
+
+  <div style="display: flex; flex: 1; min-height: 0;">
+    <!-- Plan list: every step, grouped by phase, with progress -->
+    <div style="width: 300px; border-right: 1px solid #d0d7de; background: #ffffff; padding: 12px 0; overflow: hidden;">
+      <div style="padding: 0 16px 10px; display: flex; align-items: baseline; justify-content: space-between;"><span style="font-size: 11px; font-weight: 600; color: #59636e; letter-spacing: 0.02em;">PLAN</span><span style="font-size: 11px; color: #59636e;">3 of 11 · 2 high ahead</span></div>
+      <div style="padding: 2px 16px 4px; font-size: 12px; font-weight: 600;">Models</div>
+      <div class="step"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#1a7f37" stroke-width="2"><path d="M3 8.5l3 3 7-7"/></svg><span>New Record struct and validation rules</span></div>
+      <div class="step"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#1a7f37" stroke-width="2"><path d="M3 8.5l3 3 7-7"/></svg><span>Migration 0042 adds tenant_profiles</span></div>
+      <div style="padding: 8px 16px 4px; font-size: 12px; font-weight: 600;">Core</div>
+      <div class="step" style="background: #ddf4ff; border-left: 3px solid #0969da; padding-left: 13px; color: #1f2328;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #cf222e;"></span><span style="font-weight: 600;">UpdateRecord error contract</span></div>
+      <div class="step"><span style="width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid #bf8700;"></span><span>validate: name and region required</span></div>
+      <div class="step"><span style="width: 8px; height: 8px; border-radius: 50%; background: #cf222e;"></span><span>Handler maps status codes to HTTP</span></div>
+      <div class="step"><span style="width: 8px;"></span><span>Router registers PATCH /tenants/:id</span></div>
+      <div style="padding: 8px 16px 4px; font-size: 12px; font-weight: 600;">Call sites</div>
+      <div class="step"><span style="width: 8px;"></span><span>Worker sync uses the new client</span></div>
+      <div class="step"><span style="width: 8px;"></span><span>Rename TenantRecord → TenantProfile · 9 files</span></div>
+      <div class="step"><span style="width: 8px;"></span><span>Backoffice client regenerated</span></div>
+      <div style="padding: 8px 16px 4px; font-size: 12px; font-weight: 600;">Tests</div>
+      <div class="step"><span style="width: 8px;"></span><span>record_test covers the new statuses</span></div>
+      <div class="step"><span style="width: 8px;"></span><span>validate_test table cases</span></div>
+    </div>
+
+    <!-- Stage: one step, nothing else -->
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 24px 40px; overflow: hidden;">
+      <div style="width: 100%; max-width: 980px; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: baseline; gap: 12px;">
+            <span style="font-size: 12px; color: #59636e;">STEP 3 OF 11 · CORE</span>
+            <span style="display: inline-flex; align-items: center; gap: 4px; color: #cf222e; font-size: 12px; font-weight: 600;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2l6 11H2z"/></svg>HIGH</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button style="height: 32px; padding: 0 12px; border: 1px solid #d0d7de; border-radius: 6px; background: #ffffff; font: inherit; font-size: 13px;">Prev</button>
+            <button style="height: 32px; padding: 0 14px; border: 1px solid #1a7f37; border-radius: 6px; background: #1f883d; color: #ffffff; font: inherit; font-size: 13px; font-weight: 600;">Done, next</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 20px; font-weight: 600; line-height: 1.3;">UpdateRecord changes its error contract</div>
+          <div style="font-size: 14px; color: #59636e; margin-top: 4px;">Returns a gRPC status instead of the ErrMissingID sentinel. Every caller that compared against the sentinel changes behaviour. <span style="color: #818b98;">23 callers · 5 fix commits in 90 days · first change by this author.</span></div>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden;">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: #f6f8fa; border-bottom: 1px solid #d0d7de;">
+            <span class="mono" style="font-size: 12px; font-weight: 600;">api/service/tenant/record.go</span>
+            <span class="mono" style="font-size: 12px; color: #59636e;">Service.UpdateRecord</span>
+            <a href="#" style="margin-left: auto; font-size: 12px;">Open full file</a>
+          </div>
+          <div style="display: flex; padding: 4px 14px; background: #f6f8fa; color: #59636e; font: 12px/20px ui-monospace, Menlo, monospace;">@@ -88,14 +91,31 @@</div>
+          <div class="row ctx"><span class="num">88</span><span class="num">91</span><span>	if req.GetId() == "" {</span></div>
+          <div class="row del"><span class="num">89</span><span class="num"></span><span>-		return nil, ErrMissingID</span></div>
+          <div class="row add"><span class="num"></span><span class="num">92</span><span>+		return nil, status.Error(codes.InvalidArgument, "id is required")</span></div>
+          <div style="display: flex; align-items: flex-start; gap: 10px; margin: 6px 14px 6px 110px; padding: 8px 12px; border: 1px solid #d0d7de; border-radius: 6px; background: #ffffff; font-size: 12px; max-width: 640px;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#59636e" stroke-width="1.5" style="margin-top: 2px;"><rect x="2" y="3" width="12" height="9" rx="2"/><path d="M6 12l-2 2v-2"/></svg>
+            <div><span style="font-weight: 600;">Bugbot</span> <span style="color: #bf8700; font-weight: 600;">medium</span> · status.Error drops the wrapped cause; callers using errors.Is on the returned error will no longer match. Consider status.FromContextError or wrapping.</div>
+          </div>
+          <div class="row ctx"><span class="num">90</span><span class="num">93</span><span>	}</span></div>
+          <div class="row ctx"><span class="num">91</span><span class="num">94</span><span>	rec, err := s.store.Get(ctx, req.GetId())</span></div>
+          <div class="row add"><span class="num"></span><span class="num">95</span><span>+	if errors.Is(err, store.ErrNotFound) {</span></div>
+          <div class="row add"><span class="num"></span><span class="num">96</span><span>+		return nil, status.Error(codes.NotFound, "record not found")</span></div>
+          <div class="row add"><span class="num"></span><span class="num">97</span><span>+	}</span></div>
+          <div class="row ctx"><span class="num">92</span><span class="num">98</span><span>	if err != nil {</span></div>
+          <div class="row ctx"><span class="num">93</span><span class="num">99</span><span>		return nil, err</span></div>
+          <div class="row ctx"><span class="num">94</span><span class="num">100</span><span>	}</span></div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: #59636e;">
+          <span>Callers of UpdateRecord in this PR:</span>
+          <a href="#" class="mono">api/http/tenant.go:118</a><a href="#" class="mono">cmd/worker/sync.go:44</a>
+          <span style="margin-left: auto;">Press <span class="mono" style="padding: 0 4px; border: 1px solid #d0d7de; border-radius: 4px;">c</span> to comment</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

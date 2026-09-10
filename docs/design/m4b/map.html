@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; color: #1f2328; background: #ffffff; }
+    a { color: #0969da; text-decoration: none; } a:hover { text-decoration: underline; }
+    .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+    .pkg { position: absolute; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 8px; background: #ffffff; border: 1px solid #d0d7de; box-shadow: 0 1px 2px rgba(31,35,40,0.06); min-width: 190px; }
+    .pkg-name { font: 600 12px/1.3 ui-monospace, Menlo, monospace; }
+    .pkg-meta { font-size: 11px; color: #59636e; display: flex; gap: 10px; }
+    .muted { background: #f6f8fa; color: #59636e; border-style: dashed; box-shadow: none; }
+    .muted .pkg-name { color: #59636e; font-weight: 500; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 900px; overflow: hidden; background: #ffffff; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid #d0d7de;">
+    <div style="display: flex; align-items: baseline; gap: 8px;">
+      <span style="color: #59636e;">tenant-platform</span><span style="font-size: 16px; font-weight: 600;">Add tenant record API</span><span style="color: #818b98;">#1234</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="display: inline-flex; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden; font-size: 12px;"><span style="padding: 4px 10px;">Files</span><span style="padding: 4px 10px; background: #1f2328; color: #ffffff;">Map</span></span>
+      <span style="font-size: 12px; color: #59636e;">2 drafts</span>
+      <button style="height: 30px; padding: 0 12px; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; font: inherit; font-size: 13px;">Submit review</button>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 12px; padding: 8px 20px; border-bottom: 1px solid #d0d7de; background: #f6f8fa; font-size: 12px; color: #59636e;">
+    <span style="color: #1f2328; font-weight: 600;">All packages</span>
+    <span>·</span><span>6 packages touched, 3 callers outside the change</span>
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 14px;">
+      <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: #ffffff; border: 2px solid #cf222e;"></span>changed, high</span>
+      <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: #ffffff; border: 2px solid #bf8700;"></span>changed, medium</span>
+      <span style="display: inline-flex; align-items: center; gap: 5px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: #f6f8fa; border: 1px dashed #818b98;"></span>unchanged caller</span>
+      <span style="display: inline-flex; align-items: center; gap: 5px;"><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="#818b98" stroke-width="3"/></svg>calls, thicker = more</span>
+      <button style="height: 26px; padding: 0 10px; border: 1px solid #d0d7de; border-radius: 6px; background: #ffffff; font: inherit; font-size: 12px;">Fit</button>
+    </div>
+  </div>
+
+  <!-- Level 1: packages, left to right in call direction -->
+  <div style="position: relative; flex: 1; background: #ffffff;">
+    <svg style="position: absolute; inset: 0;" width="1440" height="770" fill="none">
+      <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#818b98"/></marker></defs>
+      <path d="M340 250 C 420 250, 440 330, 520 330" stroke="#818b98" stroke-width="5" marker-end="url(#a)"/>
+      <path d="M340 430 C 420 430, 440 360, 520 360" stroke="#818b98" stroke-width="2.5" marker-end="url(#a)"/>
+      <path d="M340 600 C 420 600, 440 380, 520 380" stroke="#818b98" stroke-width="2" marker-end="url(#a)"/>
+      <path d="M750 340 C 830 340, 850 260, 930 260" stroke="#818b98" stroke-width="4" marker-end="url(#a)"/>
+      <path d="M750 370 C 830 370, 850 470, 930 470" stroke="#818b98" stroke-width="3" marker-end="url(#a)"/>
+      <path d="M1160 260 C 1210 260, 1220 260, 1240 260" stroke="#818b98" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#a)"/>
+    </svg>
+
+    <div class="pkg" style="left: 120px; top: 215px; border-color: #cf222e; border-width: 2px;">
+      <div class="pkg-name">api/http</div>
+      <div class="pkg-meta"><span>2 changed functions</span><span style="color: #cf222e; font-weight: 600;">1 high</span></div>
+    </div>
+    <div class="pkg" style="left: 120px; top: 395px; border-color: #bf8700; border-width: 2px;">
+      <div class="pkg-name">cmd/worker</div>
+      <div class="pkg-meta"><span>1 changed function</span></div>
+    </div>
+    <div class="pkg muted" style="left: 120px; top: 565px;">
+      <div class="pkg-name">backoffice/client</div>
+      <div class="pkg-meta"><span>calls in · 3 callers</span></div>
+    </div>
+
+    <div class="pkg" style="left: 520px; top: 300px; border-color: #cf222e; border-width: 2px; min-width: 230px; box-shadow: 0 0 0 4px #fff0ee;">
+      <div class="pkg-name">api/service/tenant</div>
+      <div class="pkg-meta"><span>4 changed functions</span><span style="color: #cf222e; font-weight: 600;">2 high</span></div>
+      <div style="display: flex; flex-direction: column; gap: 3px; margin-top: 2px; font: 11px/1.4 ui-monospace, Menlo, monospace;">
+        <div style="display: flex; justify-content: space-between; gap: 12px;"><span style="color: #cf222e;">Service.UpdateRecord</span><span style="color: #818b98;">23 callers</span></div>
+        <div style="display: flex; justify-content: space-between; gap: 12px;"><span style="color: #cf222e;">Service.GetRecord</span><span style="color: #818b98;">11</span></div>
+        <div style="display: flex; justify-content: space-between; gap: 12px;"><span style="color: #bf8700;">validate</span><span style="color: #818b98;">2</span></div>
+        <div style="color: #818b98;">and 1 more</div>
+      </div>
+      <a href="#" style="font-size: 11px;">Open package →</a>
+    </div>
+
+    <div class="pkg" style="left: 930px; top: 225px; border-color: #d0d7de;">
+      <div class="pkg-name">internal/tenant</div>
+      <div class="pkg-meta"><span>1 changed type</span><span>low</span></div>
+    </div>
+    <div class="pkg" style="left: 930px; top: 435px; border-color: #cf222e; border-width: 2px;">
+      <div class="pkg-name">db/migrations</div>
+      <div class="pkg-meta"><span>1 migration</span><span style="color: #cf222e; font-weight: 600;">high</span></div>
+    </div>
+    <div class="pkg muted" style="left: 1240px; top: 225px;">
+      <div class="pkg-name">api/proto/tenant/v1</div>
+      <div class="pkg-meta"><span>generated</span></div>
+    </div>
+
+    <!-- Hover card -->
+    <div style="position: absolute; left: 520px; top: 500px; padding: 8px 10px; background: #1f2328; color: #ffffff; border-radius: 6px; font-size: 12px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 4px 12px rgba(31,35,40,0.2);">
+      <span style="font-weight: 600;">api/service/tenant</span>
+      <span style="color: #d0d7de;">4 changed · 23 callers in 3 packages · 7 callees</span>
+      <span style="color: #d0d7de;">Click to see functions. Double-click a function to jump to its diff.</span>
+    </div>
+
+    <!-- Level 2 inset: what a click opens -->
+    <div style="position: absolute; right: 24px; bottom: 24px; width: 420px; background: #ffffff; border: 1px solid #d0d7de; border-radius: 8px; box-shadow: 0 8px 24px rgba(31,35,40,0.12); overflow: hidden;">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font-size: 12px;">
+        <a href="#">All packages</a><span style="color: #818b98;">›</span><span class="mono" style="font-weight: 600;">api/service/tenant</span>
+        <span style="margin-left: auto; color: #59636e;">level 2 · 4 changed, 12 callers shown</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0; font-size: 12px;">
+        <div style="padding: 10px 12px; border-right: 1px solid #d8dee4;">
+          <div style="font-size: 11px; color: #59636e; margin-bottom: 6px;">CALLERS · api/http</div>
+          <div class="mono" style="font-size: 11px; color: #59636e; display: flex; flex-direction: column; gap: 4px;"><span>Handler.PatchTenant</span><span>Handler.GetTenant</span><span style="color: #818b98;">cmd/worker · syncTenants</span><span style="color: #818b98;">and 9 more callers</span></div>
+        </div>
+        <div style="padding: 10px 12px;">
+          <div style="font-size: 11px; color: #59636e; margin-bottom: 6px;">CHANGED</div>
+          <div class="mono" style="font-size: 11px; display: flex; flex-direction: column; gap: 4px;">
+            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #cf222e;"></span>Service.UpdateRecord</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #cf222e;"></span>Service.GetRecord</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid #bf8700;"></span>validate</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 8px;"></span>toProto</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

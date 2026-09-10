@@ -1,0 +1,121 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; color: #1f2328; background: #ffffff; }
+    a { color: #0969da; text-decoration: none; } a:hover { text-decoration: underline; }
+    .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+    .num { color: #818b98; text-align: right; padding: 0 10px; user-select: none; width: 44px; }
+    .row { display: grid; grid-template-columns: 44px 44px 1fr; font: 12px/20px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+    .add { background: #e6ffec; } .add .num { background: #ccffd8; }
+    .del { background: #ffebe9; } .del .num { background: #ffd7d5; }
+    .ctx .num { background: #ffffff; }
+    .fh { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font-size: 12px; }
+    .step { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; font-size: 12px; color: #59636e; }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 900px; overflow: hidden; background: #ffffff; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid #d0d7de;">
+    <div style="display: flex; align-items: baseline; gap: 8px;">
+      <span style="color: #59636e;">tenant-platform</span><span style="font-size: 16px; font-weight: 600;">Add tenant record API</span><span style="color: #818b98;">#1234</span>
+      <span style="margin-left: 12px; font-size: 12px; color: #59636e;">jdoe · <span class="mono">TP-329-tenant-record-api</span> → <span class="mono">main</span></span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="display: inline-flex; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden; font-size: 12px;"><span style="padding: 4px 10px; background: #1f2328; color: #ffffff;">Files</span><span style="padding: 4px 10px;">Map</span></span>
+      <span style="font-size: 12px; color: #59636e;">2 drafts</span>
+      <button style="height: 30px; padding: 0 12px; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa; font: inherit; font-size: 13px;">Submit review</button>
+    </div>
+  </div>
+
+  <div style="display: flex; flex: 1; min-height: 0;">
+    <!-- Brief rail: the pr-summary, then the steps -->
+    <div style="width: 360px; border-right: 1px solid #d0d7de; background: #ffffff; padding: 16px 20px; overflow: hidden; display: flex; flex-direction: column; gap: 14px;">
+      <div style="font-size: 14px; line-height: 1.45;">Adds a tenant record API with validation and renames TenantRecord to TenantProfile across the service.</div>
+      <div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px;">
+        <div style="display: grid; grid-template-columns: 48px 1fr; gap: 8px;"><span style="color: #59636e;">before</span><span class="mono" style="font-size: 11px;">http → Handler → UpdateRecord → ErrMissingID</span></div>
+        <div style="display: grid; grid-template-columns: 48px 1fr; gap: 8px;"><span style="color: #59636e;">after</span><span class="mono" style="font-size: 11px;">http → Handler → UpdateRecord → codes.InvalidArgument → 400</span></div>
+      </div>
+      <div style="padding: 8px 10px; background: #f6f8fa; border-radius: 6px; font-size: 12px; color: #1f2328;"><span style="font-weight: 600; color: #59636e;">Watch for</span> · Migration 0042 adds a NOT NULL column without a default.</div>
+
+      <div style="border-top: 1px solid #d8dee4;"></div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between;"><span style="font-size: 11px; font-weight: 600; color: #59636e; letter-spacing: 0.02em;">REVIEW PATH</span><span style="font-size: 11px; color: #59636e;">3 of 11</span></div>
+      <div style="display: flex; flex-direction: column;">
+        <div class="step"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#1a7f37" stroke-width="2" style="margin-top: 2px;"><path d="M3 8.5l3 3 7-7"/></svg><div><div style="color: #1f2328;">New Record struct and validation rules</div><div class="mono" style="font-size: 11px;">internal/tenant/types.go</div></div></div>
+        <div class="step"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#1a7f37" stroke-width="2" style="margin-top: 2px;"><path d="M3 8.5l3 3 7-7"/></svg><div><div style="color: #1f2328;">Migration adds tenant_profiles</div><div class="mono" style="font-size: 11px;">db/migrations/0042.sql</div></div></div>
+        <div class="step" style="margin: 0 -20px; padding: 6px 17px; background: #ddf4ff; border-left: 3px solid #0969da;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #cf222e; margin-top: 5px;"></span><div><div style="color: #1f2328; font-weight: 600;">UpdateRecord error contract</div><div class="mono" style="font-size: 11px;">api/service/tenant/record.go</div></div></div>
+        <div class="step"><span style="width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid #bf8700; margin-top: 5px;"></span><div><div style="color: #1f2328;">validate: name and region required</div><div class="mono" style="font-size: 11px;">api/service/tenant/validate.go</div></div></div>
+        <div class="step"><span style="width: 8px; height: 8px; border-radius: 50%; background: #cf222e; margin-top: 5px;"></span><div><div style="color: #1f2328;">Handler maps status codes to HTTP</div><div class="mono" style="font-size: 11px;">api/http/tenant.go</div></div></div>
+        <div class="step"><span style="width: 8px; margin-top: 5px;"></span><div><div style="color: #1f2328;">Router registers PATCH /tenants/:id</div></div></div>
+        <div class="step"><span style="width: 8px; margin-top: 5px;"></span><div><div style="color: #1f2328;">Worker sync uses the new client</div></div></div>
+        <div class="step"><span style="width: 8px; margin-top: 5px;"></span><div><div style="color: #1f2328;">Rename TenantRecord → TenantProfile <span style="color: #59636e;">· 9 files · skim</span></div></div></div>
+        <div class="step"><span style="width: 8px; margin-top: 5px;"></span><div><div style="color: #1f2328;">Tests: record_test, validate_test</div></div></div>
+      </div>
+    </div>
+
+    <!-- Full diff, GitHub style, scrolled to the step -->
+    <div style="flex: 1; min-width: 0; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 8px 20px; border-bottom: 1px solid #d0d7de; background: #f6f8fa; font-size: 12px; color: #59636e;">
+        <span style="font-weight: 600; color: #1f2328;">Step 3 · core</span><span>UpdateRecord now validates the id and returns a gRPC status.</span>
+        <div style="margin-left: auto; display: flex; gap: 6px;">
+          <button style="height: 26px; padding: 0 10px; border: 1px solid #d0d7de; border-radius: 6px; background: #ffffff; font: inherit; font-size: 12px;">Prev</button>
+          <button style="height: 26px; padding: 0 12px; border: 1px solid #1a7f37; border-radius: 6px; background: #1f883d; color: #ffffff; font: inherit; font-size: 12px; font-weight: 600;">Next</button>
+        </div>
+      </div>
+      <div style="padding: 12px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden;">
+          <div class="fh"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#59636e" stroke-width="2"><path d="M3 6l5 5 5-5"/></svg><span class="mono" style="font-weight: 600;">db/migrations/0042_tenant_profiles.sql</span><span class="mono" style="color: #1a7f37;">+30</span><span style="margin-left: auto; color: #cf222e; font-weight: 600; display: inline-flex; gap: 4px; align-items: center;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2l6 11H2z"/></svg>high · migration</span><label style="display: inline-flex; align-items: center; gap: 6px; color: #59636e;"><span style="width: 14px; height: 14px; border: 1px solid #d0d7de; border-radius: 3px; background: #1f883d; display: inline-block;"></span>Viewed</label></div>
+        </div>
+        <div style="border: 1px solid #0969da; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 3px #ddf4ff;">
+          <div class="fh"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#59636e" stroke-width="2"><path d="M3 6l5 5 5-5"/></svg><span class="mono" style="font-weight: 600;">api/service/tenant/record.go</span><span class="mono" style="color: #1a7f37;">+64</span><span class="mono" style="color: #cf222e;">−12</span><label style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: #59636e;"><span style="width: 14px; height: 14px; border: 1px solid #d0d7de; border-radius: 3px; background: #ffffff; display: inline-block;"></span>Viewed</label></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: #fff0ee; border-bottom: 1px solid #ffd7d5; font-size: 12px;">
+            <span style="display: inline-flex; align-items: center; gap: 4px; color: #cf222e; font-weight: 600;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2l6 11H2z"/></svg>HIGH</span>
+            <span>Changes the error contract. Callers matching on ErrMissingID silently stop matching.</span>
+            <span style="margin-left: auto; color: #59636e;">23 callers · 5 fix commits</span>
+          </div>
+          <div style="border-left: 4px solid #cf222e;">
+            <div style="display: flex; padding: 4px 12px; background: #f6f8fa; color: #59636e; font: 12px/20px ui-monospace, Menlo, monospace;">@@ -88,14 +91,31 @@ func (s *Service) UpdateRecord(ctx context.Context, req *pb.UpdateRecordRequest) (*pb.Record, error) {</div>
+            <div class="row ctx"><span class="num">88</span><span class="num">91</span><span>	if req.GetId() == "" {</span></div>
+            <div class="row del"><span class="num">89</span><span class="num"></span><span>-		return nil, ErrMissingID</span></div>
+            <div class="row add"><span class="num"></span><span class="num">92</span><span>+		return nil, status.Error(codes.InvalidArgument, "id is required")</span></div>
+            <div style="display: flex; align-items: center; gap: 8px; margin: 4px 12px 4px 100px; padding: 4px 10px; border: 1px solid #d0d7de; border-radius: 6px; background: #ffffff; font-size: 12px; width: fit-content;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#59636e" stroke-width="1.5"><rect x="2" y="3" width="12" height="9" rx="2"/><path d="M6 12l-2 2v-2"/></svg>
+              <span style="font-weight: 600;">Bugbot</span><span style="color: #bf8700; font-weight: 600;">medium</span><span style="color: #59636e;">status.Error drops the wrapped cause…</span>
+            </div>
+            <div class="row ctx"><span class="num">90</span><span class="num">93</span><span>	}</span></div>
+            <div class="row add"><span class="num"></span><span class="num">95</span><span>+	if errors.Is(err, store.ErrNotFound) {</span></div>
+            <div class="row add"><span class="num"></span><span class="num">96</span><span>+		return nil, status.Error(codes.NotFound, "record not found")</span></div>
+            <div class="row add"><span class="num"></span><span class="num">97</span><span>+	}</span></div>
+          </div>
+          <div style="border-left: 4px solid #bf8700; margin-top: 8px;">
+            <div style="display: flex; padding: 4px 12px; background: #f6f8fa; color: #59636e; font: 12px/20px ui-monospace, Menlo, monospace;">@@ -140,6 +150,9 @@ func (s *Service) validate(rec *Record) error {</div>
+            <div class="row ctx"><span class="num">140</span><span class="num">150</span><span>	if rec.Name == "" {</span></div>
+            <div class="row add"><span class="num"></span><span class="num">151</span><span>+		return status.Error(codes.InvalidArgument, "name is required")</span></div>
+            <div class="row ctx"><span class="num">141</span><span class="num">152</span><span>	}</span></div>
+          </div>
+        </div>
+        <div style="border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden;">
+          <div class="fh"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#59636e" stroke-width="2"><path d="M6 3l5 5-5 5"/></svg><span class="mono" style="font-weight: 600;">api/service/tenant/validate.go</span><span class="mono" style="color: #1a7f37;">+12</span><span class="mono" style="color: #cf222e;">−9</span><span style="margin-left: auto; color: #59636e;">medium</span></div>
+        </div>
+        <div style="border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden;">
+          <div class="fh"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#59636e" stroke-width="2"><path d="M6 3l5 5-5 5"/></svg><span class="mono" style="font-weight: 600;">api/http/tenant.go</span><span class="mono" style="color: #1a7f37;">+61</span><span class="mono" style="color: #cf222e;">−12</span><span style="margin-left: auto; color: #cf222e; font-weight: 600;">high</span></div>
+        </div>
+        <div style="border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden; color: #59636e;">
+          <div class="fh"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#59636e" stroke-width="2"><path d="M6 3l5 5-5 5"/></svg><span>Rename TenantRecord → TenantProfile</span><span>· 9 files · 240 lines · skim</span><a href="#" style="margin-left: auto;">Expand</a></div>
+        </div>
+        <div style="border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden; color: #59636e;">
+          <div class="fh"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#59636e" stroke-width="2"><path d="M6 3l5 5-5 5"/></svg><span>Generated</span><span>· 4 files · 1,180 lines</span><a href="#" style="margin-left: auto;">Expand</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
