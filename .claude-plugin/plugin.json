@@ -1,0 +1,17 @@
+{
+  "name": "cockpit",
+  "description": "Turns one GitHub pull request into a guided local review: a risk-scored diff, mechanical changes folded into groups, existing comments pinned to their lines, a reading order and a brief on every hunk.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Nadav Zaltsman"
+  },
+  "homepage": "https://github.com/zalts1/pr-review-cockpit#readme",
+  "repository": "https://github.com/zalts1/pr-review-cockpit",
+  "license": "MIT",
+  "keywords": [
+    "code-review",
+    "pull-request",
+    "github",
+    "diff"
+  ]
+}
