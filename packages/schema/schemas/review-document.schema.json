@@ -29,7 +29,9 @@
     "status": { "$ref": "#/$defs/DocumentStatus" },
     "files": { "type": "array", "items": { "$ref": "#/$defs/ReviewFile" } },
     "comments": { "type": "array", "items": { "$ref": "#/$defs/Comment" } },
+    "conversation": { "type": "array", "items": { "$ref": "#/$defs/ConversationComment" } },
     "checks": { "type": "array", "items": { "$ref": "#/$defs/Check" } },
+    "botSummaries": { "type": "array", "items": { "$ref": "#/$defs/BotSummary" } },
     "groups": { "type": "array", "items": { "$ref": "#/$defs/Group" } },
     "path": { "type": "array", "items": { "$ref": "#/$defs/PathStep" } },
     "summary": { "$ref": "#/$defs/Summary" },
@@ -373,7 +375,7 @@
 
     "Comment": {
       "title": "Comment",
-      "description": "hunkId is null when the comment sits on a line outside the current diff.",
+      "description": "A review comment pinned to a line. hunkId is null when the comment sits on a line outside the current diff, and the cockpit lists it as outdated. threadId is the review thread the comment belongs to; replies carry the same one and the cockpit groups them into one chip.",
       "type": "object",
       "additionalProperties": true,
       "required": [
@@ -402,7 +404,58 @@
         "url": { "type": "string", "format": "uri" },
         "createdAt": { "type": "string", "format": "date-time" },
         "resolved": { "type": "boolean" },
-        "severity": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] }
+        "severity": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] },
+        "threadId": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "ConversationComment": {
+      "title": "ConversationComment",
+      "description": "A comment with no line to pin it to: a top-level comment on the pull request conversation, or a review comment on a whole file. path is set only for the file-level kind. The cockpit lists these in a disclosure rather than in the diff.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "source",
+        "author",
+        "path",
+        "line",
+        "side",
+        "hunkId",
+        "body",
+        "url",
+        "createdAt",
+        "resolved",
+        "severity"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "source": { "$ref": "#/$defs/CommentSource" },
+        "author": { "type": "string" },
+        "path": { "type": ["string", "null"], "minLength": 1 },
+        "line": { "type": "null" },
+        "side": { "type": "null" },
+        "hunkId": { "type": "null" },
+        "body": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "resolved": { "type": "boolean" },
+        "severity": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] },
+        "threadId": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "BotSummary": {
+      "title": "BotSummary",
+      "description": "A review summary a bot embedded in the pull request body, lifted out of it so the cockpit shows it as a pill with the overview behind it rather than as part of the description. riskLevel is null when the bot named no level.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["source", "riskLevel", "body", "url"],
+      "properties": {
+        "source": { "$ref": "#/$defs/CommentSource" },
+        "riskLevel": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] },
+        "body": { "type": "string" },
+        "url": { "type": "string", "format": "uri" }
       }
     },
 

@@ -403,12 +403,26 @@ function checkComments(
   issues: Issues,
 ): void {
   const ids = new Set<string>();
+  const threadPath = new Map<string, string>();
+
   for (const [i, comment] of document.comments.entries()) {
     const at = `comments[${i}]`;
     if (ids.has(comment.id)) {
       issues.error('comment-id-unique', `${at}.id`, `repeats the comment id "${comment.id}"`);
     }
     ids.add(comment.id);
+
+    if (comment.threadId !== undefined) {
+      const first = threadPath.get(comment.threadId);
+      if (first === undefined) threadPath.set(comment.threadId, comment.path);
+      else if (first !== comment.path) {
+        issues.warn(
+          'comment-thread-path',
+          `${at}.path`,
+          `is "${comment.path}" but thread ${comment.threadId} started on "${first}", so the cockpit will show the two under one chip`,
+        );
+      }
+    }
 
     if (comment.hunkId === null) continue;
     const found = hunks.get(comment.hunkId);
@@ -439,6 +453,24 @@ function checkComments(
         'comment-hunk-line',
         `${at}.line`,
         `is ${comment.line} on the ${comment.side} side, which is outside hunk ${comment.hunkId} (${range})`,
+      );
+    }
+  }
+
+  for (const [i, comment] of (document.conversation ?? []).entries()) {
+    const at = `conversation[${i}]`;
+    if (ids.has(comment.id)) {
+      issues.error('comment-id-unique', `${at}.id`, `repeats the comment id "${comment.id}"`);
+    }
+    ids.add(comment.id);
+  }
+
+  for (const [i, summary] of (document.botSummaries ?? []).entries()) {
+    if (summary.source.kind !== 'bot') {
+      issues.error(
+        'bot-summary-source',
+        `botSummaries[${i}].source.kind`,
+        `is "${summary.source.kind}"; a bot summary is what a bot wrote into the pull request body`,
       );
     }
   }

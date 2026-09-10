@@ -94,6 +94,25 @@ const breaks: Array<[rule: string, apply: (doc: ReviewDocument) => void]> = [
       doc.graph.edges = [{ from: 'n1', to: 'n9', kind: 'calls' }];
     },
   ],
+  [
+    'comment-id-unique',
+    (doc) => {
+      doc.comments.push(comment());
+      doc.conversation = [conversationComment('c1')];
+    },
+  ],
+  [
+    'bot-summary-source',
+    (doc) =>
+      (doc.botSummaries = [
+        {
+          source: { kind: 'human', name: 'danat' },
+          riskLevel: 'medium',
+          body: 'Looks risky.',
+          url: 'https://github.com/northwind-labs/tenant-platform/pull/7',
+        },
+      ]),
+  ],
   ['summary-ready', (doc) => (doc.summary = { tldr: 'only this', counts: doc.summary.counts })],
   ['summary-counts', (doc) => (doc.summary.counts.highRisk = 4)],
   [
@@ -133,6 +152,33 @@ describe('warnings', () => {
     const result = validateDocument(doc);
     expect(result.ok).toBe(true);
     expect(result.warnings.map((w) => w.rule)).toContain('schema-version');
+  });
+
+  it('warns when one thread holds comments on two paths', () => {
+    const doc = readyDocument();
+    doc.comments = [
+      { ...comment(), id: 'c1', threadId: 't1' },
+      { ...comment(), id: 'c2', threadId: 't1', path: 'api/http/handler.go', hunkId: 'f2.h1' },
+    ];
+    const result = validateDocument(doc);
+    expect(result.ok).toBe(true);
+    expect(result.warnings.map((w) => w.rule)).toContain('comment-thread-path');
+  });
+
+  it('accepts a conversation comment and a bot summary', () => {
+    const doc = readyDocument();
+    doc.conversation = [conversationComment('ic1')];
+    doc.botSummaries = [
+      {
+        source: { kind: 'bot', name: 'Cursor Bugbot' },
+        riskLevel: 'medium',
+        body: '**Overview**\nAdds the profile API.',
+        url: 'https://github.com/northwind-labs/tenant-platform/pull/7',
+      },
+    ];
+    const result = validateDocument(doc);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
   });
 
   it('warns when a high-risk hunk has no reason', () => {
@@ -268,6 +314,25 @@ function comment(): ReviewDocument['comments'][number] {
     createdAt: '2026-09-08T12:00:00Z',
     resolved: false,
     severity: 'medium',
+  };
+}
+
+function conversationComment(
+  id: string,
+): NonNullable<ReviewDocument['conversation']>[number] {
+  return {
+    id,
+    source: { kind: 'human', name: 'danat' },
+    author: 'danat',
+    path: null,
+    line: null,
+    side: null,
+    hunkId: null,
+    body: 'Ran this against staging and the backfill took 40 seconds.',
+    url: 'https://github.com/northwind-labs/tenant-platform/pull/7#issuecomment-1',
+    createdAt: '2026-09-08T12:10:00Z',
+    resolved: false,
+    severity: null,
   };
 }
 
