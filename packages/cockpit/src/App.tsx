@@ -146,7 +146,23 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
   const [seen, setSeen] = useState<Set<string>>(new Set());
   // Open on load when there is a brief to read. With stage 2 still pending the
   // detail is only the raw PR description, which is not worth the whole strip.
-  const [planOpen, setPlanOpen] = useState(() => derived.summary !== null);
+  const briefSeenKey = `${storageKey}:brief-seen`;
+  const [planOpen, setPlanOpen] = useState(() => {
+    if (derived.summary === null) return false;
+    try {
+      return localStorage.getItem(briefSeenKey) === null;
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    if (!planOpen) return;
+    try {
+      localStorage.setItem(briefSeenKey, '1');
+    } catch {
+      return;
+    }
+  }, [planOpen, briefSeenKey]);
   const planAutoCollapse = useRef<'armed' | 'spent' | 'user'>('armed');
   const collapsePlan = useCallback(() => {
     if (planAutoCollapse.current !== 'armed') return;
