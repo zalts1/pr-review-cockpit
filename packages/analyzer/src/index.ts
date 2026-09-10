@@ -1,5 +1,5 @@
 export { analyze, applyGraphFan, prepare } from './analyze.js';
-export type { AnalyzeOptions, AnalyzeResult, PrepareResult } from './analyze.js';
+export type { AnalyzeOptions, AnalyzeResult, PrepareResult, Stage1Handoff } from './analyze.js';
 export {
   cursorSummaryBlock,
   overviewOf,

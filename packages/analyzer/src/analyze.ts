@@ -28,6 +28,20 @@ export interface AnalyzeOptions {
   /** True when a judgment pass will follow, so stage 2 reads as running rather than absent. */
   expectJudgment?: boolean;
   onProgress?: (message: string) => void;
+  /**
+   * Called once stage 1 is on disk and before the graph starts. `cockpit run` serves the
+   * document and opens the browser from here, so the cockpit is usable while the graph builds.
+   */
+  onStage1?: (handoff: Stage1Handoff) => void | Promise<void>;
+}
+
+export interface Stage1Handoff {
+  ref: PrRef;
+  checkout: CheckoutInfo;
+  document: ReviewDocument;
+  documentPath: string;
+  compactPath: string;
+  stage1Ms: number;
 }
 
 export interface AnalyzeResult {
@@ -202,6 +216,15 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalyzeResult> {
   onProgress?.(
     `compact view written to ${compactPath}: ${formatBytes(compactBytes)} against ${formatBytes(diffBytes(stage1.document))} of diff`,
   );
+
+  await options.onStage1?.({
+    ref: resolved.ref,
+    checkout: info,
+    document: stage1.document,
+    documentPath,
+    compactPath,
+    stage1Ms,
+  });
 
   if (options.skipGraph === true) {
     return {
