@@ -22,12 +22,36 @@ export interface HunkLocation {
   file: ReviewFile;
 }
 
+/** One review thread: the comment that opened it and the replies under it. */
+export interface CommentThread {
+  id: string;
+  root: Comment;
+  replies: Comment[];
+  resolved: boolean;
+}
+
+export function threadsOf(comments: readonly Comment[]): CommentThread[] {
+  const byThread = new Map<string, Comment[]>();
+  for (const comment of comments) {
+    const id = comment.threadId ?? comment.id;
+    const held = byThread.get(id);
+    if (held) held.push(comment);
+    else byThread.set(id, [comment]);
+  }
+
+  return [...byThread].map(([id, held]) => {
+    const ordered = [...held].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const [root, ...replies] = ordered as [Comment, ...Comment[]];
+    return { id, root, replies, resolved: ordered.some((comment) => comment.resolved) };
+  });
+}
+
 export interface Derived {
   hunkById: Map<string, HunkLocation>;
   fileById: Map<string, ReviewFile>;
   groupById: Map<string, Group>;
   groupOfHunk: Map<string, Group>;
-  commentsByHunk: Map<string, Comment[]>;
+  threadsByHunk: Map<string, CommentThread[]>;
   outdatedComments: Comment[];
   heatByFile: Map<string, RiskLevel>;
   standaloneFiles: Array<{ file: ReviewFile; hunks: Hunk[] }>;
@@ -83,17 +107,20 @@ export function derive(doc: ReviewDocument): Derived {
     }
   }
 
-  const commentsByHunk = new Map<string, Comment[]>();
+  const placedComments = new Map<string, Comment[]>();
   const outdatedComments: Comment[] = [];
   for (const comment of doc.comments) {
     if (comment.hunkId && hunkById.has(comment.hunkId)) {
-      const list = commentsByHunk.get(comment.hunkId) ?? [];
+      const list = placedComments.get(comment.hunkId) ?? [];
       list.push(comment);
-      commentsByHunk.set(comment.hunkId, list);
+      placedComments.set(comment.hunkId, list);
     } else {
       outdatedComments.push(comment);
     }
   }
+  const threadsByHunk = new Map(
+    [...placedComments].map(([hunkId, comments]) => [hunkId, threadsOf(comments)]),
+  );
 
   const standaloneFiles: Derived['standaloneFiles'] = [];
   const groupFiles = new Map<string, Array<{ file: ReviewFile; hunks: Hunk[] }>>();
@@ -128,7 +155,7 @@ export function derive(doc: ReviewDocument): Derived {
     fileById,
     groupById,
     groupOfHunk,
-    commentsByHunk,
+    threadsByHunk,
     outdatedComments,
     heatByFile,
     standaloneFiles,

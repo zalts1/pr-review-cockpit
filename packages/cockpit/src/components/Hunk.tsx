@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
-import type { Comment, DiffLine, Hunk as HunkModel, ReviewFile } from '@review-cockpit/schema';
+import type { DiffLine, Hunk as HunkModel, ReviewFile } from '@review-cockpit/schema';
+import type { CommentThread } from '../lib/derive';
 import type { CockpitDraft } from '../lib/drafts';
 import { Markdown } from '../lib/markdown';
 import type { DragRange, EditorTarget, LineTarget } from '../lib/interaction';
@@ -10,7 +11,7 @@ import { HeatBar, ReasonBanner } from './HeatBar';
 import { PlusIcon } from './Icons';
 
 export interface DiffHandlers {
-  commentsByHunk: Map<string, Comment[]>;
+  threadsByHunk: Map<string, CommentThread[]>;
   drafts: CockpitDraft[];
   expandedComments: Set<string>;
   toggleComment(id: string): void;
@@ -50,7 +51,7 @@ interface Props {
 }
 
 export function Hunk({ hunk, file, handlers }: Props) {
-  const comments = handlers.commentsByHunk.get(hunk.id) ?? [];
+  const threads = handlers.threadsByHunk.get(hunk.id) ?? [];
   const drafts = handlers.drafts.filter((d) => d.hunkId === hunk.id);
   const selection = handlers.drag && handlers.drag.start.hunkId === hunk.id
     ? { side: handlers.drag.start.side, ...rangeOf(handlers.drag) }
@@ -94,8 +95,11 @@ export function Hunk({ hunk, file, handlers }: Props) {
               target.line >= selection.from &&
               target.line <= selection.to;
 
-            const rowComments = comments.filter(
-              (c) => target !== null && c.side === target.side && c.line === target.line,
+            const rowThreads = threads.filter(
+              (thread) =>
+                target !== null &&
+                thread.root.side === target.side &&
+                thread.root.line === target.line,
             );
             const rowDrafts = drafts.filter(
               (d) => target !== null && d.side === target.side && d.line === target.line,
@@ -148,16 +152,16 @@ export function Hunk({ hunk, file, handlers }: Props) {
                   </td>
                 </tr>
 
-                {(rowComments.length > 0 || rowDrafts.length > 0 || editor) && (
+                {(rowThreads.length > 0 || rowDrafts.length > 0 || editor) && (
                   <tr>
                     <td />
                     <td className="thread-cell" colSpan={3}>
-                      {rowComments.map((comment) => (
+                      {rowThreads.map((thread) => (
                         <CommentPin
-                          key={comment.id}
-                          comment={comment}
-                          expanded={handlers.expandedComments.has(comment.id)}
-                          onToggle={() => handlers.toggleComment(comment.id)}
+                          key={thread.id}
+                          thread={thread}
+                          expanded={handlers.expandedComments.has(thread.id)}
+                          onToggle={() => handlers.toggleComment(thread.id)}
                         />
                       ))}
                       {rowDrafts.map((draft) => (

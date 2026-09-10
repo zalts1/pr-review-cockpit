@@ -1,7 +1,10 @@
-import type { Check, PrInfo } from '@review-cockpit/schema';
+import type { ReactNode } from 'react';
+import type { BotSummary, Check, PrInfo } from '@review-cockpit/schema';
 import { shortSha } from '../lib/derive';
+import { Markdown } from '../lib/markdown';
 import {
   ArrowRightIcon,
+  BotIcon,
   CheckIcon,
   ClockIcon,
   CrossIcon,
@@ -17,6 +20,8 @@ interface Props {
   pr: PrInfo;
   checks: Check[];
   checksPending: boolean;
+  checksFailed: string | null;
+  botSummaries: BotSummary[];
   draftCount: number;
   nextLabel: string | null;
   tab: Tab;
@@ -28,24 +33,65 @@ interface Props {
 
 interface Pills {
   passed: { count: number; names: string[] };
+  passedChecks: Check[];
   failed: Check[];
-  running: number;
-  other: number;
+  runningChecks: Check[];
+  otherChecks: Check[];
 }
 
 function pillsOf(checks: Check[]): Pills {
   const passed = checks.filter((check) => check.status === 'success');
   return {
     passed: { count: passed.length, names: passed.map((check) => check.name) },
+    passedChecks: passed,
     failed: checks.filter((check) => check.status === 'failure'),
-    running: checks.filter((check) => check.status === 'pending').length,
-    other: checks.filter((check) =>
+    runningChecks: checks.filter((check) => check.status === 'pending'),
+    otherChecks: checks.filter((check) =>
       ['neutral', 'skipped', 'cancelled'].includes(check.status),
-    ).length,
+    ),
   };
 }
 
-function CheckPills({ checks, pending }: { checks: Check[]; pending: boolean }) {
+/** GitHub's own checks tab, which is where a pill standing for several checks goes. */
+function checksTab(pr: PrInfo): string {
+  return `${pr.url}/checks`;
+}
+
+function GroupPill({
+  className,
+  checks,
+  pr,
+  title,
+  children,
+}: {
+  className: string;
+  checks: Check[];
+  pr: PrInfo;
+  title: string;
+  children: ReactNode;
+}) {
+  const single = checks.length === 1 ? checks[0] : undefined;
+  return (
+    <a
+      className={`pill ${className}`}
+      href={single ? single.url : checksTab(pr)}
+      target="_blank"
+      rel="noreferrer"
+      title={title}
+    >
+      {children}
+    </a>
+  );
+}
+
+function CheckPills({ checks, pending, failed, pr }: { checks: Check[]; pending: boolean; failed: string | null; pr: PrInfo }) {
+  if (failed !== null) {
+    return (
+      <span className="pill pill-fail" title={failed}>
+        <CrossIcon size={10} /> Checks unavailable
+      </span>
+    );
+  }
   if (pending) {
     return (
       <span className="pill pill-running">
@@ -59,10 +105,10 @@ function CheckPills({ checks, pending }: { checks: Check[]; pending: boolean }) 
   return (
     <>
       {pills.passed.count > 0 && (
-        <span className="pill pill-pass" title={pills.passed.names.join(', ')}>
+        <GroupPill className="pill-pass" checks={pills.passedChecks} pr={pr} title={pills.passed.names.join(', ')}>
           <CheckIcon size={10} /> {pills.passed.count}{' '}
           {pills.passed.count === 1 ? 'check' : 'checks'} passed
-        </span>
+        </GroupPill>
       )}
       {pills.failed.map((check) => (
         <a
@@ -76,17 +122,57 @@ function CheckPills({ checks, pending }: { checks: Check[]; pending: boolean }) 
           <CrossIcon size={10} /> {check.name} failed
         </a>
       ))}
-      {pills.running > 0 && (
-        <span className="pill pill-running">
-          <ClockIcon size={10} /> {pills.running} running
-        </span>
+      {pills.runningChecks.length > 0 && (
+        <GroupPill
+          className="pill-running"
+          checks={pills.runningChecks}
+          pr={pr}
+          title={pills.runningChecks.map((check) => check.name).join(', ')}
+        >
+          <ClockIcon size={10} /> {pills.runningChecks.length} running
+        </GroupPill>
       )}
-      {pills.other > 0 && (
-        <span className="pill pill-muted">
-          <DashIcon size={10} /> {pills.other} skipped
-        </span>
+      {pills.otherChecks.length > 0 && (
+        <GroupPill
+          className="pill-muted"
+          checks={pills.otherChecks}
+          pr={pr}
+          title={pills.otherChecks.map((check) => `${check.name}: ${check.status}`).join(', ')}
+        >
+          <DashIcon size={10} /> {pills.otherChecks.length} skipped
+        </GroupPill>
       )}
     </>
+  );
+}
+
+/** "Cursor Bugbot" is the pill's own subject, so the pill says "Bugbot". */
+function shortBotName(name: string): string {
+  return name.replace(/^cursor\s+/i, '');
+}
+
+function BotSummaryPill({ summary }: { summary: BotSummary }) {
+  const level = summary.riskLevel;
+  const className = level === 'high' ? 'pill-fail' : level === 'medium' ? 'pill-running' : 'pill-muted';
+  return (
+    <div className="pill-hover">
+      <a
+        className={`pill ${className}`}
+        href={summary.url}
+        target="_blank"
+        rel="noreferrer"
+      >
+        <BotIcon size={10} /> {shortBotName(summary.source.name)}:{' '}
+        {level === null ? 'summary' : `${level} risk`}
+      </a>
+      <div className="hovercard" role="note">
+        <span className="hovercard-head">
+          {summary.source.name}
+          {level !== null && ` · ${level} risk`}
+        </span>
+        <Markdown text={summary.body} className="hovercard-body" />
+      </div>
+    </div>
   );
 }
 
@@ -94,6 +180,8 @@ export function Header({
   pr,
   checks,
   checksPending,
+  checksFailed,
+  botSummaries,
   draftCount,
   nextLabel,
   tab,
@@ -123,9 +211,12 @@ export function Header({
           <code>{pr.base.ref}</code>
           <span className="header-dot">·</span>
           <code title={pr.head.sha}>{shortSha(pr.head.sha)}</code>
-          <span className="header-checks">
-            <CheckPills checks={checks} pending={checksPending} />
-          </span>
+          <div className="header-checks">
+            <CheckPills checks={checks} pending={checksPending} failed={checksFailed} pr={pr} />
+            {botSummaries.map((summary) => (
+              <BotSummaryPill key={summary.source.name} summary={summary} />
+            ))}
+          </div>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import type { Comment, RiskLevel } from '@review-cockpit/schema';
+import type { Comment, ConversationComment, RiskLevel } from '@review-cockpit/schema';
 import { preview } from '../lib/drafts';
 import type { RailEntry, SkippableEntry } from '../lib/plan';
 import { railPath } from '../lib/plan';
@@ -15,6 +15,7 @@ interface Props {
   pathPending: string | null;
   fileCount: number;
   outdated: Comment[];
+  conversation: ConversationComment[];
   onEntry(entry: RailEntry): void;
   onSkippable(groupId: string): void;
 }
@@ -40,6 +41,7 @@ export function Rail({
   pathPending,
   fileCount,
   outdated,
+  conversation,
   onEntry,
   onSkippable,
 }: Props) {
@@ -161,6 +163,28 @@ export function Rail({
               </li>
             ))}
           </ul>
+        </>
+      )}
+      {conversation.length > 0 && (
+        <>
+          <div className="rail-divider" />
+          <details className="rail-conversation">
+            <summary>
+              <span className="rail-title">Conversation</span>
+              <span className="rail-count">{conversation.length}</span>
+            </summary>
+            <ul className="rail-outdated">
+              {conversation.map((comment) => (
+                <li key={comment.id}>
+                  <a href={comment.url} target="_blank" rel="noreferrer">
+                    {comment.source.name}
+                    {comment.path === null ? '' : ` · ${railPath(comment.path)}`}
+                  </a>
+                  <span>{preview(comment.body, 72)}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
         </>
       )}
     </nav>

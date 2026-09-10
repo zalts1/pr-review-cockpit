@@ -22,6 +22,7 @@ import {
 import type { CockpitDraft } from './lib/drafts';
 import { draftsFileOf, draftsKey, loadDrafts, saveDrafts } from './lib/drafts';
 import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
+import { description } from './lib/prBody';
 import { editorTargetFromDrag } from './lib/interaction';
 import { DiffFile } from './components/DiffFile';
 import { GroupHeader } from './components/GroupHeader';
@@ -490,7 +491,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
   ]);
 
   const handlers: DiffHandlers = {
-    commentsByHunk: derived.commentsByHunk,
+    threadsByHunk: derived.threadsByHunk,
     drafts,
     expandedComments,
     toggleComment: (id) =>
@@ -646,6 +647,8 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
         pr={doc.pr}
         checks={doc.checks}
         checksPending={doc.status.checks.state === 'pending'}
+        checksFailed={doc.status.checks.state === 'failed' ? (doc.status.checks.message ?? 'the check runs could not be read') : null}
+        botSummaries={doc.botSummaries ?? []}
         draftCount={drafts.length}
         nextLabel={nextStepLabel(derived, stepIndex)}
         tab={tab}
@@ -659,7 +662,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
         <PlanStrip
           summary={derived.summary}
           status={doc.status.summary}
-          prBody={doc.pr.body}
+          prBody={description(doc.pr.body)}
           phases={phaseProgress(derived.steps, stepIndex)}
           stepIndex={stepIndex}
           stepCount={derived.steps.length}
@@ -689,6 +692,7 @@ export function Cockpit({ doc, disconnected }: CockpitProps) {
                 }
                 fileCount={doc.files.length}
                 outdated={derived.outdatedComments}
+                conversation={doc.conversation ?? []}
                 onEntry={(entry: RailEntry) => goToStep(entry.stepIndex)}
                 onSkippable={(groupId) => {
                   setExpandedGroups((current) => new Set(current).add(groupId));
