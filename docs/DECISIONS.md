@@ -1031,3 +1031,70 @@ guarantee that the page the reviewer looks at after posting includes what they p
 refetch uses the head the document was analysed at, which submit has just checked has not moved;
 a refresh long after the head moved re-reads that same head's checks, and picking up new commits
 is a re-analysis, not a refresh.
+
+---
+
+## ADR-48: The diff is highlighted by highlight.js, per hunk and per side
+
+Status: accepted · 2026-09-10
+
+**Context.** The cockpit's whole claim is that it reduces reading, and until now it asked the
+reviewer to read a 4,500-line diff in one colour. GitHub's own Files tab is highlighted, so the
+"same layout and feel" promise in docs/01 was broken in the one place a reviewer spends most of
+their time. ADR-29 left highlighting out because a highlighter was a third dependency and a much
+larger bundle; that trade needed re-pricing now that the bundle is 368 kB and the reading is the
+product.
+
+**Options.**
+1. Prism or Shiki. Shiki is a real TextMate grammar engine and the honest choice for fidelity,
+   and it is megabytes of grammars and a WASM regex engine, which the single-file build cannot
+   hold. Prism is small but highlights a string at a time with no way to resume, so a block
+   comment spanning a hunk would restart on every line.
+2. `highlight.js` with the `common` build. One import, and 36 grammars — 298 kB of source
+   against the 110 kB the twelve we need come to, so roughly double the bundle cost — for a
+   tool that sees Go, TypeScript, protobuf, SQL and YAML.
+3. `highlight.js/lib/core` with a hand-picked set registered one by one.
+
+**Decision.** Option 3, twelve grammars: go, typescript, javascript, python, protobuf, sql,
+yaml, json, bash, markdown, xml and css. The grammar for a file comes from `file.language`
+first and from the extension only where the enum has no name for it — `.sql`, `.sh`, `.tf`,
+`.html`, `.css`, `.js` — and everything else renders as a plain text node rather than as markup.
+
+Highlighting is per hunk, and the hunk's two sides are two streams: the deleted lines with their
+context in one pass, the added lines with their context in another. A string or a block comment
+opened on a deleted line therefore cannot colour the lines that replaced it, which is exactly
+the case a per-line highlighter gets wrong and the case that matters, because a diff is mostly
+where one version ends and another begins.
+
+Carrying that state across the lines of a stream cannot use highlight.js's continuation
+argument: 11.12.0's public `highlight` takes `(code, options)` or the deprecated
+`(lang, code, ignoreIllegals)` and forwards neither a fourth argument nor an
+`options.continuation` to the private `_highlight` that reads it. `_top` comes back on the
+result and there is no supported way to hand it in. So each stream is joined with newlines,
+highlighted in one call, and the resulting HTML is cut back into one string per line, closing
+the spans open at each line break and reopening them on the next line. One parse per stream is a
+stronger guarantee than a continuation chain, and it uses no deprecated API. The split refuses to
+return a line count other than the one it was given, because a shifted line would colour the
+wrong text and look like a bug in the diff, not in the highlighter.
+
+The output is sanitised by the same DOMPurify instance the markdown bodies go through, down to
+`span` and one `hljs-` class per span: an `afterSanitizeAttributes` hook drops every class that
+is not `^hljs-[a-z-]+$`, which also drops highlight.js's tiered second class (`function_`,
+`class_`) and its `language-*` sub-language wrappers while keeping their text. A hunk is
+highlighted once per grammar and held against the hunk object in a `WeakMap`, so a re-render, a
+collapse and a reopen cost nothing and a replaced document is collected with its cache.
+
+**Consequences.** The single file grew by 74 kB, 24 kB gzipped, to 442 kB. Highlighting all
+4,500 lines of the largest pull request we have measured takes 220 ms outside a browser, and the
+reviewer never pays it at once: a collapsed file has no mounted hunks, so it is not highlighted
+until it is opened. Four fifths of that time is DOMPurify rather than highlight.js — 219 ms
+against 15 ms over 2,000 lines — which is the price of never handing `dangerouslySetInnerHTML` a
+string the sanitiser has not seen, and is paid on the lines highlight.js actually coloured, since
+a line with no span at all is handed back as null and rendered as text.
+
+Colour is decoration and never the only carrier: heat stays in the gutter bar and the banner,
+and the palette keeps every token at least as dark as the comment grey so it reads on the add and
+del washes. `.tf` files are highlighted by the bash grammar, which is a guess that gets comments,
+strings and `${…}` interpolation right and HCL's block syntax wrong; a real HCL grammar is not in
+the core distribution. Fenced code inside a comment body is still unhighlighted, but the reason
+is now only that nothing wired it up — the highlighter is already in the bundle.

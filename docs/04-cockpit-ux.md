@@ -85,6 +85,16 @@ Skim groups render as one-line rows too — title, kind, file count, line count,
 
 Unified diff only; split view is not in v1.
 
+### Code rendering
+
+Every line of the diff is syntax highlighted. `highlight.js`, the core build with twelve grammars registered by hand — go, typescript, javascript, python, protobuf, sql, yaml, json, bash, markdown, xml and css — costs 74 kB in the single file, 24 kB gzipped, against the whole bundle's 442 kB.
+
+The grammar comes from `file.language` first: `go`, `typescript`, `python`, `proto`, `yaml`, `json` and `markdown` map straight across, `tsx` uses the typescript grammar. `other` falls back to the extension, which is where `.sql`, `.sh`, `.html`, `.css` and `.js` are picked up; `.tf` uses the bash grammar, because HCL has no grammar in the set and shares bash's `#` comment, double-quoted string and `${…}` interpolation. Anything else renders plain, and a plain line is a text node, not markup.
+
+Highlighting is per hunk, and per side. The deleted lines and the added lines are two streams, each highlighted in one pass with the context lines that surround them, so a string or a block comment opened on a deleted line cannot colour the lines that replaced it. The colours are GitHub's light syntax palette on the `hljs-` classes, scoped under `.diff`; the add and del backgrounds are unchanged, and no token is lighter than `#6e7781`, which is the comment grey, so every line stays readable on its wash.
+
+Highlighted HTML goes through the same DOMPurify instance the markdown bodies go through, restricted to `span` carrying one `hljs-` class and nothing else. A diff line cannot reach the page as markup of its own: `<script>` in a diff arrives escaped, as the text it is.
+
 ### Heat encoding
 
 Risk is shown per hunk, because the risk model works per hunk. Loud only where it has to be:
@@ -175,7 +185,7 @@ On the verification PR that reads "level 2 · 40 of 110 changed, 40 callers and 
 
 ### Markdown rendering
 
-Every body the cockpit shows a person is rendered as markdown, not raw text: the PR description, the summary sections, existing comments, drafts on their line and the dry-run list in the submit modal. `marked` parses and `DOMPurify` sanitises, both bundled into the single file. Headings, lists, emphasis, inline code, fenced code, tables and blockquotes are styled in GitHub's light palette; links open in a new tab with `rel="noopener noreferrer"`; HTML comments are dropped, a few inline tags GitHub bodies rely on (`sup`, `sub`, `kbd`, `br`, `details`, `summary`) pass through the sanitiser, GitHub alert blockquotes such as `[!NOTE]` render with a bold label, and any other raw HTML is escaped and shown as the text it was written as. Fenced code is not syntax highlighted. One-line previews — a comment chip, an outdated comment, the disclosure hint — strip the markers instead of rendering them, because a chip showing `**bold**` reads as a bug.
+Every body the cockpit shows a person is rendered as markdown, not raw text: the PR description, the summary sections, existing comments, drafts on their line and the dry-run list in the submit modal. `marked` parses and `DOMPurify` sanitises, both bundled into the single file. Headings, lists, emphasis, inline code, fenced code, tables and blockquotes are styled in GitHub's light palette; links open in a new tab with `rel="noopener noreferrer"`; HTML comments are dropped, a few inline tags GitHub bodies rely on (`sup`, `sub`, `kbd`, `br`, `details`, `summary`) pass through the sanitiser, GitHub alert blockquotes such as `[!NOTE]` render with a bold label, and any other raw HTML is escaped and shown as the text it was written as. Fenced code in a body is not syntax highlighted; the highlighter is wired to the diff only. One-line previews — a comment chip, an outdated comment, the disclosure hint — strip the markers instead of rendering them, because a chip showing `**bold**` reads as a bug.
 
 ## Screen 3: Submit review
 
@@ -237,6 +247,7 @@ Each is a styled card, not a bare sentence.
 ## Performance rules
 
 - A file the walk is not on renders as one row, so its hunks never mount. Groups render their hunks only when expanded.
+- A hunk is highlighted once per grammar and the result is held against the hunk for as long as the document is, so scrolling, hovering, dragging a comment range and a re-render all cost nothing. A file the walk is not on has no mounted hunks, so a collapsed file is not highlighted until it is opened. Highlighting the whole of a 4,500-line pull request takes 220 ms measured outside a browser, and it is never all paid at once.
 - Files above 1,500 diff lines should render with a virtualised list. Not built; in the backlog.
 - The document is loaded once and re-read on each server-sent event. The UI never polls.
 - The map lays out one level at a time, so it never places the whole graph. Both layouts are pure functions in `lib/mapLayout.ts`, which is also how they are measured outside a browser.

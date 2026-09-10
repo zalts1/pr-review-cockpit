@@ -24,8 +24,6 @@ M4b closed the rest of this list. What survives, and why:
   fan-out on hover, and reading its source still needs the server. (M3b, kept)
 - Fan-in and fan-out in the level 2 hover are counted from the document's edges, so a
   function whose callers were folded away reads lower there than on its package card. (M3b)
-- Fenced code in a rendered body is not syntax highlighted; a highlighter is a third
-  dependency and a much larger bundle. (ADR-29, kept)
 
 ## Risk model calibration (from the M3 runs on three real pull requests)
 
