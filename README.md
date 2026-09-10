@@ -47,7 +47,7 @@ Nothing it does can stop a session from starting. A missing `gh`, a node older t
 build that failed is one line saying so, and the whole log is at
 `~/.claude/plugins/data/<plugin>/bootstrap.log`. `cockpit doctor` names which of them it was.
 
-Update to a newer version with:
+Updates arrive by themselves. Claude Code checks the marketplace once per session and installs a newer version when the plugin's version number changed; the next session start rebuilds once. To pick one up right away:
 
 ```
 /plugin marketplace update pr-review-cockpit
@@ -245,8 +245,12 @@ lists:
 | `n` / `p` | Next / previous step of the walkthrough |
 | `h` | Next high-risk hunk |
 | `v` | Toggle Viewed on the current file |
-| `c` | Comment on the line under the cursor |
+| `c` | Comment on the line under the pointer, or on this step's hunk |
 | `e` | Expand or collapse the group under the cursor |
+| `a` | Copy an Ask Claude prompt for this hunk |
+| `m` | Switch between the Files and Map tabs |
+| `?` | Show the shortcut table |
+| `Esc` | Close an overlay or the comment editor |
 | `m` | Switch between the Files and Map tabs |
 | `?` | Show the shortcut table |
 | `Esc` | Close a modal or the comment editor |
