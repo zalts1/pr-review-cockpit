@@ -4,14 +4,14 @@ Status: draft for review. Builds on `01-product-brief.md`.
 
 ## One paragraph
 
-A Claude Code skill named `review` turns a PR number into a running local web app. A command line tool does the heavy lifting: it checks out the PR, runs a deterministic analyzer over the local repository, and starts a local server. The server serves a prebuilt web UI, the cockpit, and holds one JSON file: the review document. The resident Claude session adds its judgment to that document in a second pass, and the cockpit updates live. When the reviewer submits, the server posts one GitHub review through `gh api`. The review document is the only contract between the pieces. Everything on either side of it can be replaced.
+A Claude Code skill named `cockpit` turns a PR number into a running local web app. A command line tool does the heavy lifting: `cockpit run` checks out the PR, runs a deterministic analyzer over the local repository, and starts a local server. The server serves a prebuilt web UI, the cockpit, and holds one JSON file: the review document. The resident Claude session adds its judgment to that document in a second pass, and the cockpit updates live. When the reviewer submits, the server posts one GitHub review through `gh api`. The review document is the only contract between the pieces. Everything on either side of it can be replaced.
 
 ## Components
 
 | Component | What it is | Runs where | Owns |
 |---|---|---|---|
-| **Skill** | `SKILL.md` plus a thin wrapper. Teaches Claude Code what `review <pr>` means and how to do the judgment pass. | Inside the Claude Code session | The conversation with the reviewer |
-| **CLI** (`cockpit`) | A Node program with subcommands: `prepare`, `analyze`, `compact`, `judge-prompt`, `judge-merge`, `serve`, `clean`, `validate`, `merge`, and later `submit`. | Spawned by the skill | Orchestration, checkout, process lifecycle |
+| **Skill** | `skill/cockpit/SKILL.md` and the judgment prompt beside it. Teaches Claude Code what `cockpit <pr>` means and how to do the judgment pass. | Inside the Claude Code session | The conversation with the reviewer |
+| **CLI** (`cockpit`) | A Node program with subcommands: `run`, `prepare`, `analyze`, `compact`, `judge-prompt`, `judge-merge`, `mark-failed`, `serve`, `clean`, `doctor`, `validate`, `merge`. | Spawned by the skill | Orchestration, checkout, process lifecycle |
 | **Analyzer** | A library the CLI calls. Reads the local checkout and produces the deterministic part of the review document. | Inside the CLI process | Diff parsing, git signals, tree-sitter signals, generated-code detection |
 | **Schema package** | JSON Schema for the review document plus a validator and TypeScript types. | Imported by every other component | The contract |
 | **Server** | A small HTTP server. Serves the cockpit's static files, the review document, and a local API for drafts and submit. | Background process, one per review | Live state, write-back |
@@ -24,8 +24,8 @@ All components live in one repository as npm workspaces: `packages/schema`, `pac
 
 ```mermaid
 flowchart LR
-  U[Reviewer types<br/>review 123] --> S[Skill]
-  S -->|spawn| C[CLI: prepare + analyze]
+  U[Reviewer types<br/>cockpit 123] --> S[Skill]
+  S -->|spawn| C[CLI: cockpit run]
   C -->|git worktree or clone| W[(Checkout)]
   C -->|gh api| GH[(GitHub PR)]
   W --> A[Analyzer]
@@ -80,29 +80,37 @@ sequenceDiagram
   participant B as Browser
   participant G as GitHub
 
-  R->>K: review 123
-  K->>C: cockpit prepare 123
+  R->>K: cockpit 123
+  K->>C: cockpit run 123
   C->>G: gh pr view, gh api (comments, checks)
   C->>C: worktree or clone, fetch PR head
   C->>C: analyze stage 1
   C->>S: start server on a free port
-  C-->>K: URL, path to review.json
-  K->>B: open URL
+  C->>B: open the browser
+  C-->>K: URL, prDir, judgment path as JSON
   Note over B: Cockpit usable. Stage 2 and 3 show as loading.
   K->>K: judgment pass: read stage 1, write judgment.json
   K->>C: cockpit judge-merge
   C->>C: validate, apply risk floor, write stage 2
   S-->>B: push update
-  C->>C: analyze stage 3 (graph) in background
+  C->>C: analyze stage 3 (graph)
   S-->>B: push update
   Note over R,K: Reviewer works in the browser. Asks questions in the terminal.
   R->>B: draft comments, pick verdict, submit
   B->>S: POST /api/submit
   S->>G: gh api create review
-  S-->>B: link to the posted review
+  S->>G: gh api (comments, checks) again
+  S-->>B: link to the posted review, and the posted comments as pins
   R->>K: done
   K->>C: cockpit clean 123
 ```
+
+One command does steps 1 to 6. `cockpit run <pr>` resolves the pull request, checks it out,
+writes stage 1, starts the server, opens the browser and then builds the graph, printing one
+line per stage to stderr and one line of JSON to stdout: `{url, prDir, compact, judgmentOut,
+headSha}`. The order is what matters: the browser opens on stage 1, not after the graph
+(ADR-46). The steps stay separate commands underneath, so a step can be run or debugged on
+its own.
 
 ### Step by step
 
@@ -143,19 +151,25 @@ rather than taken from `gh`. GitHub counts a rename and a binary file differentl
 validator requires the totals to match the hunks in the document, which are the only lines
 the reviewer can actually see.
 
-**4. Serve and open.** Start the server on a free port. Print the URL. The skill opens the browser. The cockpit is usable from this moment, with the recommended order and the graph tab showing a loading state.
+**4. Serve and open.** Start the server on a free port. Print the URL. Open the browser. The cockpit is usable from this moment, with the recommended order and the graph tab showing a loading state.
 
-The API is five routes. `GET /` is the built cockpit, `GET /api/document` the document,
-`GET /api/events` its change stream, `GET` and `PUT /api/drafts` the drafts file, and
-`POST /api/submit` posts the review. `POST /api/ask` stays reserved and answers 501, so the
-route name cannot drift. The server watches the directory holding `review.json`, not the
+`cockpit run` starts the server as a detached `cockpit serve` and waits for its
+`/api/health` to answer, because the resident session needs its terminal back while the
+server keeps running. A pull request whose server is already alive is served by that server;
+`--reuse-server` also leaves the browser tab it is serving alone.
+
+The API is seven routes. `GET /` is the built cockpit, `GET /api/document` the document,
+`GET /api/events` its change stream, `GET` and `PUT /api/drafts` the drafts file,
+`POST /api/submit` posts the review, `POST /api/refresh` re-reads the comments and the checks
+from GitHub, and `GET /api/health` says the server is up. `POST /api/ask` stays reserved and
+answers 501, so the route name cannot drift. The server watches the directory holding `review.json`, not the
 file: the analyzer publishes by writing a temp file and renaming it, and a watch bound to the
 old inode goes quiet after the first write.
 
 `cockpit analyze --expect-judgment` says that step 5 will follow. Without the flag the stage
 2 sections are written `pending` with the message `not-attached`, and the cockpit says "Not
 analyzed" rather than "Analyzing…", so a placeholder never claims work that no process is
-doing. The `review` skill always passes it, because it always runs the judgment pass.
+doing. `cockpit run` always passes it, because the skill always runs the judgment pass.
 
 **5. Judgment pass.** `cockpit analyze` writes `compact.md` next to the document, and
 `cockpit compact` rewrites it on its own: a legend, the pull request and its body, the file
@@ -167,7 +181,7 @@ otherwise.
 `cockpit judge-prompt <pr>` prints the whole prompt to stdout: the instructions, the judgment
 JSON Schema embedded from `packages/schema/schemas`, the floor rules, the merge rules, the
 shape of the summary, and the compact view at the end. The prompt text lives in
-`skill/review/judgment-prompt.md` with `{{placeholders}}` the CLI fills (ADR-32), so it is
+`skill/cockpit/judgment-prompt.md` with `{{placeholders}}` the CLI fills (ADR-32), so it is
 reviewable as text rather than buried in a string. It names one output path and one next
 command.
 
@@ -220,7 +234,24 @@ request, and `{code: "gh_failed", message, exitCode}` with the `gh` error otherw
 review with no drafts and an empty body is refused by the cockpit before it becomes a
 request, because GitHub would post nothing at all.
 
+A successful post ends with one more fetch. The server re-reads the review comments, the
+conversation and the checks for the document's head and rewrites the document, so what the
+reviewer just posted comes back as pinned threads a second later without a re-analysis
+(ADR-47). It happens before the response, so the cockpit's own reload shows the pins. Nothing
+else in the document is touched: the diff, the risk and the judgment belong to the analysis.
+A fetch that fails leaves `status.comments` or `status.checks` `failed` with the `gh` message
+and costs nothing else, and the posted review is unaffected either way.
+`POST /api/refresh` runs the same fetch on demand, which is the "Refresh from GitHub" button
+next to the check pills in the cockpit header.
+
 **9. Clean up.** `cockpit clean` stops the server, removes the worktree or temp clone, and keeps the review document and drafts in the cache for later inspection.
+
+**Installation.** `scripts/install.sh` installs the dependencies, builds every package, puts
+`cockpit` on PATH — `npm link`, or a symlink in `~/.local/bin` when the global prefix is not
+writable — and symlinks `skill/cockpit` to `~/.claude/skills/cockpit` (ADR-45).
+`scripts/uninstall.sh` reverses it and keeps the cache. `cockpit doctor` reports the node
+version, `gh` and its login, the build, the skill symlink and the optional config with its
+workspace roots as a table, and exits non-zero when something has to be fixed.
 
 ## The judgment pass: who calls the LLM
 
@@ -288,9 +319,10 @@ An optional `~/.config/review-cockpit/config.json` holds workspace roots to sear
 - **Judgment pass returns invalid JSON:** `judge-merge` writes nothing, keeps the file as
   `judgment.rejected.json`, prints the first five errors in plain words and one line saying
   where to write the corrected file, and exits non-zero. The session fixes it and retries
-  once. After a second rejection the skill stops and says so; the stage 2 sections stay
-  `pending` and the cockpit works from deterministic risk alone. Marking them `failed` is
-  M7's job, since M4 has no process that owns the second failure.
+  once. After a second rejection the skill runs `cockpit mark-failed <pr> --stage 2 --message
+  "<one line>"`, which sets `groups`, `path` and `summary` to `failed` with that message, so
+  the cockpit says the judgment failed instead of promising work nobody is doing. The rest of
+  the cockpit works from deterministic risk alone.
 - **Graph stage fails or times out:** stage 3 is marked failed. The graph tab shows the message. Nothing else is affected.
 - **Nothing is written into the user's clone** but the objects a fetch brings in, one ref
   under `refs/review-cockpit/`, and the worktree registration. `cockpit clean` removes both.

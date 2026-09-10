@@ -2,7 +2,7 @@
 
 Status: proposed. Each milestone ends with a demo and a go from the user before the next one starts.
 
-Order matters. M1 tests the thesis before anything expensive is built. M2 turns the fake document into a contract. M3 to M6 fill the contract from the real world, one producer at a time. M7 wires it together behind `review <pr>`.
+Order matters. M1 tests the thesis before anything expensive is built. M2 turns the fake document into a contract. M3 to M6 fill the contract from the real world, one producer at a time. M7 wires it together behind `cockpit <pr>`.
 
 ## M1 — Cockpit on fake data
 
@@ -118,7 +118,7 @@ Order matters. M1 tests the thesis before anything expensive is built. M2 turns 
 
 **Done when.** Every posted comment appears on GitHub on the exact line shown in the dry-run list, across all three verdicts.
 
-## M7 — The `review <pr>` skill
+## M7 — The `cockpit <pr>` skill
 
 **Goal.** One command from Claude Code to a fully loaded cockpit, and clean teardown.
 
@@ -131,7 +131,7 @@ Order matters. M1 tests the thesis before anything expensive is built. M2 turns 
 - README with install and first-use instructions.
 - After a successful post, the server refetches comments and checks from GitHub and pushes the document, so posted comments reappear as pinned threads within seconds. A manual "Refresh from GitHub" action does the same.
 
-**Verify.** From a fresh terminal in a target repository clone, `review <pr>` on a live PR the user is actually reviewing that day. Time it. Ask questions in the terminal. Post the review. Run "done".
+**Verify.** From a fresh terminal in a target repository clone, `cockpit <pr>` on a live PR the user is actually reviewing that day. Time it. Ask questions in the terminal. Post the review. Run "done".
 
 **Done when.** The user reviews one real PR end to end without touching anything but the command and the browser. This starts the two-week evaluation from `01-product-brief.md`.
 

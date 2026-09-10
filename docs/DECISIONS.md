@@ -917,3 +917,117 @@ position wins, which is the closest thing to the reviewer's intent that the text
 Orphans go to `drafts.orphaned.json`, are served with the drafts, and are shown as an amber
 banner over a list in the rail; they are carried into the next re-attach, so a line that comes
 back re-attaches its draft. A submit does not clear them: nothing in that file was posted.
+
+---
+
+## ADR-45: The skill installs as a symlink into `~/.claude/skills`, under the name `cockpit`
+
+Status: accepted · 2026-09-10
+
+**Context.** M7 has to get two things onto a teammate's machine: the `cockpit` binary and the
+skill Claude Code loads. Claude Code reads user-level skills from `~/.claude/skills/<name>/`,
+where each directory holds a `SKILL.md` with `name` and `description` in its frontmatter. The
+repository is a checkout the user keeps, not a published package.
+
+**Options.**
+1. Copy `skill/cockpit` into `~/.claude/skills/cockpit`. Simple, and every edit to the skill
+   needs a reinstall to take effect. A copy also drifts silently from the checkout it came
+   from.
+2. Ship the skill as a Claude Code plugin with `skills/cockpit/`. The right answer once the
+   tool is distributed, and it needs a marketplace entry and a release process that v1 does
+   not have.
+3. Symlink `skill/cockpit` to `~/.claude/skills/cockpit`, and put the binary on PATH with
+   `npm link`, falling back to a symlink in `~/.local/bin`.
+
+**Decision.** Option 3, in `scripts/install.sh`. The script refuses to overwrite anything at
+`~/.claude/skills/cockpit` that is not a symlink, and prints the `mv` command to run instead.
+`scripts/uninstall.sh` removes only links that point into this checkout. `cockpit doctor`
+reports what is linked and where, so a broken install is one command to diagnose rather than a
+skill that silently never triggers.
+
+The skill is named `cockpit`, not `review`. A skill named `review` collides with the
+review-shaped skills people already have — code review, PR summaries, review UIs — and would
+fire on a bare "review this PR", which is not what this tool is for. The user has to name the
+cockpit, and the description says so.
+
+**Consequences.** The skill the session runs is the file in the checkout, so an edit is live in
+the next session with no reinstall. Deleting or moving the checkout breaks the link, which
+`cockpit doctor` reports as a warning naming both paths. The binary link is whatever worked:
+`npm link` needs a writable global prefix, which a Homebrew or system node often does not have,
+and `~/.local/bin` needs to be on PATH, which the script checks and says. A plugin can be added
+later without changing the skill's content, because the skill is a directory either way.
+
+---
+
+## ADR-46: `cockpit run` is the one command, and it opens the browser after stage 1
+
+Status: accepted · 2026-09-10
+
+**Context.** Until M7 the skill ran `prepare`, `analyze`, `serve` and `open` itself. `analyze`
+builds the call graph in the same process, after stage 1 is written (ADR-6, step 6), so a skill
+that waited for `analyze` to exit before serving would hold the browser back by the length of
+the graph stage. On a large repository that is seconds; the graph is also the stage most likely
+to fail, and a failure there must not cost the reviewer the cockpit.
+
+**Options.**
+1. Leave the orchestration in the skill: `analyze --skip-graph`, then `serve`, then a second
+   `analyze` for the graph. Three processes, two analyses of the same diff, and a step order the
+   skill can get wrong.
+2. Keep one `analyze` and serve after it. One process, and the cockpit opens late for no
+   reason.
+3. One `cockpit run` subcommand, with the analyzer calling back once stage 1 is on disk. The
+   callback starts the server and opens the browser; the graph runs after it.
+
+**Decision.** Option 3. `analyze` gained an `onStage1` hand-off that fires after the document
+and the compact view are written and before the graph starts. `run` serves and opens from
+there, then lets the graph finish and rewrite the document, which the open cockpit picks up
+over server-sent events. The server is a detached `cockpit serve` rather than an HTTP server in
+`run`'s own process, because the resident session needs its terminal back while the server keeps
+running; `run` waits for that server's `/api/health` before it reports the URL. The last line of
+stdout is one line of JSON, `{url, prDir, compact, judgmentOut, headSha}`, so the skill reads
+values instead of parsing prose.
+
+**Consequences.** The cockpit opens on stage 1 on every pull request, and a graph failure is a
+message in the Map tab of a cockpit that is already useful. `run` on a cached document at the
+same head skips the analysis entirely and serves what is on disk, which makes it safe to run
+twice; a checkout that was cleaned away is made again, because the resident session answers
+questions from it. Two servers for one pull request are impossible: an alive server is reused,
+and `--reuse-server` also leaves its browser tab alone, which is what a re-analysis wants.
+Progress lines and the JSON go to different streams, so a wrapper reads one and a person reads
+the other.
+
+---
+
+## ADR-47: The server refetches comments and checks straight after a post
+
+Status: accepted · 2026-09-10
+
+**Context.** Submitting a review clears the drafts: they are comments on GitHub now. Until M7
+the cockpit then showed neither — the drafts were gone and the posted comments were not in the
+document, which is only refreshed by a re-analysis. The reviewer had just published five
+comments and could see none of them.
+
+**Options.**
+1. Show the drafts as pinned comments locally after a successful post. No fetch, and the cockpit
+   would be showing its own guess of what GitHub stored, including ids and threads it invented.
+2. Re-run `cockpit analyze`. Correct, and it re-parses the diff, re-measures git history and
+   rebuilds the graph to pick up five comments.
+3. Have the server call the analyzer's comment and check ingestion for the document's head and
+   rewrite the document.
+
+**Decision.** Option 3, before the submit response is sent, and again on demand through
+`POST /api/refresh` behind a "Refresh from GitHub" button next to the check pills. The fetch
+replaces `comments`, `conversation` and `checks` and touches nothing else, so the diff, the risk
+and the judgment stay as the analysis wrote them. The document is validated and written by
+rename like any other write, so the open cockpit reloads it over server-sent events. A fetch
+that fails sets `status.comments` or `status.checks` to `failed` with the `gh` message, which is
+exactly what stage 1 does with the same failure.
+
+**Consequences.** `packages/server` now depends on `packages/analyzer` for the ingestion and the
+document writer. The dependency runs one way — the analyzer knows nothing about the server — and
+the ingestion function is injected, so the tests exercise every path without a network. The
+submit response waits for one extra `gh` round trip, about a second, in exchange for the
+guarantee that the page the reviewer looks at after posting includes what they posted. The
+refetch uses the head the document was analysed at, which submit has just checked has not moved;
+a refresh long after the head moved re-reads that same head's checks, and picking up new commits
+is a re-analysis, not a refresh.

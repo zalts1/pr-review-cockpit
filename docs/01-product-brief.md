@@ -29,7 +29,7 @@ These facts come from local clones of the target organization and from the GitHu
 
 ## What v1 delivers
 
-The user types `review <pr>` inside Claude Code. The skill checks out the PR, analyzes it, and opens a local web app for that PR. The user reviews inside the web app and submits comments back to GitHub from there.
+The user types `cockpit <pr>` inside Claude Code. The skill checks out the PR, analyzes it, and opens a local web app for that PR. The user reviews inside the web app and submits comments back to GitHub from there.
 
 Features, in order of priority:
 
@@ -65,9 +65,9 @@ The kill criterion is the first milestone. We build the cockpit against realisti
 
 ## Constraints
 
-- **Startup budget.** From `review <pr>` to a usable cockpit within about a minute, with a progress bar. Slower pieces may arrive after the cockpit opens.
+- **Startup budget.** From `cockpit <pr>` to a usable cockpit within about a minute, with a progress bar. Slower pieces may arrive after the cockpit opens.
 - **Checkout.** Use a git worktree when a local clone of the repository exists. Otherwise make a temporary clone with full history, because churn and blame signals need it.
-- **Zero configuration by default.** `review 123` inside a clone reviews that repository. A URL or `owner/repo#123` works from anywhere. Detection patterns for generated code are built in.
+- **Zero configuration by default.** `cockpit 123` inside a clone reviews that repository. A URL or `owner/repo#123` works from anywhere. Detection patterns for generated code are built in.
 - **Risk floor.** The deterministic signals set a floor. The LLM may raise the risk of a hunk. It may never lower a deterministically high-risk hunk below "review carefully". A false sense of safety is the failure we fear most.
 - **Light theme.** GitHub's light palette as the baseline.
 

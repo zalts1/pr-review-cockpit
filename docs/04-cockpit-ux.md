@@ -202,9 +202,9 @@ A modal over either tab.
 - The list is the dry run. Every comment shows exactly the path, line and side it will be posted with, and the server posts the file it served rather than anything the modal sends, so the two cannot disagree.
 - The verdict and the summary are part of the drafts file, so closing the modal or reloading the page keeps both.
 - Choosing **Approve** while high-risk hunks remain unseen shows a warning line. It does not block. The reviewer decides.
-- **Post to GitHub** disables the button, shows a spinner, then a green line with the number of comments posted and a link to the review on GitHub. The drafts are cleared, because they are comments now; they come back as pinned comments on the next re-analysis, and nothing is faked in the meantime.
+- **Post to GitHub** disables the button, shows a spinner, then a green line with the number of comments posted and a link to the review on GitHub. The drafts are cleared, because they are comments now; the server refetches the pull request's comments straight after the post, so they come back as pinned threads a second later, and nothing is faked in the meantime.
 - A **comment** review with no drafts and an empty summary is refused before it is sent: the button is disabled and a line says a comment review needs a summary or at least one comment.
-- If the server finds that the PR head moved, the modal shows: "The PR has new commits since this review started (d4e5f6a → 9ab12cd). Your drafts are saved. Run `review 1234` again to re-attach them." Nothing is posted.
+- If the server finds that the PR head moved, the modal shows: "The PR has new commits since this review started (d4e5f6a → 9ab12cd). Your drafts are saved. Run `cockpit run 1234` again to re-attach them." Nothing is posted.
 - GitHub refusing an approval or a change request on the reviewer's own pull request shows as one plain sentence. Any other `gh` failure shows the error `gh` printed, verbatim, under the button.
 
 ## Loading and status states
@@ -221,7 +221,7 @@ Every section of the document has a state. The UI shows it in place, never as a 
 | Section failed | What the reviewer sees |
 |---|---|
 | any stage 2 section | A yellow line above the diff: "Analysis did not complete: &lt;message&gt;. Risk shown is from code signals only." The cockpit keeps working. |
-| `graph` | The Map tab shows the message and "Re-run from the terminal with `review 1234 --graph`." |
+| `graph` | The Map tab shows the message and "Re-run from the terminal with `cockpit run 1234`." |
 
 **Connection lost.** If the server-sent events stream drops, a red banner at the top says "Disconnected from the local server. Drafts are saved locally." Every change keeps going to browser storage while it is down, and when the stream comes back the cockpit re-reads the server's drafts and sends its own copy if the server's is older.
 
