@@ -22,6 +22,12 @@ about the code.
 Run the steps below in order. Step 3 is yours and no other process does it: skip it and the
 cockpit shows deterministic risk with no groups, no reading order and no brief.
 
+Before step 1, only if `cockpit` is not on PATH: run `cockpit doctor`, or
+`${CLAUDE_PLUGIN_ROOT}/bin/cockpit doctor` when the bare command is not found. A plugin install
+builds itself on the first session start, and a build that failed left its reason in
+`${CLAUDE_PLUGIN_DATA}/bootstrap.log`. Give the user that table or that log, and stop: no step
+below works without the command.
+
 ## 1. Resolve the argument
 
 The user names the pull request in one of three ways, and `cockpit` takes all three:
