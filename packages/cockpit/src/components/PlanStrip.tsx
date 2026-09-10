@@ -3,7 +3,20 @@ import { pendingLabel } from '../lib/derive';
 import type { PhaseProgress } from '../lib/plan';
 import { Markdown, MarkdownInline } from '../lib/markdown';
 import { useEffect } from 'react';
-import { ChevronDownIcon, ChevronRightIcon, FilesIcon } from './Icons';
+import { ChevronDownIcon, ChevronRightIcon, CrossIcon, FilesIcon } from './Icons';
+
+function CloseDetail({ onClose }: { onClose(): void }) {
+  return (
+    <button
+      className="btn btn-icon plan-detail-close"
+      onClick={onClose}
+      aria-label="Close the brief"
+      title="Close the brief (Esc)"
+    >
+      <CrossIcon size={12} />
+    </button>
+  );
+}
 
 interface Props {
   summary: ReadySummary | null;
@@ -125,12 +138,14 @@ export function PlanStrip({
       {open &&
         (summary === null ? (
           <div className="plan-detail">
+            <CloseDetail onClose={onToggle} />
             <div className="plan-panel">
               <Markdown className="plan-body" text={prBody || 'This PR has no description.'} />
             </div>
           </div>
         ) : (
           <div className="plan-detail plan-brief">
+            <CloseDetail onClose={onToggle} />
             <div className="plan-col">
               <div className="plan-detail-label">Flow</div>
               <div className="plan-flow">

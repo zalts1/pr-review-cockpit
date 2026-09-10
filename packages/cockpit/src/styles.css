@@ -389,6 +389,10 @@ a.pill:hover {
   border-bottom: 1px solid var(--border);
   background: var(--page);
   flex: none;
+  position: relative;
+  /* Above .plan-row, or the strip wins the tie on DOM order and paints over
+     the check-pill hovercard this stacking context caps. */
+  z-index: 40;
 }
 
 .header-identity {
@@ -515,6 +519,8 @@ a.pill:hover {
   align-items: center;
   gap: 24px;
   padding: 6px 20px 8px;
+  position: relative;
+  z-index: 30;
 }
 
 .plan-tldr-row {
@@ -524,6 +530,8 @@ a.pill:hover {
   padding: 10px 20px 0;
   font-size: 13px;
   line-height: 1.45;
+  position: relative;
+  z-index: 30;
 }
 .plan-tldr {
   flex: 1;
@@ -632,8 +640,9 @@ a.pill:hover {
   left: 0;
   right: 0;
   top: 100%;
-  z-index: 30;
-  padding: 12px 20px 16px;
+  z-index: 20;
+  /* The right gutter is the close button's, so the panel never lays text under it. */
+  padding: 12px 52px 16px 20px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -643,11 +652,24 @@ a.pill:hover {
   border-bottom: 1px solid var(--border);
   box-shadow: 0 12px 28px rgba(31, 35, 40, 0.14);
 }
+
+/*
+ * The brief is a disclosure, not a modal: its backdrop only catches a
+ * click-away, so it sits below the chrome (.plan-row 30, header 40) rather
+ * than over it. Raising it above them swallows every header control and the
+ * toggle that opened the panel. True modals (.overlay, 50) go over everything.
+ */
 .plan-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 10;
   background: rgba(31, 35, 40, 0.18);
+}
+
+.plan-detail-close {
+  position: absolute;
+  top: 10px;
+  right: 16px;
 }
 
 .plan-panel {
@@ -2135,7 +2157,7 @@ tr:hover .plus {
   align-items: flex-start;
   justify-content: center;
   padding-top: 8vh;
-  z-index: 20;
+  z-index: 50;
 }
 
 .modal {
@@ -2288,7 +2310,7 @@ tr:hover .plus {
   padding: 8px 14px;
   border-radius: 6px;
   font-size: 13px;
-  z-index: 30;
+  z-index: 60;
   box-shadow: 0 4px 12px rgb(31 35 40 / 20%);
 }
 
