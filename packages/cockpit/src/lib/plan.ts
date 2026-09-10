@@ -182,7 +182,6 @@ export function skippableHunkCount(derived: Derived): number {
   return ids.size;
 }
 
-/** High-risk hunks the walk has not reached yet, counted once each. */
 export function highRiskAhead(derived: Derived, index: number): number {
   const ids = new Set<string>();
   for (const [stepIndex, step] of derived.steps.entries()) {
@@ -238,7 +237,6 @@ export function nextStepLabel(derived: Derived, index: number, cap = NEXT_LABEL_
   return clip(slash === -1 ? at.file.path : at.file.path.slice(slash + 1));
 }
 
-/** The heat of a set of hunks: the highest level any of them carries. */
 export function heatOf(derived: Derived, hunkIds: string[]): RiskLevel {
   let heat: RiskLevel = 'low';
   for (const id of hunkIds) {
