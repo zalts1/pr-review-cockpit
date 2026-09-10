@@ -442,6 +442,7 @@ a:hover {
   border-bottom: 1px solid var(--border);
   background: var(--panel);
   flex: none;
+  position: relative;
 }
 
 .plan-row {
@@ -562,10 +563,26 @@ a:hover {
 }
 
 .plan-detail {
-  padding: 0 20px 12px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 30;
+  padding: 12px 20px 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: calc(100vh - 200px);
+  overflow: auto;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 12px 28px rgba(31, 35, 40, 0.14);
+}
+.plan-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(31, 35, 40, 0.18);
 }
 
 .plan-panel {

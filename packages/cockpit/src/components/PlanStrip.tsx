@@ -2,6 +2,7 @@ import type { ReadySummary, SectionStatus } from '@review-cockpit/schema';
 import { pendingLabel } from '../lib/derive';
 import type { PhaseProgress } from '../lib/plan';
 import { Markdown, MarkdownInline } from '../lib/markdown';
+import { useEffect } from 'react';
 import { ChevronDownIcon, ChevronRightIcon } from './Icons';
 
 interface Props {
@@ -66,6 +67,15 @@ export function PlanStrip({
   open,
   onToggle,
 }: Props) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onToggle();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onToggle]);
+
   const pending = status.state === 'pending';
   const failed = status.state === 'failed';
   const placeholder = pending ? pendingLabel(status) : 'Summary unavailable';
@@ -107,6 +117,7 @@ export function PlanStrip({
         </div>
       </div>
 
+      {open && <div className="plan-backdrop" onClick={onToggle} />}
       {open &&
         (summary === null ? (
           <div className="plan-detail">
