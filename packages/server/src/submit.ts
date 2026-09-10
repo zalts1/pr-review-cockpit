@@ -104,7 +104,7 @@ export async function submitReview(request: SubmitRequest): Promise<SubmitOutcom
     };
   }
 
-  const drafts = await readDrafts(request.prDir, now.toISOString());
+  const drafts = await readDrafts(request.prDir);
   const pr = drafts.pr;
   const slug = `${pr.owner}/${pr.repo}`;
 

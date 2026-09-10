@@ -127,6 +127,7 @@ describe('GET /api/drafts', () => {
       summaryBody: '',
       drafts: [],
     });
+    expect(body.updatedAt).toBeUndefined();
   });
 
   it('carries the drafts a re-analysis could not re-attach', async () => {

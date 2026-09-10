@@ -5,14 +5,18 @@ import type { DraftsFile, DraftsPr } from '@review-cockpit/schema';
 import { SCHEMA_VERSION } from '@review-cockpit/schema/version';
 import { DOCUMENT_FILENAME, DRAFTS_FILENAME, ORPHANED_DRAFTS_FILENAME } from './paths.js';
 
-export function emptyDrafts(pr: DraftsPr, updatedAt: string): DraftsFile {
+/**
+ * A file with no `updatedAt` has never been written. The cockpit reads that as
+ * "the server holds nothing" and keeps its own browser-storage copy.
+ */
+export function emptyDrafts(pr: DraftsPr, updatedAt?: string): DraftsFile {
   return {
     schemaVersion: SCHEMA_VERSION,
     pr,
     verdict: null,
     summaryBody: '',
     drafts: [],
-    updatedAt,
+    ...(updatedAt === undefined ? {} : { updatedAt }),
   };
 }
 
@@ -47,9 +51,9 @@ export async function documentHead(prDir: string): Promise<string | null> {
 }
 
 /** The stored drafts, or an empty file when the reviewer has written none yet. */
-export async function readDrafts(prDir: string, now: string): Promise<DraftsFile> {
+export async function readDrafts(prDir: string): Promise<DraftsFile> {
   const stored = await readJson(join(prDir, DRAFTS_FILENAME));
-  if (stored === null) return emptyDrafts(await prIdentity(prDir), now);
+  if (stored === null) return emptyDrafts(await prIdentity(prDir));
   return stored as DraftsFile;
 }
 

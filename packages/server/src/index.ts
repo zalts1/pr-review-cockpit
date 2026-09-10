@@ -222,7 +222,7 @@ async function serveDocument(res: ServerResponse, prDir: string): Promise<void> 
 }
 
 async function serveDrafts(res: ServerResponse, prDir: string): Promise<void> {
-  const file = await readDrafts(prDir, new Date().toISOString());
+  const file = await readDrafts(prDir);
   const orphaned = await readOrphanedDrafts(prDir);
   sendJson(res, 200, orphaned === undefined ? file : { ...file, orphaned });
 }
