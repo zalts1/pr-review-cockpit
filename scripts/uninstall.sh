@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Reverses scripts/install.sh: unlinks the cockpit command and the review skill.
+# Reverses scripts/install.sh: unlinks the cockpit command and the cockpit skill.
 # The cache of analysed pull requests is left alone. Idempotent.
 set -uo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cli_entry="$root/packages/cli/dist/cockpit.js"
-skill_source="$root/skill/review"
-skill_link="$HOME/.claude/skills/review"
+skill_source="$root/skill/cockpit"
+skill_link="$HOME/.claude/skills/cockpit"
 local_bin_link="$HOME/.local/bin/cockpit"
 cache="${REVIEW_COCKPIT_CACHE:-$HOME/.cache/review-cockpit}"
 
@@ -32,7 +32,7 @@ else
   note "no symlink at $local_bin_link"
 fi
 
-step "The review skill"
+step "The cockpit skill"
 if [ -L "$skill_link" ]; then
   current=$(cd "$(dirname "$skill_link")" && cd "$(readlink "$skill_link")" 2>/dev/null && pwd)
   if [ "$current" = "$skill_source" ] || [ -z "$current" ]; then

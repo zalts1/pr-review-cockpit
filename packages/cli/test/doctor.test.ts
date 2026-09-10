@@ -7,8 +7,8 @@ const healthy: DoctorFacts = {
   gh: { code: 0, output: 'github.com\n  ✓ Logged in to github.com account octocat\n' },
   uiHtml: '/checkout/packages/cockpit/dist/index.html',
   cliEntry: '/checkout/packages/cli/dist/cockpit.js',
-  skillSource: '/checkout/skill/review',
-  skillLink: { path: '/home/me/.claude/skills/review', kind: 'symlink', target: '/checkout/skill/review' },
+  skillSource: '/checkout/skill/cockpit',
+  skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'symlink', target: '/checkout/skill/cockpit' },
   configFile: { path: '/home/me/.config/review-cockpit/config.json', exists: true },
   workspaceRoots: [{ path: '/home/me/workspace', exists: true }],
 };
@@ -59,20 +59,20 @@ describe('cockpit doctor', () => {
   it('fails an absent skill link and warns about one pointing elsewhere', () => {
     const absent = doctorRows({
       ...healthy,
-      skillLink: { path: '/home/me/.claude/skills/review', kind: 'absent', target: null },
+      skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'absent', target: null },
     });
     expect(stateOf(absent, 'skill')).toBe('fail');
     expect(detailOf(absent, 'skill')).toContain('scripts/install.sh');
 
     const elsewhere = doctorRows({
       ...healthy,
-      skillLink: { path: '/home/me/.claude/skills/review', kind: 'symlink', target: '/other/skill/review' },
+      skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'symlink', target: '/other/skill/cockpit' },
     });
     expect(stateOf(elsewhere, 'skill')).toBe('warn');
 
     const copied = doctorRows({
       ...healthy,
-      skillLink: { path: '/home/me/.claude/skills/review', kind: 'directory', target: null },
+      skillLink: { path: '/home/me/.claude/skills/cockpit', kind: 'directory', target: null },
     });
     expect(stateOf(copied, 'skill')).toBe('warn');
   });

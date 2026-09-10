@@ -5,7 +5,7 @@ import type { Group, ReviewDocument } from '@review-cockpit/schema';
 import { judgmentSchema, REASON_MAX_LENGTH, SCHEMA_VERSION } from '@review-cockpit/schema';
 import { buildCompact } from '@review-cockpit/analyzer';
 
-export const PROMPT_TEMPLATE_PATH = join('skill', 'review', 'judgment-prompt.md');
+export const PROMPT_TEMPLATE_PATH = join('skill', 'cockpit', 'judgment-prompt.md');
 
 const PLACEHOLDER = /\{\{(\w+)\}\}/g;
 

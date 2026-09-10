@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { SUBCOMMANDS, usage } from '../src/usage.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const skill = readFileSync(join(repoRoot, 'skill', 'review', 'SKILL.md'), 'utf8');
+const skill = readFileSync(join(repoRoot, 'skill', 'cockpit', 'SKILL.md'), 'utf8');
 
 interface Frontmatter {
   fields: Record<string, string>;
@@ -47,18 +47,20 @@ function commandLines(text: string): string[] {
   return lines.map((line) => line.trim()).filter((line) => line.startsWith('cockpit '));
 }
 
-describe('skill/review/SKILL.md', () => {
+describe('skill/cockpit/SKILL.md', () => {
   it('carries frontmatter Claude Code can load', () => {
     const { fields } = frontmatter(skill);
-    expect(fields['name']).toBe('review');
+    expect(fields['name']).toBe('cockpit');
     expect(fields['description']?.length).toBeGreaterThan(40);
   });
 
-  it('describes the ways the user asks for a review', () => {
+  it('triggers on the cockpit being named, and says a bare review request is not it', () => {
     const description = frontmatter(skill).fields['description'] ?? '';
-    expect(description).toContain('review 123');
-    expect(description).toContain('review this PR');
+    expect(description).toContain('cockpit 123');
+    expect(description).toContain('open the cockpit for');
+    expect(description).toContain('in the cockpit');
     expect(description).toContain('URL');
+    expect(description).toMatch(/bare "review this PR"/);
   });
 
   it('names only subcommands the CLI has', () => {

@@ -37,7 +37,7 @@ export interface DoctorFacts {
 }
 
 export function skillLinkPath(): string {
-  return join(homedir(), '.claude', 'skills', 'review');
+  return join(homedir(), '.claude', 'skills', 'cockpit');
 }
 
 export function readLinkFacts(path: string): LinkFacts {

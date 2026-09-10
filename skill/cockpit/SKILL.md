@@ -1,13 +1,14 @@
 ---
-name: review
+name: cockpit
 description: >-
-  Review a GitHub pull request in the PR Review Cockpit, a local web app that
+  Open a GitHub pull request in the PR Review Cockpit, a local web app that
   shows the diff with a risk level, a reading order and a brief on every hunk.
-  Use when the user says "review 123", "review this PR", "review
-  owner/repo#123", "open the cockpit for <pr>", pastes a GitHub pull request URL
-  and asks about reviewing it, or asks for help reviewing a pull request they
-  name by number or URL. Accepts a pull request number, owner/repo#number, or a
-  GitHub pull request URL.
+  Use when the user names the cockpit: "cockpit 123", "cockpit
+  owner/repo#123", "cockpit <pull request URL>", "open the cockpit for <pr>",
+  "review 123 in the cockpit", or "review this PR in the cockpit". The user
+  has to ask for the cockpit; a bare "review this PR" with no mention of it is
+  a different job and not this skill. Takes a pull request number,
+  owner/repo#number, or a GitHub pull request URL.
 ---
 
 # Review a pull request in the cockpit
@@ -159,7 +160,7 @@ document, skips the analysis and serves what is on disk. It says so in its progr
 
 ## What the user sees
 
-1. They type `review 123`.
+1. They type "cockpit 123" in Claude Code, or paste the pull request URL and ask for the cockpit.
 2. About a minute of progress lines in the terminal, one per stage.
 3. A browser tab with the diff, the risk heatmap, the existing comments and the checks. The
    summary, the groups and the reading order say they are being analysed.

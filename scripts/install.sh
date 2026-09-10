@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Installs the PR review cockpit for the current user: builds it, puts the cockpit
-# command on PATH, and registers the review skill with Claude Code. Idempotent.
+# command on PATH, and registers the cockpit skill with Claude Code. Idempotent.
 set -uo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cli_entry="$root/packages/cli/dist/cockpit.js"
-skill_source="$root/skill/review"
-skill_link="$HOME/.claude/skills/review"
+skill_source="$root/skill/cockpit"
+skill_link="$HOME/.claude/skills/cockpit"
 local_bin="$HOME/.local/bin"
 
 problems=0
@@ -55,7 +55,7 @@ if [ -z "$linked" ]; then
 fi
 [ -n "$linked" ] && note "linked by $linked"
 
-step "The review skill"
+step "The cockpit skill"
 mkdir -p "$(dirname "$skill_link")"
 if [ -L "$skill_link" ]; then
   current=$(cd "$(dirname "$skill_link")" && cd "$(readlink "$skill_link")" 2>/dev/null && pwd)
@@ -89,7 +89,7 @@ cat <<'DONE'
 
 Installed. In Claude Code, from inside a clone of the repository you want to review:
 
-  review 123
+  cockpit 123
 
-or "review https://github.com/owner/repo/pull/123" from anywhere.
+or "cockpit https://github.com/owner/repo/pull/123" from anywhere.
 DONE
