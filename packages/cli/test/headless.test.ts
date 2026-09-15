@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { judgmentFromText, newProgress, parseStream, progressLine } from '../src/headless.js';
-import { allowedTools, claudeArgs } from '../src/commands/judge.js';
+import { ALLOWED_TOOLS, claudeArgs } from '../src/commands/judge.js';
 
 const JUDGMENT = '/cache/northwind-labs/tenant-platform/pr-1234/judgment.json';
 
@@ -82,7 +82,6 @@ describe('what claude -p is started with', () => {
     const args = claudeArgs({
       prompt: 'x',
       cwd: '/cache/worktree',
-      addDir: '/cache/pr-1234',
       judgmentPath: JUDGMENT,
       timeoutMs: 1000,
       onProgress: () => undefined,
@@ -97,16 +96,15 @@ describe('what claude -p is started with', () => {
       '--permission-mode',
       'dontAsk',
     ]);
-    expect(args).toEqual(expect.arrayContaining(['--add-dir', '/cache/pr-1234', '--model', 'opus']));
-    expect(args[args.indexOf('--allowedTools') + 1]).toBe(allowedTools(JUDGMENT).join(','));
+    expect(args).toEqual(expect.arrayContaining(['--model', 'opus']));
+    expect(args[args.indexOf('--allowedTools') + 1]).toBe(ALLOWED_TOOLS.join(','));
   });
 
-  it('allows the reads, the read-only git commands and the one write', () => {
-    const tools = allowedTools(JUDGMENT);
-
-    expect(tools).toContain('Read');
-    expect(tools).toContain('Bash(git log *)');
-    expect(tools).toContain(`Write(/${JUDGMENT})`);
-    expect(tools.some((rule) => rule.startsWith('Edit'))).toBe(false);
+  it('allows the reads and the read-only git commands, and nothing that writes', () => {
+    expect(ALLOWED_TOOLS).toContain('Read');
+    expect(ALLOWED_TOOLS).toContain('Bash(git log *)');
+    expect(
+      ALLOWED_TOOLS.some((rule) => rule.startsWith('Write') || rule.startsWith('Edit')),
+    ).toBe(false);
   });
 });

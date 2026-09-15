@@ -59,7 +59,7 @@ afterEach(() => {
 
 /** Stands in for the model: it writes what the test tells it to, and records what it was asked. */
 function fakeInvoke(
-  writes: Array<Record<string, unknown> | 'nothing' | 'in-the-message'>,
+  answers: Array<Record<string, unknown> | 'nothing'>,
 ): { deps: JudgeDeps; prompts: string[] } {
   const prompts: string[] = [];
   let turn = 0;
@@ -69,13 +69,9 @@ function fakeInvoke(
       prompts.push(options.prompt);
       const state = newProgress();
       state.reads = 4;
-      const answer = writes[turn] ?? 'nothing';
+      const answer = answers[turn] ?? 'nothing';
       turn += 1;
-      if (answer === 'in-the-message') {
-        state.finalText = JSON.stringify(goodJudgment());
-      } else if (answer !== 'nothing') {
-        writeFileSync(options.judgmentPath, JSON.stringify(answer, null, 2));
-      }
+      if (answer !== 'nothing') state.finalText = JSON.stringify(answer, null, 2);
       state.done = true;
       return Promise.resolve({ state, code: 0, timedOut: false });
     },
@@ -101,12 +97,19 @@ describe('cockpit judge --headless', () => {
     });
   });
 
-  it('writes the judgment from the final message when the file was never written', async () => {
-    const { deps } = fakeInvoke(['in-the-message']);
+  it('writes the final message to the judgment path', async () => {
+    const { deps } = fakeInvoke([goodJudgment()]);
 
     expect(await headless(deps)).toBe(0);
     expect(existsSync(join(prDir, 'judgment.json'))).toBe(true);
-    expect(document().status.summary.state).toBe('ready');
+  });
+
+  it('never merges a judgment an earlier run left behind', async () => {
+    writeFileSync(join(prDir, 'judgment.json'), JSON.stringify(goodJudgment(), null, 2));
+    const { deps } = fakeInvoke(['nothing']);
+
+    expect(await headless(deps)).toBe(1);
+    expect(document().status.summary.state).toBe('failed');
   });
 
   it('retries once with the errors appended, and succeeds', async () => {
@@ -154,6 +157,7 @@ describe('cockpit judge --headless', () => {
     await headless(deps);
 
     expect(prompts[0]).toContain('You are running headless');
+    expect(prompts[0]).toContain('Do not write any file');
     expect(prompts[0]).toContain('Do not run');
   });
 

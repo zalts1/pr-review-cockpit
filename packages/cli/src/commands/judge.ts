@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import type { PrRef } from '@review-cockpit/analyzer';
 import {
   documentFile,
@@ -29,34 +29,36 @@ const TICK_MS = 1000;
 const PLAIN_LINE_MS = 15_000;
 
 /**
- * Read-only tools plus the one write the pass exists to make. Claude Code's permission rules
- * match a Bash command by prefix, and the trailing space before the star is what makes
- * `git diff *` a prefix rather than also matching `git diff-index`.
+ * Reading only. A `Write` allow rule for an absolute path outside the working directory is
+ * refused in a `-p` run whatever the permission mode, so the pass returns its judgment as its
+ * final message and this command writes the file. Claude Code matches a Bash rule by prefix,
+ * and the space before the star is what keeps `git diff *` from also matching `git diff-index`.
  */
-export function allowedTools(judgmentPath: string): string[] {
-  return [
-    'Read',
-    'Grep',
-    'Glob',
-    'Bash(git log *)',
-    'Bash(git show *)',
-    'Bash(git diff *)',
-    'Bash(git blame *)',
-    'Bash(git status *)',
-    'Bash(cat *)',
-    `Write(//${judgmentPath.replace(/^\/+/, '')})`,
-  ];
-}
+export const ALLOWED_TOOLS = [
+  'Read',
+  'Grep',
+  'Glob',
+  'Bash(git log *)',
+  'Bash(git show *)',
+  'Bash(git diff *)',
+  'Bash(git blame *)',
+  'Bash(git status *)',
+  'Bash(cat *)',
+] as const;
 
 const HEADLESS_POSTSCRIPT = `
-## You are running headless
+## You are running headless, and this section wins
 
-Nothing about this run is interactive, and no one is reading your prose. Do not run
-\`cockpit judge-merge\`: the command that started you runs the merge itself the moment you stop.
-Write the judgment file and stop.
+This run is not interactive and nobody reads prose from it. Two instructions above do not hold
+here, and this section replaces them:
 
-If writing the file is refused, make the JSON your whole final message, with no fence around it
-and no commentary before or after it, and the command writes it for you.
+- **Do not write any file.** You cannot: every write is refused. Return the judgment as your
+  **whole final message** — the JSON object and nothing else, no fence around it and no sentence
+  before or after it. The command that started you writes it to the judgment path and merges it.
+- **Do not run \`cockpit judge-merge\`,** or any other command that changes anything. That
+  command runs by itself the moment you stop.
+
+Read the code first, exactly as the sections above tell you to. Only the last step changed.
 `;
 
 export interface JudgeFlags {
@@ -75,7 +77,6 @@ export interface JudgeDeps {
 export interface InvokeOptions {
   prompt: string;
   cwd: string;
-  addDir: string;
   judgmentPath: string;
   model?: string;
   timeoutMs: number;
@@ -145,7 +146,6 @@ async function runHeadless(
   let outcome = await deps.invoke({
     prompt: `${prompt}\n${HEADLESS_POSTSCRIPT}`,
     cwd: checkout,
-    addDir: prDir(ref),
     judgmentPath,
     timeoutMs,
     onProgress: render.update,
@@ -159,7 +159,6 @@ async function runHeadless(
     outcome = await deps.invoke({
       prompt: `${prompt}\n${HEADLESS_POSTSCRIPT}\n${retryNote(merged.errors)}`,
       cwd: checkout,
-      addDir: prDir(ref),
       judgmentPath,
       timeoutMs,
       onProgress: render.update,
@@ -183,22 +182,19 @@ async function runHeadless(
   return 0;
 }
 
+/**
+ * The pass writes nothing, so the file on disk is always this run's final message. A judgment an
+ * earlier run left behind is removed rather than merged, which would pass off stale work as new.
+ */
 function settle(
   ref: PrRef,
   judgmentPath: string,
   outcome: InvokeOutcome,
 ): ReturnType<typeof applyJudgment> {
-  rescueJudgment(judgmentPath, outcome.state);
+  rmSync(judgmentPath, { force: true });
+  const json = judgmentFromText(outcome.state.finalText);
+  if (json !== null) writeFileSync(judgmentPath, `${json}\n`, 'utf8');
   return applyJudgment(ref, judgmentPath);
-}
-
-/** A run whose Write was refused still holds the answer in its last message. */
-function rescueJudgment(judgmentPath: string, state: HeadlessProgress): void {
-  if (existsSync(judgmentPath)) return;
-  const json = judgmentFromText(state.finalText);
-  if (json === null) return;
-  writeFileSync(judgmentPath, `${json}\n`, 'utf8');
-  console.error(`[judge] the pass could not write the file, so its final message was written to ${judgmentPath}`);
 }
 
 function retryNote(errors: string[]): string {
@@ -215,7 +211,7 @@ function headlineFor(errors: string[], outcome: InvokeOutcome): string {
   if (errors.length > 0) return `the judgment pass was rejected twice: ${errors[0]}`;
   if (outcome.timedOut) return 'the headless judgment pass ran out of time';
   if (outcome.state.error !== null) return `the headless judgment pass failed: ${outcome.state.error}`;
-  return 'the headless judgment pass wrote no judgment file';
+  return 'the headless judgment pass returned no judgment';
 }
 
 function markStage2Failed(ref: PrRef, message: string): void {
@@ -289,10 +285,8 @@ export function claudeArgs(options: InvokeOptions): string[] {
     '--verbose',
     '--permission-mode',
     'dontAsk',
-    '--add-dir',
-    options.addDir,
     '--allowedTools',
-    allowedTools(options.judgmentPath).join(','),
+    ALLOWED_TOOLS.join(','),
     ...(options.model === undefined ? [] : ['--model', options.model]),
   ];
 }
