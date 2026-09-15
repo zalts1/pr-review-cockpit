@@ -433,7 +433,10 @@ async function serveFinish(
       sendJson(res, 409, {
         code: 'unsent_drafts',
         count,
-        message: `${count} draft comment${count === 1 ? '' : 's'} ${count === 1 ? 'has' : 'have'} not been posted. Deleting them cannot be undone.`,
+        message:
+          count === 1
+            ? '1 draft comment has not been posted. Deleting it cannot be undone.'
+            : `${count} draft comments have not been posted. Deleting them cannot be undone.`,
       });
       return;
     }
