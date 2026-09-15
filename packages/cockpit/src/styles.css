@@ -549,6 +549,12 @@ a.pill:hover {
   min-width: 0;
 }
 
+.plan-overview {
+  grid-column: 1 / -1;
+  min-width: 0;
+  max-width: 78ch;
+}
+
 .plan-label {
   font-weight: 600;
   color: var(--fg-muted);
