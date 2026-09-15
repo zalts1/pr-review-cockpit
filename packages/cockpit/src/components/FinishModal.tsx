@@ -13,10 +13,6 @@ interface Props {
   onFinish(): void;
 }
 
-function drafts(count: number): string {
-  return `${count} ${count === 1 ? 'draft' : 'drafts'}`;
-}
-
 export function FinishModal({
   unsentDrafts,
   purge,
@@ -30,6 +26,7 @@ export function FinishModal({
 }: Props) {
   const losingDrafts = purge && unsentDrafts > 0;
   const blocked = losingDrafts && !confirmDrafts;
+  const noun = unsentDrafts === 1 ? 'draft' : 'drafts';
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Finish this review?">
@@ -61,7 +58,7 @@ export function FinishModal({
             <div className="warn">
               <WarnIcon size={13} />
               <span>
-                You have {unsentDrafts} unsent {unsentDrafts === 1 ? 'draft' : 'drafts'}
+                You have {unsentDrafts} unsent {noun}
               </span>
             </div>
           )}
@@ -74,7 +71,7 @@ export function FinishModal({
                 disabled={finishing}
                 onChange={(e) => onConfirmDrafts(e.target.checked)}
               />
-              Delete {drafts(unsentDrafts)} too
+              Delete {unsentDrafts} {noun} too
             </label>
           )}
 
