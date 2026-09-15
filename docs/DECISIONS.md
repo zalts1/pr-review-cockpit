@@ -76,7 +76,7 @@ Status: accepted · 2026-09-08 · supersedes the kickoff's "batch export through
 
 ## ADR-5: The LLM judgment pass runs in the resident Claude session
 
-Status: accepted · 2026-09-08
+Status: superseded by ADR-52 · 2026-09-08
 
 **Context.** Something has to call the model for grouping, ordering and reasons.
 
@@ -961,7 +961,7 @@ later without changing the skill's content, because the skill is a directory eit
 
 ## ADR-46: `cockpit run` is the one command, and it opens the browser after stage 1
 
-Status: accepted · 2026-09-10
+Status: superseded by ADR-51 · 2026-09-10
 
 **Context.** Until M7 the skill ran `prepare`, `analyze`, `serve` and `open` itself. `analyze`
 builds the call graph in the same process, after stage 1 is written (ADR-6, step 6), so a skill
@@ -1230,3 +1230,133 @@ deadline and waits at most 600 ms for a signalled server to go. Measured at 0.15
 cache. The payload gives `session_id`, which is the id `cockpit run` records; a payload without
 one falls back to `--all` and the hook's log says so, which is the one case where a session
 ending stops a server another session started.
+
+---
+
+## ADR-51: `cockpit run` serves without opening, and `cockpit open` opens when the judgment is in
+
+Status: accepted · 2026-09-15 · supersedes ADR-46's "opens the browser after stage 1"
+
+**Context.** ADR-46 opened the browser as soon as stage 1 was on disk, on the reasoning that a
+usable cockpit early beats a complete one late. A week of real use measured the two halves:
+stage 1 takes about 8 seconds and the judgment pass about 5 minutes. So the reviewer gets a page
+whose diff is there and whose summary, groups and reading order say "Analyzing…" for the next
+five minutes, and what they actually do is sit and watch it. The early open bought 8 seconds of
+progress and cost a five-minute wait in front of placeholders.
+
+**Options.**
+1. Keep opening after stage 1 and make the placeholders better. The placeholders are not the
+   problem; the wait is.
+2. Open after the judgment merges, always. Loses the escape hatch for a judgment that is slow
+   or failed, and for the reviewer who wants the diff now.
+3. `--open-when ready|stage1`, defaulting to `ready`, with a separate `cockpit open` that
+   opens the browser on a running server whenever anyone asks.
+
+**Decision.** Option 3. `cockpit run` starts the server and returns its JSON exactly as before;
+it just does not call `open`. The skill calls `cockpit open` after `judge-merge` succeeded, or
+after `mark-failed`, so a failed judgment still gets the reviewer the deterministic view.
+`cockpit open` records the server pid and url it opened in `opened.json` and opens nothing when
+they still match, so calling it twice — which a re-analysis does — makes no second tab. `--force`
+opens anyway.
+
+**Consequences.** The reviewer meets a finished page. The five minutes are spent in the
+terminal, where the estimate line (ADR-52) says how long they will be, rather than in front of a
+browser that cannot say. `--open-when stage1` keeps the old behaviour for anyone who wants the
+diff while the judgment runs, and so does running `cockpit open` by hand at any point, because
+the server has been up since stage 1 either way. Nothing about ADR-6's staged loading changes:
+the page still fills in over server-sent events, and it still has to handle a section that is
+not there yet, because that is what `--open-when stage1` and a hand-run `open` produce.
+
+---
+
+## ADR-52: The headless judgment is opt-in, and its progress is read off the event stream
+
+Status: accepted · 2026-09-15 · supersedes ADR-5's "option 1 for v1"
+
+**Context.** ADR-5 chose the resident session for the judgment pass and named `claude -p` as
+option 3, a drop-in swap the judgment file format allows. The measured cost of option 1 is that
+the user's own session is busy for five minutes. That is the whole cost of reviewing a pull
+request in this tool, and it lands on the one process the user wanted free.
+
+**Options.**
+1. Move every judgment to `claude -p`. Loses the thing option 1 is good at: the resident session
+   already has the repository's context, and its output is inspectable as it happens.
+2. Keep the session pass and add the headless one behind a flag nobody sets. A flag that is not
+   in the config is a flag that is never used.
+3. A `judgment` key in `~/.config/review-cockpit/config.json`, `session` or `headless`,
+   defaulting to `session`, which the skill reads through `cockpit config get judgment` and
+   `cockpit run --judgment` overrides for one run.
+
+**Decision.** Option 3, with the mode reported in `cockpit run`'s JSON so the skill reads one
+value rather than resolving the config itself. `cockpit judge <pr> --headless` runs the pass:
+`claude -p` with the prompt on stdin, cwd set to the checkout, `--output-format stream-json
+--verbose`, `--permission-mode dontAsk` and `--allowedTools` holding Read, Grep, Glob and the
+read-only git and cat commands. `judge` without `--headless` prints the prompt, which is what
+`judge-prompt` has always done; `judge-prompt` stays as an alias.
+
+**The pass writes nothing.** A `Write` allow rule naming the absolute judgment path is refused in
+a `-p` run, in `dontAsk` and in the default mode alike — measured, both times, on the scratch
+pull request. Rather than widen the permissions to `acceptEdits`, the headless prompt ends with a
+postscript that overrides the two instructions it contradicts: return the judgment as the whole
+final message, and do not run `judge-merge`. `cockpit judge` removes any judgment file an earlier
+run left, writes the final message in its place, and merges. A pass that returns no JSON fails
+rather than merging stale work.
+
+**Progress comes from the tool-use events**, not from anything the model is asked to print: each
+`assistant` event whose `parent_tool_use_id` is null contributes its `Read`, `Grep` and `Glob`
+calls to a count, a `Write` of the judgment path or the final `result` event turns the line to
+"writing…", and the line is rewritten in place on a TTY and printed at intervals into a pipe.
+A subagent's events carry the id of the call that spawned them and are not counted, because they
+are not this pass reading the code.
+
+**Consequences.** The default is unchanged, so nobody is moved onto a path they did not ask for.
+A headless run costs a second model session's startup — it loads the user's plugins and MCP
+servers, because `--bare` would need an API key instead of the subscription login — which is
+seconds against a pass of minutes. The retry and the failure marking that lived in the skill's
+prose now also exist as code, so the two paths fail the same way: one retry with the errors
+appended, then `mark-failed` on stage 2. The last line of stdout is
+`{status, durationSeconds, url}` and the exit code follows the status, so a wrapper reads one
+line rather than parsing progress.
+
+---
+
+## ADR-53: The brief opens with a plain paragraph, and the tool estimates how long it will take
+
+Status: accepted · 2026-09-15
+
+**Context.** Two things the week of real use asked for, both about what the reviewer is told.
+The brief opened with `tldr`, one sentence written for someone who has already decided to read
+the diff, and then went straight to a flow diagram. And nothing anywhere said how long the wait
+would be, which is what makes a five-minute wait feel indefinite.
+
+**Decision, the overview.** `summary.overview` is a new field on the review document and on the
+judgment: two to four plain sentences saying what the pull request does, why, and what changes
+for users or callers, with no file names. The prompt asks for it in those words. The brief panel
+renders it first, as a paragraph under a SUMMARY label above FLOW. It is required in a judgment,
+and required in a document at schema `1.3.0` or later once `status.summary` is ready; a cached
+document from an earlier version has none, and the panel shows its `tldr` in that place instead.
+Schema minor bump, so nothing cached stops rendering.
+
+**Decision, the estimate.** `<cache>/<owner>/<repo>/history.json` keeps the last 20 runs of that
+repository: hunks, files, stage 1 seconds, graph seconds, judgment seconds, mode and timestamp.
+`cockpit run` prints one line from it right after resolving, and `cockpit judge --headless` uses
+the same number as the denominator of its progress line. The estimate is the median of the past
+runs, scaled linearly by hunk count and clamped: stage 1 to 2–180 seconds, the judgment to
+45–900. A repository with no history gets a sentence naming the usual range instead of a number.
+
+**Why the median, scaled, clamped.** The mean follows one cold clone or one laptop that slept
+mid-pass; the median does not. Both stages grow with the number of hunks, so an unscaled median
+under-reads a pull request four times the size of the last one. The clamps are what stop a single
+outlier in a short history from producing a number nobody would believe.
+
+**What the estimate is timed against.** `cockpit run` writes `run.json` beside the document with
+the moment stage 1 landed, and `judge-merge` records the judgment as the time from that moment to
+the merge. That is the wait the reviewer actually has — from the cockpit being servable to the
+brief being there — rather than the model's own clock, and it is the same measurement in both
+modes.
+
+**Consequences.** The estimate is only as good as the history, and the first review of a repository
+has none. It is a per-repository number, not a per-pull-request one, so a pull request far from
+that repository's usual size leans entirely on the hunk scaling. A `judgmentSeconds` recorded
+across a break — the reviewer ran `cockpit run`, went to lunch, and came back to run the judgment
+— is an outlier the median absorbs and the clamp caps.

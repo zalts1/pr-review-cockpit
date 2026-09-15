@@ -224,8 +224,15 @@ its recomputed level says so in its first factor: "kept at high from the stage 1
 
 ## The judgment layer
 
-Implemented at M4. `cockpit analyze` writes the input, `cockpit judge-prompt` prints the
-prompt, `cockpit judge-merge` validates and merges the output.
+Implemented at M4. `cockpit analyze` writes the input, `cockpit judge` prints the prompt or runs
+the pass, `cockpit judge-merge` validates and merges the output.
+
+Who runs it is a config key, `judgment`, and the default is the resident Claude session. Set it
+to `headless` and `cockpit judge <pr> --headless` runs the pass in a `-p` subprocess instead,
+with the same prompt, the same schema and the same merge, so nothing in this chapter changes
+except which process reads the code (ADR-52). The headless pass returns its judgment as its
+final message rather than writing a file, because a write outside the working directory is
+refused in a `-p` run, and the CLI writes it.
 
 ### Input
 
@@ -290,10 +297,12 @@ the rule, so a wrong floor can be investigated.
 
 On any failure nothing is written, the judgment is kept as `judgment.rejected.json`, the first
 five errors are printed in plain words with one line saying where to write the corrected file,
-and the exit code is non-zero. The one retry lives in the skill, not in the CLI: the CLI has no
-way to produce a better judgment, so it fails loudly and the session decides. After a second
-rejection the skill stops and tells the reviewer, and the stage 2 sections stay `pending`, so
-the cockpit runs on deterministic risk alone.
+and the exit code is non-zero. In the session path the one retry lives in the skill, not in the
+CLI: the CLI has no way to produce a better judgment, so it fails loudly and the session
+decides. In the headless path `cockpit judge` does the same thing in code — it re-invokes once
+with the errors appended to the prompt, and runs `mark-failed` on stage 2 after the second
+rejection. Either way the reviewer ends up with a cockpit running on deterministic risk alone,
+and is told so.
 
 ## Calibration
 
