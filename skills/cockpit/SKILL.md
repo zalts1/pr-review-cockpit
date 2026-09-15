@@ -221,6 +221,28 @@ it checked out from. It keeps everything about the review itself. Report where t
 Name the files that are actually there. If the user never drafted anything, do not claim a
 drafts file.
 
+When the user says "done, purge everything", "delete everything for this PR" or anything else
+that asks for the files to go too:
+
+```
+cockpit clean <pr> --purge
+```
+
+That does all of the above and then deletes the pull request's whole cache directory: the
+document, the drafts, the judgment, the compact view, every posted review and the log. Nothing
+in it can be made again. The command prints what it removed; report that and name the directory
+that is gone:
+
+> Deleted everything for owner/repo#123. The server is stopped, the worktree and the ref are
+> gone, and `<prDir>` is removed with `review.json`, `drafts.json` and the review you posted.
+> Nothing about this review is on disk any more.
+
+Read what `clean` printed rather than assuming: it lists exactly the files it deleted or kept.
+
+The cockpit has a **Finish review** button in its header that does the same two things, with a
+checkbox for the purge. The user may have pressed it already, in which case the server is gone
+and `cockpit clean` has nothing left to do — which is fine, it says so and exits 0.
+
 Forgetting this step costs nothing: a server stops itself after 30 minutes with no cockpit
 connected, and `cockpit gc`, which every `cockpit run` does a pass of, removes the worktree of
 any review nobody has come back to for seven days. What the review is made of is never
@@ -252,7 +274,8 @@ document, skips the analysis and serves what is on disk. It says so in its progr
    posts one GitHub review. Their posted comments come back into the page as pinned threads
    within a few seconds.
 5. They ask questions in the terminal, and you answer from the checkout.
-6. They say "done", and the worktree and the server go away.
+6. They say "done", or press Finish review in the cockpit, and the worktree and the server go
+   away. What they wrote stays unless they ask for it to go too.
 
 ## When something fails
 

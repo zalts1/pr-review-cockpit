@@ -169,9 +169,10 @@ The server stops itself after 30 minutes with no cockpit connected (ADR-50). An 
 holds an event stream, so the count of attached streams is what "somebody is here" means, and
 any request starts the window again. `--idle-minutes` changes the window and 0 turns it off.
 
-The API is seven routes. `GET /` is the built cockpit, `GET /api/document` the document,
+The API is eight routes. `GET /` is the built cockpit, `GET /api/document` the document,
 `GET /api/events` its change stream, `GET` and `PUT /api/drafts` the drafts file,
-`POST /api/submit` posts the review, `POST /api/refresh` re-reads the comments and the checks
+`POST /api/submit` posts the review, `POST /api/finish` ends the review and tears it down,
+`POST /api/refresh` re-reads the comments and the checks
 from GitHub, and `GET /api/health` says the server is up, with the token from its `server.json`,
 the number of attached cockpits and how long it has had none. `POST /api/ask` stays reserved and
 answers 501, so the route name cannot drift. The server watches the directory holding `review.json`, not the
@@ -288,6 +289,23 @@ the review document and drafts in the cache for later inspection. It is what the
 the user says "done", and it is no longer the only thing that ends a review, because nobody ran
 it (ADR-50).
 
+`cockpit clean <pr> --purge` deletes the pull request's whole cache directory as well, which is
+the one command that removes a draft nobody posted. `cockpit clean --all` does every cached pull
+request: it prints the table first — the server state, the unsent drafts and the age of each —
+and asks before it removes anything, which `--yes` skips and a run with no terminal requires. A
+pull request with a cockpit attached to its server is listed and left alone unless `--force`
+says otherwise, because a sweep must not delete the review somebody is reading. Neither form
+runs `git worktree prune`; only this pull request's own worktree path is ever named (ADR-25).
+
+The **Finish review** button in the cockpit header is the same teardown, started from the page
+(ADR-54). `POST /api/finish` answers `{status: "finishing", purge}` before it does anything,
+announces `{type: "shutdown", reason: "finished"}` to every attached cockpit, spawns a detached
+`cockpit clean <pr> [--purge] --yes` with its output going to the pull request's `log.txt`, and
+exits. That `clean` finds the server already gone and carries on with the worktree and the ref.
+A purge that would delete unsent drafts is refused with 409 `{code: "unsent_drafts", count}`
+until the request carries `confirmDrafts: true`; the count is the drafts on the current head
+plus the ones a re-analysis set aside, so the modal's warning and the refusal name one number.
+
 Three things clean up on their own. The server stops itself after 30 idle minutes. A `SessionEnd`
 hook runs `scripts/plugin-session-end.sh`, which runs `cockpit stop --started-by <session id>`
 from the payload's `session_id`, or `cockpit stop --all` when the payload carries none;
@@ -383,8 +401,14 @@ status.
       server.json          the running server: port, pid, url, startedAt, token — which
                            /api/health answers with, so `cockpit stop` can prove a pid is
                            ours — and sessionId, the Claude Code session that asked for it
-      log.txt
+      log.txt              the server's own output, and the output of the teardown the
+                           Finish review button spawns
 ```
+
+`cockpit clean` removes `worktree/` and the `refs/review-cockpit/pr-<n>` ref and leaves the rest
+of `pr-<n>/` where it is. `cockpit clean --purge`, and the Finish review button with its
+checkbox ticked, delete `pr-<n>/` whole. Nothing above `pr-<n>/` is ever removed by either:
+`repo/`, `index/` and `history.json` belong to every review of that repository.
 
 An optional `~/.config/review-cockpit/config.json` holds `workspaceRoots`, the roots to search for local clones, and `judgment`, which is `session` or `headless` and decides who runs the judgment pass. Both are optional and both have a working default. Per-repository overrides for generated-code patterns and sensitive paths live in `.review-cockpit.json` at the repository root, and are optional.
 

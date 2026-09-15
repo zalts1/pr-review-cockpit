@@ -12,7 +12,7 @@ Light theme only, using GitHub's light palette: white page, `#f6f8fa` panels, gr
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│ tenant-platform  Add tenant record API  #1234 [Files|Map] 2 drafts [☾][⌨] [Submit review]│
+│ tenant-platform  Add tenant record API #1234 [Files|Map] 2 drafts [☾][⌨] [Submit][Finish]│
 │ jdoe · TP-329-tenant-record-api → main · d4e5f6a  ✓4 checks passed  ✗Analyze failed      │
 │                                                     [ Next: UpdateRecord error contract →]│
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
@@ -41,7 +41,7 @@ Light theme only, using GitHub's light palette: white page, `#f6f8fa` panels, gr
 - **Meta line**: author, head branch → base branch, the short head sha the review is bound to (full sha on hover), then the checks.
 - **Check pills**, compact and aggregated: one green "N checks passed" pill naming the checks on hover, one red pill per failing check linking to it, one amber "N running" pill, one grey "N skipped" pill for neutral, skipped and cancelled. Every pill is a link: a failing check goes to its own run, a pill standing for one check goes to that check, and a pill standing for several goes to the PR's checks tab. Before `checks` is ready the pill says "Loading checks"; with no checks at all it says "No checks reported"; when the fetch failed it says "Checks unavailable" with the `gh` error on hover, rather than claiming there are none. The old one-chip-per-check strip cost a whole header row on a repository with fifteen checks, and one pill per pending check would cost the same row again on a repository mid-build.
 - **Bot summary pill**, one per entry of `botSummaries`: "Bugbot: medium risk", coloured by the level, linking to the PR, with a hover card holding the rendered overview. The block it came from is dropped from the rendered PR description, so the summary is on screen once.
-- **Files / Map** toggle, the **draft count**, the theme and keyboard help buttons, **Submit review** as the secondary action.
+- **Files / Map** toggle, the **draft count**, the theme and keyboard help buttons, then **Submit review** and **Finish review**, both secondary, in that order: posting comes before ending. Finish review is absent in fixture mode, where there is no server to end.
 - The **theme button** flips between GitHub's light and dark palettes and remembers the choice for every pull request. Until it is pressed the cockpit follows the operating system and keeps following it.
 - **One primary action**, green: `Next: <note of the next step>`, falling back to that step's enclosing symbol and then to its file name, clipped to 38 characters. At the end of the walk it reads "Walk complete" and is disabled. There is no bottom bar; `Prev` lives on the step card.
 
@@ -218,6 +218,38 @@ A modal over either tab.
 - A **comment** review with no drafts and an empty summary is refused before it is sent: the button is disabled and a line says a comment review needs a summary or at least one comment.
 - If the server finds that the PR head moved, the modal shows: "The PR has new commits since this review started (d4e5f6a → 9ab12cd). Your drafts are saved. Run `cockpit run 1234` again to re-attach them." Nothing is posted.
 - GitHub refusing an approval or a change request on the reviewer's own pull request shows as one plain sentence. Any other `gh` failure shows the error `gh` printed, verbatim, under the button.
+
+## Screen 4: Finishing
+
+**Finish review** opens a modal over either tab.
+
+```
+┌ Finish this review? ─────────────────────────────────────────────┐
+│ Stops the local server and removes the checkout.                 │
+│ The analysis and your drafts stay on disk until you clean them.  │
+│                                                                  │
+│ ☐ Also delete the analysis and drafts for this pull request      │
+│                                                                  │
+│ ⚠ You have 2 unsent drafts                                       │
+│ ☐ Delete 2 drafts too                                            │
+│                                                                  │
+│                                          [ Cancel ]  [ Finish ]  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+- The delete checkbox is unchecked every time the modal opens. Finishing keeps the files unless the reviewer says otherwise.
+- The amber line appears whenever there are unsent drafts, whether or not the delete box is ticked, because it is the one thing here that cannot be made again.
+- "Delete N drafts too" appears only when both are true — the box is ticked and drafts exist — and **Finish** is disabled until it is ticked as well. Unticking the first box unticks this one, so a reviewer who changes their mind does not leave a live confirmation behind.
+- With no unsent drafts there is no amber line and no second confirmation: the checkbox alone is enough.
+- **Finish** disables the button and shows a spinner. The modal stays as it is until the server's shutdown event arrives; showing the cockpit again in between would read as the finish having failed.
+- The server refuses a delete it was not told to make — the reviewer ticked the box in another tab, or drafted a comment between opening the modal and pressing Finish — and the modal shows the count it refused with and waits for the second confirmation.
+
+When the server announces `{type: "shutdown", reason: "finished"}` the whole page is replaced by a centred card, the same card the loading and error states use:
+
+> **Review finished. You can close this tab.**
+> Run `cockpit run 1234` to reopen it.
+
+The second line is there only when the files were kept. After a purge there is nothing to reopen, and a page that gets the event without having asked for the finish itself — a second tab on the same server — promises nothing either way. This end state replaces the "The local server stopped" banner: the server is gone on purpose, so there is nothing to retry and nothing to tell the reviewer to do.
 
 ## Loading and status states
 

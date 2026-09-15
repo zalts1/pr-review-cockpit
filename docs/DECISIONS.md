@@ -1360,3 +1360,72 @@ has none. It is a per-repository number, not a per-pull-request one, so a pull r
 that repository's usual size leans entirely on the hunk scaling. A `judgmentSeconds` recorded
 across a break — the reviewer ran `cockpit run`, went to lunch, and came back to run the judgment
 — is an outlier the median absorbs and the clamp caps.
+
+---
+
+## ADR-54: The cockpit can end its own review, and deleting drafts is asked for twice
+
+Status: accepted · 2026-09-15
+
+**Context.** ADR-50 gave a review three ways to end itself and left `cockpit clean` as the only
+way to end one on purpose. All four are in the terminal. The reviewer is not: they finish the
+last hunk, post the review, and are looking at a browser tab whose only remaining move is to
+close it. The server then waits 30 minutes for a clock it cannot see, and the worktree waits
+seven days for a collector. Nothing is broken by that — ADR-50 already made the leak bounded —
+but "I am done with this" is a thing the person knows and the tool has no way to be told.
+
+The second half is `clean` itself. It removes the checkout and keeps everything else, which is
+right for "done for now" and wrong for "this review is over": a merged pull request leaves a
+`review.json`, a `compact.md`, a judgment and every posted review in the cache forever, and the
+only way to get rid of them is `rm -rf` on a path the user has to look up.
+
+**Decision.** A **Finish review** button in the cockpit header, and `--purge` and `--all` on
+`cockpit clean`. The button is `POST /api/finish`, and the route does the teardown by spawning
+the same `cockpit clean` the skill runs — one implementation of what ending a review means,
+reachable from either end.
+
+**Why the server spawns the CLI rather than doing the work.** The server is one of the things
+being removed. A server that removed its own worktree, deleted its own ref and then deleted the
+directory holding the `server.json` it is about to unlink is a process tidying up around itself,
+and every step of it is a step that can fail half-done. A detached child does the work after the
+parent is gone, which is also exactly the state `clean` already handles: it stops servers first,
+finds this one already dead, removes the stale `server.json` and carries on.
+
+**The order the route answers in.** Respond, announce, spawn, exit. The response has to be on
+the wire before the server stops, because closing the listener destroys the socket the reply
+would have gone out on, and the page would show a dropped connection instead of the end state it
+just asked for. The `{type: "shutdown", reason: "finished"}` event is next, so that the tab
+learns the server went on purpose rather than after four failed reconnections. `finished` is a
+third reason beside `idle` and `stopped` for exactly that: the reconnect logic treats it as
+final, and the page shows an end state rather than the "the local server stopped" banner with
+its offer to bring it back — after a purge there is nothing to bring back.
+
+**Why drafts need a second confirmation.** Everything else a purge deletes can be made again.
+`review.json` is five seconds of analysis; the worktree is a checkout of a commit GitHub still
+holds; `compact.md` is derived; a `submitted-<ts>.json` is a copy of a review that is on GitHub.
+A draft comment nobody sent exists in one place on earth, and the purge checkbox does not say
+"drafts" loudly enough to stand as consent to destroy it — it is one line offering to tidy up.
+So the modal shows the count in amber whenever there are any, and when the box is ticked it asks
+a second, specific question naming the number. The server enforces the same rule rather than
+trusting the page: `purge` with drafts and no `confirmDrafts` is 409 `{code: "unsent_drafts",
+count}`. That is what catches a reviewer who drafted a comment in a second tab between opening
+the modal and pressing Finish.
+
+The count is the drafts on the current head plus the ones a re-analysis set aside. Both are
+unsent, both are destroyed, and one definition means the modal's warning and the server's
+refusal can never disagree about the number.
+
+**Why `--all` asks and `clean <pr>` does not.** `cockpit clean <pr>` names one review the caller
+already chose; the skill runs it with the reviewer's own tab still open, which is the normal
+"done" path. `cockpit clean --all` chooses for the caller, so it prints what it found and waits —
+and it skips a pull request whose server has a cockpit attached, because a sweep that closed the
+review somebody was reading would be the tool doing something nobody asked for. `--force` says
+otherwise. Neither form runs `git worktree prune`, which is ADR-25 unchanged.
+
+**Consequences.** There is now a button that deletes work, on a page whose every other control
+is reversible. The three guards are that the delete box starts unchecked every time the modal
+opens, that drafts cost a second confirmation, and that the server checks rather than trusts.
+A tab left open on a review somebody else finished shows the end state without promising
+anything about what is still on disk, because it does not know which way the purge went. And
+`clean` now has two shapes and three flags where it had none, which is the cost of it being the
+one place that knows how a review ends.
