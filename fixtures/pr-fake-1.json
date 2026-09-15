@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.1.0",
+  "schemaVersion": "1.3.0",
   "generatedAt": "2026-09-08T12:34:56Z",
   "tool": {
     "name": "review-cockpit",
@@ -12912,6 +12912,7 @@
     }
   ],
   "summary": {
+    "overview": "A tenant profile can now record which region it runs in, which tier it is on, and how long its data is kept. The per-region console needs those three facts, and until now they lived in a spreadsheet. An update now only touches the fields the caller asked for, so two people editing different fields of the same tenant no longer overwrite each other. Callers that matched on the old missing-profile error have to match on an invalid-argument status instead.",
     "tldr": "Lets a tenant profile carry region, tier and retention, and validates an update against the field mask the caller sent.",
     "whereItFits": [
       "The tenant profile service, its store and the HTTP and gRPC handlers in front of it.",

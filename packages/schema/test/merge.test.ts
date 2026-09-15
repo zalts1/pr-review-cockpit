@@ -436,6 +436,11 @@ describe('summary and status', () => {
     }
     expect(document.status.graph.state).toBe('pending');
   });
+
+  it('copies the overview the brief panel reads first', () => {
+    const { document } = merge(stage1Document(), judgment(), { now: NOW });
+    expect(document.summary.overview).toBe(readySummaryText().overview);
+  });
 });
 
 describe('the merged document', () => {

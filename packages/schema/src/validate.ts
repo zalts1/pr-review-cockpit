@@ -13,7 +13,7 @@ import type { Judgment } from './generated/judgment.js';
 import type { Draft, DraftsFile } from './generated/drafts.js';
 import { draftsSchema, judgmentSchema, reviewDocumentSchema } from './schemas.js';
 import { SECTION_NAMES } from './types.js';
-import { SUPPORTED_SCHEMA_MAJOR, majorOf } from './version.js';
+import { SUPPORTED_SCHEMA_MAJOR, majorOf, minorOf } from './version.js';
 
 export interface Issue {
   rule: string;
@@ -698,6 +698,9 @@ export function summaryCounts(document: ReviewDocument): {
 
 const SUMMARY_BRIEF_FIELDS = ['tldr', 'whereItFits', 'flow', 'example', 'watchFor'] as const;
 
+/** summary.overview arrived in schema 1.3, so an older document that lacks it is still valid. */
+const OVERVIEW_SINCE_MINOR = 3;
+
 function checkSummary(document: ReviewDocument, issues: Issues): void {
   const { summary } = document;
 
@@ -716,7 +719,11 @@ function checkSummary(document: ReviewDocument, issues: Issues): void {
 
   if (document.status.summary.state !== 'ready') return;
 
-  const missing = SUMMARY_BRIEF_FIELDS.filter((field) => summary[field] === undefined);
+  const fields: readonly (keyof typeof summary)[] =
+    minorOf(document.schemaVersion) >= OVERVIEW_SINCE_MINOR
+      ? ['overview', ...SUMMARY_BRIEF_FIELDS]
+      : SUMMARY_BRIEF_FIELDS;
+  const missing = fields.filter((field) => summary[field] === undefined);
   if (missing.length > 0) {
     issues.error(
       'summary-ready',

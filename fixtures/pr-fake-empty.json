@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.1.0",
+  "schemaVersion": "1.3.0",
   "generatedAt": "2026-09-08T12:34:56Z",
   "tool": {
     "name": "review-cockpit",
@@ -78,6 +78,7 @@
   "groups": [],
   "path": [],
   "summary": {
+    "overview": "This pull request merges main back into the release branch. Nothing in the service changes: the two branches already hold the same file contents, so there is no code to read and nothing changes for anyone using the service.",
     "tldr": "Merge of main into the release branch. No file content changed.",
     "whereItFits": [
       "Release branch only: no package in the service is touched."

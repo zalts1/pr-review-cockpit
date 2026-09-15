@@ -574,11 +574,12 @@
 
     "Summary": {
       "title": "Summary",
-      "description": "The reviewer brief, in the shape of the pr-summary skill. counts is written by stage 1 and recomputed at merge; the text fields arrive with the judgment pass, and the validator requires tldr, whereItFits, flow, example and watchFor once status.summary is ready. All string fields are markdown. The review path table in the cockpit is derived from path, not stored here.",
+      "description": "The reviewer brief, in the shape of the pr-summary skill. counts is written by stage 1 and recomputed at merge; the text fields arrive with the judgment pass, and the validator requires overview, tldr, whereItFits, flow, example and watchFor once status.summary is ready. A document written before schema 1.3 has no overview and is still valid. All string fields are markdown. The review path table in the cockpit is derived from path, not stored here.",
       "type": "object",
       "additionalProperties": true,
       "required": ["counts"],
       "properties": {
+        "overview": { "type": "string" },
         "tldr": { "type": "string" },
         "whereItFits": { "type": "array", "items": { "type": "string" } },
         "flow": { "$ref": "#/$defs/SummaryFlow" },
