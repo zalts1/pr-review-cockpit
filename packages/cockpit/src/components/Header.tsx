@@ -13,9 +13,12 @@ import {
   FilesIcon,
   KeyboardIcon,
   MapIcon,
+  MoonIcon,
   RefreshIcon,
   SpinnerIcon,
+  SunIcon,
 } from './Icons';
+import type { Theme } from '../lib/theme';
 
 export type Tab = 'files' | 'map';
 
@@ -32,10 +35,12 @@ interface Props {
   refreshing: boolean;
   refreshError: string | null;
   tab: Tab;
+  theme: Theme;
   onTab(tab: Tab): void;
   onNext(): void;
   onSubmit(): void;
   onHelp(): void;
+  onTheme(): void;
 }
 
 interface Pills {
@@ -219,10 +224,12 @@ export function Header({
   refreshing,
   refreshError,
   tab,
+  theme,
   onTab,
   onNext,
   onSubmit,
   onHelp,
+  onTheme,
 }: Props) {
   return (
     <header className="header">
@@ -293,6 +300,14 @@ export function Header({
         <span className="draft-count">
           {draftCount} {draftCount === 1 ? 'draft' : 'drafts'}
         </span>
+        <button
+          className="btn btn-icon"
+          onClick={onTheme}
+          title={`Switch to the ${theme === 'dark' ? 'light' : 'dark'} theme (t)`}
+          aria-label={`Switch to the ${theme === 'dark' ? 'light' : 'dark'} theme`}
+        >
+          {theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />}
+        </button>
         <button className="btn btn-icon" onClick={onHelp} title="Keyboard shortcuts (?)">
           <KeyboardIcon size={14} />
         </button>

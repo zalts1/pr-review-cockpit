@@ -4,3 +4,4 @@ packages/cockpit/public/fixtures/
 packages/schema/src/generated/
 .bootstrap-stamp
 bootstrap.log
+.claude/worktrees/

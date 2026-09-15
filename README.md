@@ -249,6 +249,7 @@ lists:
 | `e` | Expand or collapse the group under the cursor |
 | `a` | Copy an Ask Claude prompt for this hunk |
 | `m` | Switch between the Files and Map tabs |
+| `t` | Switch between the light and dark theme |
 | `?` | Show the shortcut table |
 | `Esc` | Close an overlay or the comment editor |
 

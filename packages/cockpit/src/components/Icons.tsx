@@ -170,6 +170,21 @@ export function FilesIcon({ size = 14, className }: IconProps) {
   );
 }
 
+export function SunIcon({ size = 14, className }: IconProps) {
+  return svg(
+    size,
+    className,
+    <>
+      <circle cx="8" cy="8" r="3.25" />
+      <path d="M8 1v1.5M8 13.5V15M15 8h-1.5M2.5 8H1M12.95 3.05l-1.06 1.06M4.11 11.89l-1.06 1.06M12.95 12.95l-1.06-1.06M4.11 4.11L3.05 3.05" />
+    </>,
+  );
+}
+
+export function MoonIcon({ size = 14, className }: IconProps) {
+  return svg(size, className, <path d="M13.5 9.7A5.8 5.8 0 0 1 6.3 2.5a5.8 5.8 0 1 0 7.2 7.2z" />);
+}
+
 export function SpinnerIcon({ size = 16, className }: IconProps) {
   return (
     <svg

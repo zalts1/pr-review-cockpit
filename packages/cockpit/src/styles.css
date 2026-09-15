@@ -25,9 +25,88 @@
   --draft-border: #d4a72c;
   --draft-bg: #fff8c5;
 
+  --emphasis: #1f883d;
+  --emphasis-hover: #1a7f37;
+  --on-emphasis: #ffffff;
+  --accent-wash: #ddf4ff;
+  --success-wash: #dafbe1;
+  --draft-ring: #d4a72c66;
+  --inverse-bg: #1f2328;
+  --inverse-fg: #ffffff;
+  --scrim: rgb(31 35 40 / 40%);
+  --scrim-soft: rgb(31 35 40 / 18%);
+  --shadow-xs: 0 1px 2px rgb(31 35 40 / 6%);
+  --shadow-card: 0 4px 12px rgb(31 35 40 / 20%);
+  --shadow-pop: 0 8px 24px rgb(31 35 40 / 12%);
+  --shadow-modal: 0 8px 24px rgb(31 35 40 / 20%);
+  --shadow-panel: 0 12px 28px rgb(31 35 40 / 14%);
+
+  --syn-keyword: #cf222e;
+  --syn-string: #0a3069;
+  --syn-comment: #6e7781;
+  --syn-constant: #0550ae;
+  --syn-title: #8250df;
+  --syn-variable: #953800;
+
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial,
     sans-serif;
+}
+
+/* GitHub's own dark palette. The boot script always writes the effective theme
+   to data-theme, so "follow the system" is resolved in JS and this needs no
+   @media (prefers-color-scheme) twin to keep in step. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --page: #0d1117;
+  --panel: #161b22;
+  --panel-strong: #21262d;
+  --border: #30363d;
+  --border-muted: #21262d;
+  --fg: #e6edf3;
+  --fg-muted: #9198a1;
+  --fg-subtle: #6e7681;
+  --link: #4493f8;
+  --high: #f85149;
+  --medium: #d29922;
+  --success: #3fb950;
+  --pending: #d29922;
+  /* Alpha, not flat hex: a diff row sits on --page in the diff and on --panel
+     in a pinned comment, and both have to read as the same green or red. */
+  --add-bg: rgb(46 160 67 / 15%);
+  --add-num-bg: rgb(63 185 80 / 30%);
+  --del-bg: rgb(248 81 73 / 15%);
+  --del-num-bg: rgb(248 81 73 / 30%);
+  --high-wash: rgb(248 81 73 / 10%);
+  --high-num-wash: rgb(248 81 73 / 20%);
+  --medium-wash: rgb(210 153 34 / 10%);
+  --medium-num-wash: rgb(210 153 34 / 20%);
+  --draft-border: #9e6a03;
+  --draft-bg: rgb(187 128 9 / 15%);
+
+  --emphasis: #238636;
+  --emphasis-hover: #2ea043;
+  --on-emphasis: #ffffff;
+  --accent-wash: rgb(56 139 253 / 15%);
+  --success-wash: rgb(46 160 67 / 15%);
+  --draft-ring: rgb(210 153 34 / 40%);
+  --inverse-bg: #30363d;
+  --inverse-fg: #e6edf3;
+  --scrim: rgb(1 4 9 / 65%);
+  --scrim-soft: rgb(1 4 9 / 45%);
+  --shadow-xs: 0 1px 2px rgb(1 4 9 / 60%);
+  --shadow-card: 0 4px 12px rgb(1 4 9 / 70%);
+  --shadow-pop: 0 8px 24px rgb(1 4 9 / 70%);
+  --shadow-modal: 0 8px 24px rgb(1 4 9 / 80%);
+  --shadow-panel: 0 12px 28px rgb(1 4 9 / 75%);
+
+  --syn-keyword: #ff7b72;
+  --syn-string: #a5d6ff;
+  --syn-comment: #8b949e;
+  --syn-constant: #79c0ff;
+  --syn-title: #d2a8ff;
+  --syn-variable: #ffa657;
 }
 
 * {
@@ -233,14 +312,14 @@ a:hover {
 
 .btn-primary {
   padding: 0 14px;
-  background: #1f883d;
+  background: var(--emphasis);
   border-color: var(--success);
-  color: #ffffff;
+  color: var(--on-emphasis);
   font-weight: 600;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--success);
+  background: var(--emphasis-hover);
 }
 
 .btn-primary:disabled {
@@ -300,7 +379,7 @@ a:hover {
 }
 
 .pill-pass {
-  background: #dafbe1;
+  background: var(--success-wash);
   color: var(--success);
 }
 
@@ -346,7 +425,7 @@ a.pill:hover {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--page);
-  box-shadow: 0 8px 24px rgb(31 35 40 / 12%);
+  box-shadow: var(--shadow-pop);
   font-size: 13px;
   white-space: normal;
   text-align: left;
@@ -494,8 +573,8 @@ a.pill:hover {
 }
 
 .tabs button[aria-selected='true'] {
-  background: var(--fg);
-  color: var(--page);
+  background: var(--inverse-bg);
+  color: var(--inverse-fg);
   font-weight: 600;
 }
 
@@ -622,7 +701,7 @@ a.pill:hover {
 
 .plan-disclosure:hover,
 .plan-disclosure[aria-expanded='true'] {
-  background: #ddf4ff;
+  background: var(--accent-wash);
 }
 
 .plan-disclosure-badge {
@@ -650,7 +729,7 @@ a.pill:hover {
   overflow: auto;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 12px 28px rgba(31, 35, 40, 0.14);
+  box-shadow: var(--shadow-panel);
 }
 
 /*
@@ -663,7 +742,7 @@ a.pill:hover {
   position: fixed;
   inset: 0;
   z-index: 10;
-  background: rgba(31, 35, 40, 0.18);
+  background: var(--scrim-soft);
 }
 
 .plan-detail-close {
@@ -849,7 +928,7 @@ a.pill:hover {
 }
 
 .rail-row.is-current {
-  background: #ddf4ff;
+  background: var(--accent-wash);
   border-left-color: var(--link);
   color: var(--fg);
 }
@@ -1057,7 +1136,7 @@ a.pill:hover {
   font-size: 11px;
   font-weight: 600;
   color: var(--pending);
-  border: 1px solid #d4a72c66;
+  border: 1px solid var(--draft-ring);
   background: var(--medium-wash);
   border-radius: 999px;
   padding: 0 8px;
@@ -1198,7 +1277,7 @@ a.pill:hover {
 
 .file.is-current {
   border-color: var(--link);
-  box-shadow: 0 0 0 3px #ddf4ff;
+  box-shadow: 0 0 0 3px var(--accent-wash);
 }
 
 .file-head {
@@ -1346,7 +1425,7 @@ a.pill:hover {
 @keyframes hunk-flash {
   from {
     box-shadow: inset 0 0 0 2px var(--link);
-    background: #ddf4ff;
+    background: var(--accent-wash);
   }
   to {
     box-shadow: inset 0 0 0 2px transparent;
@@ -1497,7 +1576,7 @@ a.pill:hover {
 }
 
 .row-selected .code {
-  background: #ddf4ff;
+  background: var(--accent-wash);
 }
 
 /* highlight.js output, in GitHub's light syntax palette. Every selector holds a single
@@ -1509,20 +1588,20 @@ a.pill:hover {
 .diff .hljs-name,
 .diff .hljs-selector-tag,
 .diff .hljs-tag {
-  color: #cf222e;
+  color: var(--syn-keyword);
 }
 
 .diff .hljs-string,
 .diff .hljs-regexp,
 .diff .hljs-char,
 .diff .hljs-link {
-  color: #0a3069;
+  color: var(--syn-string);
 }
 
 .diff .hljs-comment,
 .diff .hljs-quote,
 .diff .hljs-code {
-  color: #6e7781;
+  color: var(--syn-comment);
 }
 
 .diff .hljs-number,
@@ -1531,11 +1610,11 @@ a.pill:hover {
 .diff .hljs-section,
 .diff .hljs-selector-class,
 .diff .hljs-selector-id {
-  color: #0550ae;
+  color: var(--syn-constant);
 }
 
 .diff .hljs-title {
-  color: #8250df;
+  color: var(--syn-title);
 }
 
 .diff .hljs-type,
@@ -1544,7 +1623,7 @@ a.pill:hover {
 .diff .hljs-attribute,
 .diff .hljs-symbol,
 .diff .hljs-bullet {
-  color: #953800;
+  color: var(--syn-variable);
 }
 
 .diff .hljs-strong {
@@ -1570,7 +1649,7 @@ a.pill:hover {
   border: 0;
   border-radius: 4px;
   background: var(--link);
-  color: #ffffff;
+  color: var(--on-emphasis);
   cursor: pointer;
   padding: 0;
   margin-top: 2px;
@@ -1906,7 +1985,7 @@ tr:hover .plus {
   border-radius: 8px;
   background: var(--page);
   border: 1px solid var(--border);
-  box-shadow: 0 1px 2px rgb(31 35 40 / 6%);
+  box-shadow: var(--shadow-xs);
   box-sizing: border-box;
   text-align: left;
   font: inherit;
@@ -2077,14 +2156,14 @@ tr:hover .plus {
 .map-hover {
   position: absolute;
   padding: 8px 10px;
-  background: var(--fg);
-  color: var(--page);
+  background: var(--inverse-bg);
+  color: var(--inverse-fg);
   border-radius: 6px;
   font-size: 12px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  box-shadow: 0 4px 12px rgb(31 35 40 / 20%);
+  box-shadow: var(--shadow-card);
   pointer-events: none;
   max-width: 320px;
   z-index: 6;
@@ -2118,7 +2197,7 @@ tr:hover .plus {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--page);
-  box-shadow: 0 1px 2px rgb(31 35 40 / 6%);
+  box-shadow: var(--shadow-xs);
   color: var(--fg-muted);
 }
 
@@ -2152,7 +2231,7 @@ tr:hover .plus {
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgb(31 35 40 / 40%);
+  background: var(--scrim);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -2168,7 +2247,7 @@ tr:hover .plus {
   max-width: calc(100vw - 32px);
   max-height: 84vh;
   overflow: auto;
-  box-shadow: 0 8px 24px rgb(31 35 40 / 20%);
+  box-shadow: var(--shadow-modal);
 }
 
 .modal-keys {
@@ -2288,7 +2367,7 @@ tr:hover .plus {
   gap: 8px;
   align-items: baseline;
   border: 1px solid var(--success);
-  background: #dafbe1;
+  background: var(--success-wash);
   border-radius: 6px;
   padding: 6px 10px;
   font-size: 13px;
@@ -2305,13 +2384,13 @@ tr:hover .plus {
   left: 50%;
   bottom: 40px;
   transform: translateX(-50%);
-  background: var(--fg);
-  color: var(--page);
+  background: var(--inverse-bg);
+  color: var(--inverse-fg);
   padding: 8px 14px;
   border-radius: 6px;
   font-size: 13px;
   z-index: 60;
-  box-shadow: 0 4px 12px rgb(31 35 40 / 20%);
+  box-shadow: var(--shadow-card);
 }
 
 .keys {
@@ -2371,7 +2450,7 @@ tr:hover .plus {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--page);
-  box-shadow: 0 1px 2px rgb(31 35 40 / 6%);
+  box-shadow: var(--shadow-xs);
   color: var(--fg-muted);
 }
 

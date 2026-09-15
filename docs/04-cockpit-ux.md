@@ -12,7 +12,7 @@ Light theme only, using GitHub's light palette: white page, `#f6f8fa` panels, gr
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│ tenant-platform  Add tenant record API  #1234    [Files|Map] 2 drafts [⌨] [Submit review]│
+│ tenant-platform  Add tenant record API  #1234 [Files|Map] 2 drafts [☾][⌨] [Submit review]│
 │ jdoe · TP-329-tenant-record-api → main · d4e5f6a  ✓4 checks passed  ✗Analyze failed      │
 │                                                     [ Next: UpdateRecord error contract →]│
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
@@ -41,7 +41,8 @@ Light theme only, using GitHub's light palette: white page, `#f6f8fa` panels, gr
 - **Meta line**: author, head branch → base branch, the short head sha the review is bound to (full sha on hover), then the checks.
 - **Check pills**, compact and aggregated: one green "N checks passed" pill naming the checks on hover, one red pill per failing check linking to it, one amber "N running" pill, one grey "N skipped" pill for neutral, skipped and cancelled. Every pill is a link: a failing check goes to its own run, a pill standing for one check goes to that check, and a pill standing for several goes to the PR's checks tab. Before `checks` is ready the pill says "Loading checks"; with no checks at all it says "No checks reported"; when the fetch failed it says "Checks unavailable" with the `gh` error on hover, rather than claiming there are none. The old one-chip-per-check strip cost a whole header row on a repository with fifteen checks, and one pill per pending check would cost the same row again on a repository mid-build.
 - **Bot summary pill**, one per entry of `botSummaries`: "Bugbot: medium risk", coloured by the level, linking to the PR, with a hover card holding the rendered overview. The block it came from is dropped from the rendered PR description, so the summary is on screen once.
-- **Files / Map** toggle, the **draft count**, the keyboard help button, **Submit review** as the secondary action.
+- **Files / Map** toggle, the **draft count**, the theme and keyboard help buttons, **Submit review** as the secondary action.
+- The **theme button** flips between GitHub's light and dark palettes and remembers the choice for every pull request. Until it is pressed the cockpit follows the operating system and keeps following it.
 - **One primary action**, green: `Next: <note of the next step>`, falling back to that step's enclosing symbol and then to its file name, clipped to 38 characters. At the end of the walk it reads "Walk complete" and is disabled. There is no bottom bar; `Prev` lives on the step card.
 
 ### Plan strip
@@ -146,6 +147,7 @@ On the step card and on `a`. It copies to the clipboard a prompt holding the PR 
 | `e` | Expand or collapse the group under the cursor |
 | `a` | Copy an Ask Claude prompt for this hunk |
 | `m` | Switch between the Files and Map tabs |
+| `t` | Switch between the light and dark theme |
 | `?` | Show this table |
 | `Esc` | Close an overlay or the comment editor |
 

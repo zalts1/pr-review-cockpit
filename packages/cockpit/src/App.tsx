@@ -24,6 +24,7 @@ import {
 import { draftsKey, lineOwners, placeDrafts } from './lib/drafts';
 import { useDraftsSync } from './lib/draftsSync';
 import { refreshFromGitHub } from './lib/refresh';
+import { useTheme } from './lib/theme';
 import type { SubmitResult } from './lib/submit';
 import { postReview } from './lib/submit';
 import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
@@ -200,6 +201,7 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
   const [posting, setPosting] = useState(false);
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const theme = useTheme();
   const [toast, setToast] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -531,6 +533,9 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
         case 'm':
           setTab((current) => (current === 'files' ? 'map' : 'files'));
           break;
+        case 't':
+          theme.toggle();
+          break;
         case '?':
           setHelpOpen(true);
           break;
@@ -559,6 +564,7 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
     targetFileId,
     targetGroupId,
     targetLine,
+    theme.toggle,
     toggleGroup,
     toggleViewed,
   ]);
@@ -757,10 +763,12 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
         refreshing={refreshing}
         refreshError={refreshError}
         tab={tab}
+        theme={theme.theme}
         onTab={setTab}
         onNext={goNext}
         onSubmit={() => setSubmitOpen(true)}
         onHelp={() => setHelpOpen(true)}
+        onTheme={theme.toggle}
       />
 
       {tab === 'files' && (
