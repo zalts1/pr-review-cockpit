@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,8 @@ interface Recorded {
   restored: number;
 }
 
+const HUNKS = document.files.reduce((total, file) => total + file.hunks.length, 0);
+
 function fakeDeps(
   cachedHead: string | null,
   serve: ServeOutcome,
@@ -35,7 +37,11 @@ function fakeDeps(
   const recorded: Recorded = { analyzed: [], served: [], opened: [], restored: 0, collected: 0 };
   const deps: RunDeps = {
     resolve: () => ({ ref, headSha: HEAD, title: document.pr.title }),
-    cachedHead: () => cachedHead,
+    cached: () =>
+      cachedHead === null
+        ? null
+        : { headSha: cachedHead, hunks: HUNKS, files: document.files.length },
+    mode: () => 'session',
     restoreCheckout: () => {
       recorded.restored += 1;
     },
@@ -108,7 +114,7 @@ describe('cockpit run', () => {
   it('reports what the collection removed, and says nothing when it removed nothing', async () => {
     const quiet = fakeDeps(null, started);
     quiet.deps.collect = () => ({ removed: [], lines: [], summary: 'nothing to collect' });
-    expect(await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, skipGraph: false }, quiet.deps)).toBe(0);
+    expect(await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, openWhen: 'stage1', skipGraph: false }, quiet.deps)).toBe(0);
     expect(err.join('\n')).not.toContain('nothing to collect');
 
     const busy = fakeDeps(null, started);
@@ -117,7 +123,7 @@ describe('cockpit run', () => {
       lines: ['[gc] removed worktree for owner/repo#1, last used 9 days ago'],
       summary: 'collected 1 checkout',
     });
-    expect(await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, skipGraph: false }, busy.deps)).toBe(0);
+    expect(await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, openWhen: 'stage1', skipGraph: false }, busy.deps)).toBe(0);
     expect(err.join('\n')).toContain('removed worktree for owner/repo#1');
     expect(err.join('\n')).toContain('collected 1 checkout');
   });
@@ -125,7 +131,7 @@ describe('cockpit run', () => {
   it('analyzes, serves and opens the browser, then prints one line of JSON', async () => {
     const { deps, recorded } = fakeDeps(null, started);
 
-    expect(await runCommand('123', { cwd: repoRoot, reuseServer: false, open: true, skipGraph: false }, deps)).toBe(0);
+    expect(await runCommand('123', { cwd: repoRoot, reuseServer: false, open: true, openWhen: 'stage1', skipGraph: false }, deps)).toBe(0);
 
     expect(recorded.analyzed).toHaveLength(1);
     expect(recorded.analyzed[0]).toMatchObject({ expectJudgment: true, skipGraph: false });
@@ -139,6 +145,8 @@ describe('cockpit run', () => {
       compact: join(cache, ref.owner, ref.repo, `pr-${ref.number}`, 'compact.md'),
       judgmentOut: join(cache, ref.owner, ref.repo, `pr-${ref.number}`, 'judgment.json'),
       headSha: HEAD,
+      judgment: 'session',
+      hunks: HUNKS,
     });
     expect(err.at(-1)).toBe('Cockpit: http://127.0.0.1:8090');
   });
@@ -160,7 +168,7 @@ describe('cockpit run', () => {
     };
     deps.open = () => order.push('browser opened');
 
-    await runCommand('123', { cwd: repoRoot, reuseServer: false, open: true, skipGraph: false }, deps);
+    await runCommand('123', { cwd: repoRoot, reuseServer: false, open: true, openWhen: 'stage1', skipGraph: false }, deps);
 
     expect(order).toEqual(['browser opened', 'stage1 handed off', 'graph done']);
   });
@@ -168,7 +176,7 @@ describe('cockpit run', () => {
   it('skips the analysis when the cached document is at the same head', async () => {
     const { deps, recorded } = fakeDeps(HEAD, started);
 
-    expect(await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, skipGraph: false }, deps)).toBe(0);
+    expect(await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, openWhen: 'stage1', skipGraph: false }, deps)).toBe(0);
 
     expect(recorded.analyzed).toHaveLength(0);
     expect(recorded.served).toHaveLength(1);
@@ -180,7 +188,7 @@ describe('cockpit run', () => {
   it('analyzes again when the cached document is at another head', async () => {
     const { deps, recorded } = fakeDeps('0'.repeat(40), started);
 
-    await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, skipGraph: false }, deps);
+    await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, openWhen: 'stage1', skipGraph: false }, deps);
 
     expect(recorded.analyzed).toHaveLength(1);
   });
@@ -189,7 +197,7 @@ describe('cockpit run', () => {
     const running: ServeOutcome = { ...started, started: false };
     const { deps, recorded } = fakeDeps(HEAD, running);
 
-    expect(await runCommand('123', { cwd: repoRoot, reuseServer: true, open: true, skipGraph: false }, deps)).toBe(0);
+    expect(await runCommand('123', { cwd: repoRoot, reuseServer: true, open: true, openWhen: 'stage1', skipGraph: false }, deps)).toBe(0);
 
     expect(recorded.opened).toEqual([]);
     expect(err.some((line) => line.includes('reusing the server already on http://127.0.0.1:8090'))).toBe(true);
@@ -198,7 +206,7 @@ describe('cockpit run', () => {
   it('passes the port and --skip-graph through', async () => {
     const { deps, recorded } = fakeDeps(null, started);
 
-    await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, skipGraph: true, port: 8090 }, deps);
+    await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, openWhen: 'stage1', skipGraph: true, port: 8090 }, deps);
 
     expect(recorded.served).toEqual([{ port: 8090 }]);
     expect(recorded.analyzed[0]).toMatchObject({ skipGraph: true });
@@ -207,8 +215,106 @@ describe('cockpit run', () => {
   it('makes the checkout again when only the document survived', async () => {
     const { deps, recorded } = fakeDeps(HEAD, started);
 
-    await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, skipGraph: false }, deps);
+    await runCommand('123', { cwd: repoRoot, reuseServer: false, open: false, openWhen: 'stage1', skipGraph: false }, deps);
 
     expect(recorded.restored).toBe(1);
+  });
+});
+
+describe('--open-when', () => {
+  it('opens nothing on ready, and names the command that does', async () => {
+    const { deps, recorded } = fakeDeps(null, started);
+
+    expect(
+      await runCommand(
+        '123',
+        { cwd: repoRoot, reuseServer: false, open: true, openWhen: 'ready', skipGraph: false },
+        deps,
+      ),
+    ).toBe(0);
+
+    expect(recorded.opened).toEqual([]);
+    expect(recorded.served).toHaveLength(1);
+    expect(err.join('\n')).toContain(`cockpit open ${ref.owner}/${ref.repo}#${ref.number}`);
+  });
+
+  it('opens on stage1 as soon as the diff is served', async () => {
+    const { deps, recorded } = fakeDeps(null, started);
+
+    await runCommand(
+      '123',
+      { cwd: repoRoot, reuseServer: false, open: true, openWhen: 'stage1', skipGraph: false },
+      deps,
+    );
+
+    expect(recorded.opened).toEqual(['http://127.0.0.1:8090']);
+  });
+});
+
+describe('the estimate line', () => {
+  function historyPath(): string {
+    return join(cache, ref.owner, ref.repo, 'history.json');
+  }
+
+  it('says there is no history for a repository nobody has reviewed', async () => {
+    const { deps } = fakeDeps(null, started);
+    await runCommand(
+      '123',
+      { cwd: repoRoot, reuseServer: false, open: false, openWhen: 'ready', skipGraph: false },
+      deps,
+    );
+
+    expect(err.join('\n')).toContain('no history for this repo yet');
+  });
+
+  it('scales the median of the past runs by the hunk count', async () => {
+    mkdirSync(dirname(historyPath()), { recursive: true });
+    writeFileSync(
+      historyPath(),
+      JSON.stringify(
+        [10, 12, 14].map((seconds) => ({
+          hunks: HUNKS,
+          files: 20,
+          stage1Seconds: seconds,
+          graphSeconds: 4,
+          judgmentSeconds: 300,
+          mode: 'session',
+          timestamp: '2026-09-14T12:00:00Z',
+        })),
+      ),
+    );
+
+    const { deps } = fakeDeps(HEAD, started);
+    await runCommand(
+      '123',
+      { cwd: repoRoot, reuseServer: false, open: false, openWhen: 'ready', skipGraph: false },
+      deps,
+    );
+
+    expect(err.join('\n')).toContain('estimate: stage 1 ~12s, judgment ~5m (from 3 past runs on this repo)');
+  });
+
+  it('records the run so judge-merge can time the judgment against it', async () => {
+    const { deps } = fakeDeps(null, started);
+    await runCommand(
+      '123',
+      {
+        cwd: repoRoot,
+        reuseServer: false,
+        open: false,
+        openWhen: 'ready',
+        skipGraph: false,
+        judgment: 'headless',
+      },
+      deps,
+    );
+
+    const record = JSON.parse(
+      readFileSync(join(cache, ref.owner, ref.repo, `pr-${ref.number}`, 'run.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(record['mode']).toBe('headless');
+    expect(record['hunks']).toBe(HUNKS);
+    expect(typeof record['stage1At']).toBe('string');
+    expect(lastJson()['judgment']).toBe('headless');
   });
 });

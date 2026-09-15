@@ -4,20 +4,25 @@ import { resolveRef } from '@review-cockpit/analyzer';
 import { analyzeCommand } from './commands/analyze.js';
 import { cleanCommand } from './commands/clean.js';
 import { compactCommand } from './commands/compact.js';
+import { configCommand } from './commands/config.js';
 import { doctorCommand } from './commands/doctor.js';
 import { gcCommand, GC_DEFAULT_DAYS } from './commands/gc.js';
+import { judgeCommand } from './commands/judge.js';
 import { judgeMergeCommand } from './commands/judgeMerge.js';
-import { judgePromptCommand } from './commands/judgePrompt.js';
 import { markFailedCommand } from './commands/markFailed.js';
 import { mergeCommand } from './commands/merge.js';
+import { openCommand } from './commands/open.js';
 import { prepareCommand } from './commands/prepare.js';
 import { psCommand } from './commands/ps.js';
-import { runCommand } from './commands/run.js';
+import type { OpenWhen } from './commands/run.js';
+import { OPEN_WHEN, runCommand } from './commands/run.js';
 import { serveCommand } from './commands/serve.js';
 import type { StopSelector } from './commands/stop.js';
 import { stopCommand } from './commands/stop.js';
 import type { FileKind } from './commands/validate.js';
 import { validateCommand } from './commands/validate.js';
+import type { JudgmentMode } from '@review-cockpit/analyzer';
+import { JUDGMENT_MODES } from '@review-cockpit/analyzer';
 import { sessionIdFromEnv } from './session.js';
 import { usage } from './usage.js';
 
@@ -47,6 +52,11 @@ async function main(argv: string[]): Promise<number> {
         open: { type: 'boolean' },
         'no-open': { type: 'boolean' },
         'reuse-server': { type: 'boolean' },
+        'open-when': { type: 'string' },
+        force: { type: 'boolean' },
+        headless: { type: 'boolean' },
+        model: { type: 'string' },
+        timeout: { type: 'string' },
         'no-fold-generated': { type: 'boolean' },
         'expect-judgment': { type: 'boolean' },
         'skip-graph': { type: 'boolean' },
@@ -82,6 +92,7 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === 'doctor') return doctorCommand();
   if (command === 'ps') return psCommand();
+  if (command === 'config') return configCommand(rest[0], rest[1]);
 
   if (command === 'gc') {
     const days = values.days === undefined ? GC_DEFAULT_DAYS : Number(values.days);
@@ -99,9 +110,11 @@ async function main(argv: string[]): Promise<number> {
 
   const prCommands = [
     'run',
+    'open',
     'prepare',
     'analyze',
     'compact',
+    'judge',
     'judge-prompt',
     'judge-merge',
     'mark-failed',
@@ -114,15 +127,27 @@ async function main(argv: string[]): Promise<number> {
     if (prArg === undefined) return fail(`${command} needs a pull request`);
 
     if (command === 'run') {
+      const openWhen = values['open-when'] ?? 'ready';
+      if (!OPEN_WHEN.includes(openWhen as OpenWhen)) {
+        return fail(`--open-when must be one of ${OPEN_WHEN.join(', ')}, not "${openWhen}"`);
+      }
+      if (values.judgment !== undefined && !JUDGMENT_MODES.includes(values.judgment as JudgmentMode)) {
+        return fail(`--judgment must be one of ${JUDGMENT_MODES.join(', ')}, not "${values.judgment}"`);
+      }
       return runCommand(prArg, {
         cwd,
         reuseServer: values['reuse-server'] === true,
         open: values['no-open'] !== true,
+        openWhen: openWhen as OpenWhen,
         skipGraph: values['skip-graph'] === true,
+        ...(values.judgment === undefined ? {} : { judgment: values.judgment as JudgmentMode }),
         ...(port === undefined ? {} : { port }),
         ...(idleMinutes === undefined ? {} : { idleMinutes }),
         ...(sessionId === undefined ? {} : { sessionId }),
       });
+    }
+    if (command === 'open') {
+      return openCommand(prArg, { cwd, force: values.force === true });
     }
     if (command === 'prepare') return prepareCommand(prArg, cwd);
     if (command === 'analyze') {
@@ -134,7 +159,18 @@ async function main(argv: string[]): Promise<number> {
       });
     }
     if (command === 'compact') return compactCommand(prArg, cwd);
-    if (command === 'judge-prompt') return judgePromptCommand(prArg, cwd);
+    if (command === 'judge' || command === 'judge-prompt') {
+      const minutes = values.timeout === undefined ? undefined : Number(values.timeout);
+      if (minutes !== undefined && (!Number.isFinite(minutes) || minutes <= 0)) {
+        return fail(`--timeout must be a number of minutes, not "${values.timeout}"`);
+      }
+      return judgeCommand(prArg, {
+        cwd,
+        headless: command === 'judge' && values.headless === true,
+        ...(values.model === undefined ? {} : { model: values.model }),
+        ...(minutes === undefined ? {} : { timeoutMinutes: minutes }),
+      });
+    }
     if (command === 'judge-merge') {
       return judgeMergeCommand(prArg, {
         cwd,

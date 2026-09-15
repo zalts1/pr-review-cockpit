@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import type { ReviewDocument } from '@review-cockpit/schema';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compactCommand } from '../src/commands/compact.js';
+import { judgeCommand } from '../src/commands/judge.js';
 import { judgeMergeCommand } from '../src/commands/judgeMerge.js';
-import { judgePromptCommand } from '../src/commands/judgePrompt.js';
 import { buildPrompt, findPromptTemplate, renderPrompt } from '../src/prompt.js';
 
 const PR = 'northwind-labs/tenant-platform#1234';
@@ -60,9 +60,12 @@ function goodJudgment(): Record<string, unknown> {
   >;
 }
 
-describe('cockpit judge-prompt', () => {
-  it('fills every placeholder', () => {
-    expect(judgePromptCommand(PR, repoRoot)).toBe(0);
+const promptOnly = (pr: string, cwd: string): Promise<number> =>
+  judgeCommand(pr, { cwd, headless: false });
+
+describe('cockpit judge, with no --headless', () => {
+  it('fills every placeholder', async () => {
+    expect(await promptOnly(PR, repoRoot)).toBe(0);
     const prompt = out.join('');
 
     expect(prompt.match(/\{\{\w+\}\}/g)).toBeNull();
@@ -82,8 +85,8 @@ describe('cockpit judge-prompt', () => {
     expect(filled).toContain('A body with {{checkoutPath}} in it.');
   });
 
-  it('embeds the judgment schema', () => {
-    judgePromptCommand(PR, repoRoot);
+  it('embeds the judgment schema', async () => {
+    await promptOnly(PR, repoRoot);
     const prompt = out.join('');
 
     expect(prompt).toContain('"$id": "urn:review-cockpit:schema:judgment:1"');
@@ -91,8 +94,8 @@ describe('cockpit judge-prompt', () => {
     expect(prompt).toContain('"riskAdjustments"');
   });
 
-  it('names the pull request, the checkout, the output file and the next command', () => {
-    judgePromptCommand(PR, repoRoot);
+  it('names the pull request, the checkout, the output file and the next command', async () => {
+    await promptOnly(PR, repoRoot);
     const prompt = out.join('');
 
     expect(prompt).toContain('# Judgment pass for northwind-labs/tenant-platform#1234');
@@ -101,16 +104,16 @@ describe('cockpit judge-prompt', () => {
     expect(prompt).toContain('cockpit judge-merge northwind-labs/tenant-platform#1234');
   });
 
-  it('lists the high-floor hunks and the stage 1 groups the model may name', () => {
-    judgePromptCommand(PR, repoRoot);
+  it('lists the high-floor hunks and the stage 1 groups the model may name', async () => {
+    await promptOnly(PR, repoRoot);
     const prompt = out.join('');
 
     expect(prompt).toContain('`f13.h1` — db/migrations/0042_tenant_profile_region.sql');
     expect(prompt).toContain('`g1` — generated, skim');
   });
 
-  it('inlines the compact view at the end', () => {
-    judgePromptCommand(PR, repoRoot);
+  it('inlines the compact view at the end', async () => {
+    await promptOnly(PR, repoRoot);
     const prompt = out.join('');
 
     expect(prompt).toContain('## The compact view');
@@ -119,10 +122,10 @@ describe('cockpit judge-prompt', () => {
     );
   });
 
-  it('refuses when the pull request was never analyzed', () => {
+  it('refuses when the pull request was never analyzed', async () => {
     rmSync(join(prDir, 'review.json'));
-    expect(judgePromptCommand(PR, repoRoot)).toBe(1);
-    expect(err.join('\n')).toContain('Run cockpit analyze');
+    expect(await promptOnly(PR, repoRoot)).toBe(1);
+    expect(err.join('\n')).toContain('Run cockpit run');
   });
 });
 
@@ -234,6 +237,6 @@ describe('cockpit judge-merge', () => {
 
   it('says what to do when there is no judgment file yet', () => {
     expect(judgeMergeCommand(PR, { cwd: repoRoot })).toBe(1);
-    expect(err.join('\n')).toContain('cockpit judge-prompt');
+    expect(err.join('\n')).toContain('Run cockpit judge northwind-labs/tenant-platform#1234');
   });
 });
