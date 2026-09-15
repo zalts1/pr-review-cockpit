@@ -19,8 +19,10 @@ it out, analyses the diff, serves the web app, and posts the review the user wri
 You do one part of it, the judgment pass, and then stay in the terminal to answer questions
 about the code.
 
-Run the steps below in order. Step 3 is yours and no other process does it: skip it and the
-cockpit shows deterministic risk with no groups, no reading order and no brief.
+Run the steps below in order. Step 4 is the judgment pass, and nothing else does it: skip it and
+the cockpit shows deterministic risk with no groups, no reading order and no brief. The browser
+opens in step 5, after the judgment is merged, so the user meets a finished page rather than a
+row of placeholders.
 
 Before step 1, only if `cockpit` is not on PATH: run `cockpit doctor`, or
 `${CLAUDE_PLUGIN_ROOT}/bin/cockpit doctor` when the bare command is not found. A plugin install
@@ -41,38 +43,57 @@ The user names the pull request in one of three ways, and `cockpit` takes all th
 Use the same argument for every command in this procedure. If it was a bare number, stay in
 the same directory for all of them.
 
-## 2. Open the cockpit
+## 2. Analyse and serve, without opening anything
 
 ```
 cockpit run <pr>
 ```
 
-That one command resolves the pull request, checks it out, runs stage 1 of the analysis,
-starts the server, opens the browser, and then builds the call graph. Progress goes to stderr,
-one line per stage with its elapsed time. The last line of stdout is one line of JSON:
+That resolves the pull request, checks it out, runs stage 1, starts the server and then builds
+the call graph. It does not open a browser: step 5 does that, once there is something worth
+looking at. Progress goes to stderr, one line per stage with its elapsed time, and the last
+line of stdout is one line of JSON:
 
 ```json
-{"url":"http://127.0.0.1:8090","prDir":"…/pr-123","compact":"…/pr-123/compact.md","judgmentOut":"…/pr-123/judgment.json","headSha":"…"}
+{"url":"http://127.0.0.1:8090","prDir":"…/pr-123","compact":"…/pr-123/compact.md","judgmentOut":"…/pr-123/judgment.json","headSha":"…","judgment":"session","hunks":40}
 ```
 
 It is the only line of output that starts with `{`; every other line is progress on stderr.
 
-Read that line and keep the values. `url` is the cockpit, `judgmentOut` is where your judgment
-file goes in step 3, and `prDir` holds everything about this review, including the checkout at
-`prDir/worktree`.
+Read that line and keep the values. `judgmentOut` is where your judgment file goes, `prDir`
+holds everything about this review including the checkout at `prDir/worktree`, and `judgment`
+says which path step 4 takes.
 
-Tell the user the URL as soon as the command returns, and tell them what is not ready yet:
+One progress line is for the user, not for you. It looks like one of these:
 
-> The cockpit is open at http://127.0.0.1:8090. The diff, the risk heatmap, the existing
-> comments and the checks are there now. The summary, the groups and the reading order are
-> still being analysed — I am writing them next, and they will appear in the page on their own.
+```
+estimate: stage 1 ~9s, judgment ~4m (from 6 past runs on this repo)
+estimate: no history for this repo yet; judgment usually takes 3 to 6 minutes
+```
+
+Tell them that, in your own words, as soon as the command returns:
+
+> Analysing owner/repo#123. Stage 1 took nine seconds; the judgment pass usually takes about
+> four minutes on this repository. I will open the cockpit when it is ready.
 
 Then go straight to step 3. Do not wait for the user to answer.
 
-## 3. The judgment pass
+## 3. Which judgment path
+
+The `judgment` value in the JSON says it: `session` means you do the pass yourself in step 4a,
+`headless` means a separate run of Claude does it in step 4b while your terminal stays free. It
+comes from `~/.config/review-cockpit/config.json`, which you can also read on its own:
 
 ```
-cockpit judge-prompt <pr>
+cockpit config get judgment
+```
+
+Trust the JSON when you have it; the config command is for when you do not.
+
+## 4a. The judgment pass, in this session
+
+```
+cockpit judge <pr>
 ```
 
 That prints one prompt: the instructions, the JSON Schema your output must match, the rules
@@ -83,24 +104,35 @@ Follow that prompt exactly. It tells you to open files from the checkout and rea
 around each change before you write anything. Do that. A judgment written from the diff alone
 is the thing this tool exists to replace.
 
-Write your output to the `judgmentOut` path from step 2, which is the path the prompt names
-too. Write nothing else: not the review document, not the checkout, and no comment on the pull
-request. Then merge it:
+While you work, print these four lines and nothing else between your tool calls, so the user
+sees the pass moving without reading your thinking:
+
+```
+judgment: read the compact view (N hunks) · expect ~Ym
+judgment: opening files in the checkout
+judgment: writing judgment.json
+judgment: merged, opening the cockpit
+```
+
+`N` is the hunk count from the JSON in step 2 and `Y` is the minutes from the estimate line.
+Four lines, in that order, and no others.
+
+Write your output to the `judgmentOut` path, which is the path the prompt names too. Write
+nothing else: not the review document, not the checkout, and no comment on the pull request.
+Then merge it:
 
 ```
 cockpit judge-merge <pr>
 ```
 
 It validates your file, merges it into the document, writes the document, and prints every
-proposal it dropped or clamped. The open cockpit picks the new document up on its own. Read
-the merge log: a dropped group or a clamped risk level is a mistake of yours worth knowing
-about.
+proposal it dropped or clamped. Read the merge log: a dropped group or a clamped risk level is
+a mistake of yours worth knowing about.
 
 ### If the merge rejects your file
 
 The command exits non-zero, prints the first five errors, and keeps your file as
-`judgment.rejected.json`. Nothing was merged, so the cockpit still says the stage 2 sections
-are being analysed.
+`judgment.rejected.json`. Nothing was merged.
 
 Fix those errors once. Write the corrected file back to `judgmentOut` and run
 `cockpit judge-merge <pr>` again.
@@ -112,18 +144,56 @@ stops promising work that is not coming:
 cockpit mark-failed <pr> --stage 2 --message "the judgment pass was rejected twice"
 ```
 
-Use a message that says what was wrong, in one line. Then tell the user the pull request is
-open in the cockpit with deterministic risk only, give them the errors, and carry on with
-step 4. Do not try a third time, and never edit `review.json` by hand.
+Use a message that says what was wrong, in one line. Then go on to step 5 anyway: the
+deterministic view is still worth opening. Do not try a third time, and never edit `review.json`
+by hand.
 
-## 4. Stay in the terminal
+## 4b. The judgment pass, headless
 
-Tell the user the walk is ready, and that you are still here:
+```
+cockpit judge <pr> --headless
+```
 
-> The reading order and the brief are in the cockpit now. Start with Next, or ask me about any
-> file, hunk or symbol in this pull request and I will read the code and answer.
+One command does the whole pass: it starts a headless Claude in the checkout with the same
+prompt and only the reading tools, merges the answer, retries once if the merge rejects it, and
+marks stage 2 failed on a second rejection. Your terminal is free while it runs, and its
+progress goes to stderr as one line that rewrites itself:
 
-Then wait. The user reads the diff in the browser and asks questions in the terminal.
+```
+judgment · 2m10s / ~4m30s · 9 files read · writing…
+```
+
+The last line of stdout is one line of JSON, and its status is what you relay:
+
+```json
+{"status":"ready","durationSeconds":262,"url":"http://127.0.0.1:8090"}
+```
+
+`"ready"` means the judgment is merged. `"failed"` means it was rejected twice or the run broke,
+stage 2 is already marked failed, and the cockpit still has everything stage 1 produced. Either
+way, go on to step 5.
+
+## 5. Open the browser
+
+```
+cockpit open <pr>
+```
+
+That opens the cockpit on the running server and prints its URL. It is idempotent: called twice
+it says the tab is already open rather than making a second one.
+
+Tell the user it is ready, and that you are still here:
+
+> The cockpit is open at http://127.0.0.1:8090: the diff with its risk heatmap, the summary, the
+> reading order and a brief on every hunk. Start with Next, or ask me about any file, hunk or
+> symbol in this pull request and I will read the code and answer.
+
+If step 4 ended in a failure, say so plainly in the same message: the diff, the heatmap, the
+comments and the checks are all stage 1, and none of them depend on the judgment.
+
+## 6. Stay in the terminal
+
+Wait. The user reads the diff in the browser and asks questions in the terminal.
 
 Answer from the checkout at `prDir/worktree`, which is the repository at the pull request's
 head commit. Read the files there rather than guessing from the diff. `prDir/review.json` has
@@ -133,7 +203,7 @@ one text file.
 Do not re-run the analysis, and do not post anything to GitHub. The user posts their review
 from the cockpit themselves.
 
-## 5. Clean up
+## 7. Clean up
 
 When the user says "done", "finish", "clean up" or anything else that ends the review:
 
@@ -156,7 +226,7 @@ connected, and `cockpit gc`, which every `cockpit run` does a pass of, removes t
 any review nobody has come back to for seven days. What the review is made of is never
 collected.
 
-## 6. Re-analyse after new commits
+## 8. Re-analyse after new commits
 
 When the user says the author pushed new commits, or asks for a re-analysis:
 
@@ -165,8 +235,9 @@ cockpit run <pr> --reuse-server
 ```
 
 `--reuse-server` keeps the server that is already running and leaves the user's open tab
-alone, so the page reloads the new document by itself. Then do step 3 again: the judgment pass
-runs against the new diff.
+alone, so the page reloads the new document by itself. Then do steps 3 and 4 again: the
+judgment pass runs against the new diff. `cockpit open` in step 5 sees that tab and opens
+nothing.
 
 A `cockpit run` on a pull request whose head has not moved is cheap: it finds the cached
 document, skips the analysis and serves what is on disk. It says so in its progress output.
@@ -174,15 +245,14 @@ document, skips the analysis and serves what is on disk. It says so in its progr
 ## What the user sees
 
 1. They type "cockpit 123" in Claude Code, or paste the pull request URL and ask for the cockpit.
-2. About a minute of progress lines in the terminal, one per stage.
-3. A browser tab with the diff, the risk heatmap, the existing comments and the checks. The
-   summary, the groups and the reading order say they are being analysed.
-4. Your message with the URL, and then a second message when the walk is ready.
-5. They review in the browser: Next walks the order, `c` drafts a comment on a line, Submit
+2. Your message saying what is being analysed and how long the judgment is likely to take.
+3. A few lines of progress while the judgment runs, and then a browser tab with the whole
+   cockpit: the diff, the risk heatmap, the summary, the reading order and the existing comments.
+4. They review in the browser: Next walks the order, `c` drafts a comment on a line, Submit
    posts one GitHub review. Their posted comments come back into the page as pinned threads
    within a few seconds.
-6. They ask questions in the terminal, and you answer from the checkout.
-7. They say "done", and the worktree and the server go away.
+5. They ask questions in the terminal, and you answer from the checkout.
+6. They say "done", and the worktree and the server go away.
 
 ## When something fails
 
@@ -193,7 +263,7 @@ user to run this, and stop:
 gh auth login
 ```
 
-Nothing else in this procedure works without it, so do not go on to step 3.
+Nothing else in this procedure works without it, so do not go on to step 4.
 
 **No local clone of the repository.** `cockpit run` clones it into its own cache and keeps
 going, so nothing is broken. Warn the user that the first review of a large repository is slow
@@ -203,11 +273,15 @@ holds the `workspaceRoots` it searches.
 
 **A server is already running for this pull request.** `cockpit run` uses it and starts
 nothing, and its progress output says which port it reused. This is normal when the user
-reviewed the same pull request earlier. Give them that URL.
+reviewed the same pull request earlier.
 
-**The judgment pass was rejected twice.** Run `cockpit mark-failed` as step 3 describes, say
-so plainly, and keep going. The cockpit is still useful: the diff, the heatmap, the comments
-and the checks are all stage 1, and none of them depend on your judgment.
+**The judgment pass failed.** Run `cockpit mark-failed` as step 4a describes, or let
+`cockpit judge` do it, say so plainly, and go on to step 5. The cockpit is still useful without
+a judgment.
+
+**The user wants the cockpit now, before the judgment.** Run `cockpit open <pr>` at any point:
+the server is up from the moment stage 1 finished, and the page fills in on its own as each
+stage lands.
 
 **Anything else fails.** Report the command and its error. Do not work around a broken step by
 editing the files under `prDir` by hand. `cockpit doctor` checks the installation itself: the

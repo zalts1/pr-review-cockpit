@@ -83,9 +83,25 @@ describe('skills/cockpit/SKILL.md', () => {
   it('runs the judgment pass through the prompt the CLI prints', () => {
     const commands = commandLines(skill).map((line) => line.split(/\s+/).slice(0, 2).join(' '));
     expect(commands).toContain('cockpit run');
-    expect(commands).toContain('cockpit judge-prompt');
+    expect(commands).toContain('cockpit judge');
     expect(commands).toContain('cockpit judge-merge');
     expect(commands).toContain('cockpit mark-failed');
     expect(commands).toContain('cockpit clean');
+  });
+
+  it('opens the browser with its own command, after the judgment', () => {
+    const commands = commandLines(skill);
+    expect(commands.map((line) => line.split(/\s+/).slice(0, 2).join(' '))).toContain('cockpit open');
+    expect(skill.indexOf('cockpit judge <pr>')).toBeLessThan(skill.indexOf('cockpit open <pr>'));
+  });
+
+  it('gives the model the four milestone lines and no others', () => {
+    const milestones = [...skill.matchAll(/^judgment: (.+)$/gm)].map(([line]) => line);
+    expect(milestones).toEqual([
+      'judgment: read the compact view (N hunks) · expect ~Ym',
+      'judgment: opening files in the checkout',
+      'judgment: writing judgment.json',
+      'judgment: merged, opening the cockpit',
+    ]);
   });
 });
