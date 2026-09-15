@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { documentFile, prDir, resolveRef, run } from '@review-cockpit/analyzer';
 import { DEFAULT_IDLE_MINUTES, readServerFile, serverIsAlive, startServer } from '@review-cockpit/server';
+import { CLI_ENTRY } from './run.js';
 
 export interface ServeFlags {
   cwd: string;
@@ -29,6 +30,7 @@ export async function serveCommand(prArg: string, flags: ServeFlags): Promise<nu
   const server = await startServer({
     prDir: directory,
     idleMinutes,
+    cliEntry: CLI_ENTRY,
     ...(flags.port === undefined ? {} : { port: flags.port }),
     ...(flags.sessionId === undefined ? {} : { sessionId: flags.sessionId }),
   });

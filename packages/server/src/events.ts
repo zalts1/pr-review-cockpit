@@ -9,7 +9,7 @@ export const HEARTBEAT_MS = 20_000;
 const DOCUMENT_EVENT = 'data: {"type":"document"}\n\n';
 const HEARTBEAT_LINE = ': ping\n\n';
 
-export type ShutdownReason = 'idle' | 'stopped';
+export type ShutdownReason = 'idle' | 'stopped' | 'finished';
 
 function shutdownEvent(reason: ShutdownReason): string {
   return `data: ${JSON.stringify({ type: 'shutdown', reason })}\n\n`;

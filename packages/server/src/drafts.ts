@@ -62,6 +62,17 @@ export async function readOrphanedDrafts(prDir: string): Promise<DraftsFile['orp
   return Array.isArray(drafts) && drafts.length > 0 ? drafts : undefined;
 }
 
+/**
+ * Everything a purge would destroy that nothing can make again: the drafts bound to the current
+ * head and the ones a re-analysis set aside. One count, so the cockpit's warning and the
+ * server's refusal name the same number.
+ */
+export async function countUnsentDrafts(prDir: string): Promise<number> {
+  const file = await readDrafts(prDir);
+  const orphaned = await readOrphanedDrafts(prDir);
+  return file.drafts.length + (orphaned?.length ?? 0);
+}
+
 export async function writeDrafts(prDir: string, file: DraftsFile): Promise<void> {
   await writeAtomic(join(prDir, DRAFTS_FILENAME), `${JSON.stringify(file, null, 2)}\n`);
 }
