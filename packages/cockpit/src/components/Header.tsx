@@ -39,6 +39,8 @@ interface Props {
   onTab(tab: Tab): void;
   onNext(): void;
   onSubmit(): void;
+  /** Null in fixture mode, where there is no server to finish. */
+  onFinish: (() => void) | null;
   onHelp(): void;
   onTheme(): void;
 }
@@ -228,6 +230,7 @@ export function Header({
   onTab,
   onNext,
   onSubmit,
+  onFinish,
   onHelp,
   onTheme,
 }: Props) {
@@ -314,6 +317,15 @@ export function Header({
         <button className="btn" onClick={onSubmit}>
           Submit review
         </button>
+        {onFinish !== null && (
+          <button
+            className="btn"
+            onClick={onFinish}
+            title="Stop the local server and remove the checkout"
+          >
+            Finish review
+          </button>
+        )}
         <button
           className="btn btn-primary"
           onClick={onNext}

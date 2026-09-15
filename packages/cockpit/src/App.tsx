@@ -14,7 +14,8 @@ import {
 import type { RailEntry } from './lib/plan';
 import { copyText } from './lib/clipboard';
 import type { Connection } from './lib/connection';
-import { connectionBanner } from './lib/connection';
+import { connectionBanner, isFinished } from './lib/connection';
+import { finishReview } from './lib/finish';
 import {
   documentSource,
   documentUrlOf,
@@ -31,6 +32,7 @@ import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
 import { description } from './lib/prBody';
 import { editorTargetFromDrag, firstCommentableLine } from './lib/interaction';
 import { DiffFile } from './components/DiffFile';
+import { FinishModal, ReviewFinished } from './components/FinishModal';
 import { GroupHeader } from './components/GroupHeader';
 import { Header } from './components/Header';
 import type { Tab } from './components/Header';
@@ -200,6 +202,12 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [posting, setPosting] = useState(false);
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [purge, setPurge] = useState(false);
+  const [confirmDrafts, setConfirmDrafts] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
+  const [purged, setPurged] = useState<boolean | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const theme = useTheme();
   const [toast, setToast] = useState<string | null>(null);
@@ -480,6 +488,26 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
       });
   }, [store]);
 
+  // On success the modal stays as it is: the page is replaced by the end state when the
+  // server's shutdown event arrives, and showing the cockpit again in between would read as
+  // the finish having failed.
+  const finish = useCallback(() => {
+    setFinishing(true);
+    setFinishError(null);
+    void finishReview(purge, confirmDrafts).then((result) => {
+      if (result.kind === 'finishing') {
+        setPurged(result.purge);
+        return;
+      }
+      setFinishing(false);
+      setFinishError(
+        result.kind === 'refused'
+          ? result.message
+          : `The server counted ${result.count} unsent ${result.count === 1 ? 'draft' : 'drafts'}. Confirm the deletion to go ahead.`,
+      );
+    });
+  }, [purge, confirmDrafts]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -713,6 +741,8 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
   const currentHunk =
     currentStep?.ref.kind === 'hunk' ? derived.hunkById.get(currentStep.ref.id) : undefined;
 
+  if (isFinished(connection)) return <ReviewFinished pr={doc.pr} purged={purged} />;
+
   return (
     <div className="app">
       {banner !== null && (
@@ -767,6 +797,7 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
         onTab={setTab}
         onNext={goNext}
         onSubmit={() => setSubmitOpen(true)}
+        onFinish={documentSource.mode === 'server' ? () => setFinishOpen(true) : null}
         onHelp={() => setHelpOpen(true)}
         onTheme={theme.toggle}
       />
@@ -930,6 +961,26 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
             setSubmitResult(null);
           }}
           onPost={post}
+        />
+      )}
+
+      {finishOpen && (
+        <FinishModal
+          unsentDrafts={drafts.length + store.orphaned.length}
+          purge={purge}
+          confirmDrafts={confirmDrafts}
+          finishing={finishing}
+          error={finishError}
+          onPurge={(next) => {
+            setPurge(next);
+            if (!next) setConfirmDrafts(false);
+          }}
+          onConfirmDrafts={setConfirmDrafts}
+          onCancel={() => {
+            setFinishOpen(false);
+            setFinishError(null);
+          }}
+          onFinish={finish}
         />
       )}
 
