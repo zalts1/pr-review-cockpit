@@ -39,7 +39,8 @@ Usage:
   cockpit serve    <pr> [--port <n>] [--open] [--idle-minutes <n>] [--session <id>]
                         [--cwd <dir>]
   cockpit stop     <pr> | --all | --started-by <id>
-  cockpit clean    <pr> [--cwd <dir>]
+  cockpit clean    <pr> [--purge] [--cwd <dir>]
+  cockpit clean    --all [--purge] [--yes] [--force]
   cockpit gc       [--days <n>] [--dry-run]
   cockpit ps
   cockpit doctor
@@ -139,7 +140,17 @@ stop      Stops running servers and leaves everything else alone: one pull
           it while a session is closing.
 
 clean     Stops the server the way stop does, removes the worktree and the
-          review-cockpit ref, and keeps review.json and drafts.json.
+          review-cockpit ref, and keeps review.json and drafts.json. It prints
+          what it removed and what it kept.
+          --purge also deletes the pull request's whole cache directory: the
+          document, the drafts, the judgment, the compact view, every posted
+          review and the log. Nothing in it can be made again.
+          --all does every cached pull request instead of one. It prints the
+          table first — the server state, the unsent drafts and the age of each
+          — and asks before it removes anything; --yes skips the question, which
+          is also what a run with no terminal needs. A pull request with a
+          cockpit connected to its server is listed and left alone unless
+          --force says otherwise.
 
 gc        Removes the checkout of every cached pull request with no server
           running and a review document older than --days, which defaults to
