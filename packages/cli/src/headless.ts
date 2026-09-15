@@ -9,7 +9,7 @@ export interface HeadlessProgress {
   writing: boolean;
   done: boolean;
   isError: boolean;
-  /** The last assistant text, which holds the judgment when the model could not write the file. */
+  /** The last assistant text, which is where the judgment itself arrives. */
   finalText: string;
   /** What `claude` reported went wrong, when the run ended badly. */
   error: string | null;
@@ -145,9 +145,8 @@ function outermostObject(text: string): string | null {
 }
 
 /**
- * The judgment as the model's last message left it, for a run whose Write was refused. The whole
- * message is tried before any fence, because a judgment carries fenced markdown of its own inside
- * `summary.example`.
+ * The judgment out of the pass's last message. The whole message is tried before any fence,
+ * because a judgment carries fenced markdown of its own inside `summary.example`.
  */
 export function judgmentFromText(text: string): string | null {
   const trimmed = text.trim();

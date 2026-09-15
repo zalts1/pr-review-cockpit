@@ -57,7 +57,7 @@ afterEach(() => {
   rmSync(cache, { recursive: true, force: true });
 });
 
-/** Stands in for the model: it writes what the test tells it to, and records what it was asked. */
+/** Stands in for the model: it returns what the test tells it to, and records what it was asked. */
 function fakeInvoke(
   answers: Array<Record<string, unknown> | 'nothing'>,
 ): { deps: JudgeDeps; prompts: string[] } {
