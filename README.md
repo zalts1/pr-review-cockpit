@@ -147,7 +147,8 @@ Here is what happens, and roughly how long each part takes on a medium pull requ
    cursor, Submit posts one GitHub review with all of it. Your posted comments come back into
    the page as pinned threads a second later.
 7. **You say "done"** and the session runs `cockpit clean`: the server stops and the worktree
-   goes away. What you wrote stays.
+   goes away. What you wrote stays. **Finish review** in the cockpit header does the same
+   without leaving the browser, and offers to delete the analysis and the drafts as well.
 
 Ask questions in the terminal at any point — "why is this hunk high risk", "who calls this
 function", "does this migration need a backfill". The session has the checkout and the
@@ -179,7 +180,8 @@ Everything the tool writes is under one directory, `~/.cache/review-cockpit`:
 ```
 
 `cockpit clean` removes `worktree/` and stops the server. It keeps everything else, so a
-review you posted last week is still readable.
+review you posted last week is still readable. `cockpit clean <pr> --purge` deletes `pr-123/`
+as well, and is the only thing that removes a draft you never sent.
 
 Nothing is written into your own clone but the objects a fetch brings in, one ref under
 `refs/review-cockpit/`, and the worktree registration. `clean` removes both of those.
@@ -199,6 +201,19 @@ review with no server running that nobody has come back to for seven days.
 | `cockpit ps` | Every running server: pull request, port, pid, age, how long it has had nobody connected, how many cockpits are |
 | `cockpit stop <pr>` / `--all` / `--started-by <id>` | Stop servers and leave everything else where it is |
 | `cockpit gc [--days <n>] [--dry-run]` | Remove the checkouts of reviews nobody came back to |
+| `cockpit clean <pr> [--purge]` | End one review now, keeping its files or deleting them |
+| `cockpit clean --all [--purge] [--yes]` | The same across every review in the cache |
+
+When you are finished with one review, end it rather than waiting: **Finish review** in the
+cockpit header, or `cockpit clean <pr>` in the terminal. Both stop the server and remove the
+checkout and keep everything you wrote; `--purge`, and the checkbox in the modal, delete the
+pull request's cache directory too. Nothing else deletes a draft you never sent, so the modal
+asks twice when there are any.
+
+`cockpit clean --all` is the same sweep across the whole cache. It prints what it found first —
+the server, the unsent drafts and the age of each review — and asks before it removes anything;
+`--yes` answers for you, which a script needs. A review whose cockpit is open in a browser is
+listed and left alone unless `--force` says otherwise.
 
 `cockpit stop` only signals a process it can show is a cockpit server: one that answers
 `/api/health` with the token from its own `server.json`, or, when it answers nothing at all,
@@ -303,7 +318,8 @@ also its own command, which is how you debug one.
 | `cockpit mark-failed <pr> --stage 2 --message <text>` | Mark the judgment sections failed with a message the cockpit shows. |
 | `cockpit serve <pr> [--port <n>] [--open] [--idle-minutes <n>] [--session <id>]` | Serve the cockpit, the document and the drafts on 127.0.0.1, or print the URL of the server already serving them. |
 | `cockpit stop <pr>` / `--all` / `--started-by <id>` | Stop running servers and nothing else. |
-| `cockpit clean <pr>` | Stop the server, remove the worktree and the ref, keep the document and the drafts. |
+| `cockpit clean <pr> [--purge]` | Stop the server, remove the worktree and the ref, keep the document and the drafts. `--purge` deletes the pull request's whole cache directory instead of keeping it. |
+| `cockpit clean --all [--purge] [--yes] [--force]` | The same across every cached pull request. Lists them with their server, their unsent drafts and their age, and asks first unless `--yes`. One with a cockpit connected is left alone unless `--force`. |
 | `cockpit gc [--days <n>] [--dry-run]` | Remove the checkout of every review with no server and a document older than `--days`, which defaults to 7. |
 | `cockpit ps` | List the running servers. |
 | `cockpit doctor` | Check the installation and print the table above. |

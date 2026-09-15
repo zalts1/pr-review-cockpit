@@ -4,9 +4,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { join, resolve } from 'node:path';
 import type { DraftsFile } from '@review-cockpit/schema';
 import { validateDrafts } from '@review-cockpit/schema';
-import { prFromPath, readDrafts, readOrphanedDrafts, writeDrafts } from './drafts.js';
+import { countUnsentDrafts, prFromPath, readDrafts, readOrphanedDrafts, writeDrafts } from './drafts.js';
 import type { ShutdownReason } from './events.js';
 import { DocumentWatcher, EventStreamHub } from './events.js';
+import type { FinishHooks } from './finish.js';
+import { detachedClean } from './finish.js';
 import { DEFAULT_IDLE_MINUTES, IdleWatch } from './idle.js';
 import { DOCUMENT_FILENAME } from './paths.js';
 import type { IngestFn, RefreshOutcome } from './refresh.js';
@@ -23,6 +25,7 @@ export {
   SERVER_FILENAME,
 } from './paths.js';
 export {
+  countUnsentDrafts,
   emptyDrafts,
   prFromPath,
   prIdentity,
@@ -46,6 +49,8 @@ export type { IngestFn, RefreshBody, RefreshCounts, RefreshOutcome } from './ref
 export { DEFAULT_IDLE_MINUTES, IdleWatch } from './idle.js';
 export type { IdleWatchOptions } from './idle.js';
 export type { ShutdownReason } from './events.js';
+export { detachedClean } from './finish.js';
+export type { FinishHooks } from './finish.js';
 export {
   newServerToken,
   pidIsAlive,
@@ -74,6 +79,10 @@ export interface ServerOptions {
   sessionId?: string;
   /** Injected so a test drives the clock; the default is the global timer. */
   now?: () => number;
+  /** The `cockpit` entry point `/api/finish` spawns its teardown with. Without it nothing is torn down. */
+  cliEntry?: string;
+  /** Injected so a test neither spawns nor exits; the default cleans up and stops the process. */
+  finish?: FinishHooks;
 }
 
 export interface RunningServer {
@@ -100,6 +109,9 @@ interface RequestContext {
   token: string;
   gh: GhCommand;
   ingest: IngestFn | undefined;
+  finish: FinishHooks;
+  /** Assigned once the server can stop itself, which is after the listener exists. */
+  finishReview: (purge: boolean) => Promise<void>;
 }
 
 const ROUTE_METHODS: Record<string, string[]> = {
@@ -110,6 +122,7 @@ const ROUTE_METHODS: Record<string, string[]> = {
   '/api/drafts': ['GET', 'PUT'],
   '/api/submit': ['POST'],
   '/api/refresh': ['POST'],
+  '/api/finish': ['POST'],
   '/api/ask': ['POST'],
 };
 
@@ -141,6 +154,8 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     token: newServerToken(),
     gh: options.gh ?? ghCommand,
     ingest: options.ingest,
+    finish: options.finish ?? detachedClean(prDir, options.cliEntry),
+    finishReview: async () => undefined,
   };
 
   const server = createServer((req, res) => {
@@ -192,6 +207,12 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   const stop = async (reason: ShutdownReason): Promise<void> => {
     hub.announceShutdown(reason);
     await close();
+  };
+
+  context.finishReview = async (purge: boolean): Promise<void> => {
+    await stop('finished');
+    context.finish.clean(purge);
+    context.finish.exit();
   };
 
   let exited!: () => void;
@@ -264,6 +285,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, context: Reques
       sendJson(res, refreshed.status, refreshed.body);
       return;
     }
+    case '/api/finish':
+      await serveFinish(req, res, context);
+      return;
     case HEALTH_PATH:
       sendJson(res, 200, {
         ok: true,
@@ -379,6 +403,47 @@ async function serveSubmit(
   // A refresh that fails costs the reviewer a stale document, never the posted review.
   if (outcome.status === 200) refresh(context);
   sendJson(res, outcome.status, outcome.body);
+}
+
+/**
+ * Ends the review from the cockpit. The teardown starts only once the response is on the wire
+ * and the shutdown event has reached the page: after this the server is gone, so a reply that
+ * had not been flushed would never be sent and the tab would show a dropped connection instead
+ * of the end state.
+ */
+async function serveFinish(
+  req: IncomingMessage,
+  res: ServerResponse,
+  context: RequestContext,
+): Promise<void> {
+  let incoming: { purge?: unknown; confirmDrafts?: unknown };
+  try {
+    incoming = JSON.parse(await readBody(req)) as { purge?: unknown; confirmDrafts?: unknown };
+  } catch (error) {
+    sendJson(res, 400, {
+      error: error instanceof Error ? error.message : 'The request body is not JSON.',
+    });
+    return;
+  }
+
+  const purge = incoming.purge === true;
+  if (purge && incoming.confirmDrafts !== true) {
+    const count = await countUnsentDrafts(context.prDir);
+    if (count > 0) {
+      sendJson(res, 409, {
+        code: 'unsent_drafts',
+        count,
+        message:
+          count === 1
+            ? '1 draft comment has not been posted. Deleting it cannot be undone.'
+            : `${count} draft comments have not been posted. Deleting them cannot be undone.`,
+      });
+      return;
+    }
+  }
+
+  res.on('finish', () => void context.finishReview(purge));
+  sendJson(res, 200, { status: 'finishing', purge });
 }
 
 function refresh(context: RequestContext): RefreshOutcome {

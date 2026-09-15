@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util';
 import { resolveRef } from '@review-cockpit/analyzer';
 import { analyzeCommand } from './commands/analyze.js';
-import { cleanCommand } from './commands/clean.js';
+import { cleanAllCommand, cleanCommand } from './commands/clean.js';
 import { compactCommand } from './commands/compact.js';
 import { configCommand } from './commands/config.js';
 import { doctorCommand } from './commands/doctor.js';
@@ -45,6 +45,8 @@ async function main(argv: string[]): Promise<number> {
         session: { type: 'string' },
         'started-by': { type: 'string' },
         all: { type: 'boolean' },
+        purge: { type: 'boolean' },
+        yes: { type: 'boolean' },
         days: { type: 'string' },
         'dry-run': { type: 'boolean' },
         stage: { type: 'string' },
@@ -108,6 +110,16 @@ async function main(argv: string[]): Promise<number> {
     return stopCommand({ selector });
   }
 
+  if (command === 'clean') {
+    const purge = values.purge === true;
+    if (values.all === true) {
+      return cleanAllCommand({ purge, yes: values.yes === true, force: values.force === true });
+    }
+    const [prArg] = rest;
+    if (prArg === undefined) return fail('clean needs a pull request, or --all');
+    return cleanCommand(prArg, { cwd, purge });
+  }
+
   const prCommands = [
     'run',
     'open',
@@ -119,7 +131,6 @@ async function main(argv: string[]): Promise<number> {
     'judge-merge',
     'mark-failed',
     'serve',
-    'clean',
   ];
 
   if (prCommands.includes(command)) {
@@ -192,7 +203,6 @@ async function main(argv: string[]): Promise<number> {
         ...(sessionId === undefined ? {} : { sessionId }),
       });
     }
-    return cleanCommand(prArg, cwd);
   }
 
   if (command === 'validate') {

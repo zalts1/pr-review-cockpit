@@ -1,6 +1,8 @@
 import { cacheRoot } from '@review-cockpit/analyzer';
 import type { RecordedServer } from '../servers.js';
 import { healthOf, identify, recordedServers, target } from '../servers.js';
+import type { Column } from '../table.js';
+import { renderTable } from '../table.js';
 
 export interface PsRow {
   target: string;
@@ -11,7 +13,7 @@ export interface PsRow {
   clients: string;
 }
 
-const COLUMNS: Array<{ head: string; of: (row: PsRow) => string }> = [
+const COLUMNS: Array<Column<PsRow>> = [
   { head: 'pull request', of: (row) => row.target },
   { head: 'port', of: (row) => String(row.port) },
   { head: 'pid', of: (row) => String(row.pid) },
@@ -41,14 +43,7 @@ export async function psCommand(root?: string): Promise<number> {
 }
 
 export function renderPs(rows: readonly PsRow[]): string {
-  const widths = COLUMNS.map((column) =>
-    Math.max(column.head.length, ...rows.map((row) => column.of(row).length)),
-  );
-  const line = (cells: readonly string[]): string =>
-    cells.map((cell, index) => cell.padEnd(widths[index] ?? 0)).join('  ').trimEnd();
-  return [line(COLUMNS.map((column) => column.head)), ...rows.map((row) => line(COLUMNS.map((column) => column.of(row))))].join(
-    '\n',
-  );
+  return renderTable(COLUMNS, rows);
 }
 
 async function row(server: RecordedServer, at: number): Promise<PsRow> {
