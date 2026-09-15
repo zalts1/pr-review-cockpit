@@ -1,18 +1,23 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import type { PrRef } from '@review-cockpit/analyzer';
 import {
   documentFile,
+  historyFile,
   judgmentFile,
   logFile,
   nowIso,
   readDocument,
   rejectedJudgmentFile,
   resolveRef,
+  runFile,
   writeDocument,
 } from '@review-cockpit/analyzer';
 import type { Judgment, MergeLogEntry, ReviewDocument } from '@review-cockpit/schema';
 import { merge, validateDocument, validateJudgment } from '@review-cockpit/schema';
-import { countsOf, printIssues, printMergeLog } from '../report.js';
+import { appendHistory } from '../history.js';
+import { countsOf, printMergeLog } from '../report.js';
+import { readRunRecord, secondsSince } from '../runRecord.js';
 
 /** How many errors a person is shown before the rest are counted. Fixing five is a task; fixing forty is not. */
 const ERRORS_SHOWN = 5;
@@ -22,54 +27,81 @@ export interface JudgeMergeFlags {
   judgment?: string;
 }
 
-export function judgeMergeCommand(prArg: string, flags: JudgeMergeFlags): number {
-  const ref = resolveRef(prArg, flags.cwd);
+export type MergeFailure = 'no-document' | 'invalid-document' | 'no-judgment' | 'rejected';
+
+export interface MergeOutcome {
+  ok: boolean;
+  /** One line naming what went wrong, empty on success. */
+  headline: string;
+  reason: MergeFailure | null;
+  errors: string[];
+  log: MergeLogEntry[];
+  documentPath: string;
+  rejectedPath: string;
+  /** Present on success: the one-line count of what the merge produced. */
+  summary: string;
+}
+
+/**
+ * Validates a judgment file and merges it into the document. The judgment pass runs in three
+ * different places — the resident session, `cockpit judge --headless`, and a retry of either —
+ * so the merge itself has to be callable rather than only a command.
+ */
+export function applyJudgment(ref: PrRef, source: string): MergeOutcome {
   const target = `${ref.owner}/${ref.repo}#${ref.number}`;
   const documentPath = documentFile(ref);
-  const source = flags.judgment === undefined ? judgmentFile(ref) : resolve(flags.judgment);
   const rejectedPath = rejectedJudgmentFile(ref);
+  const base: Omit<MergeOutcome, 'ok' | 'headline' | 'errors' | 'reason'> = {
+    log: [],
+    documentPath,
+    rejectedPath,
+    summary: '',
+  };
 
   if (!existsSync(documentPath)) {
-    console.error(`no review document at ${documentPath}. Run cockpit analyze ${prArg} first.`);
-    return 1;
+    return {
+      ...base,
+      ok: false,
+      reason: 'no-document',
+      headline: `no review document at ${documentPath}.`,
+      errors: [],
+    };
   }
   if (!existsSync(source)) {
-    console.error(
-      `no judgment file at ${source}. Run cockpit judge-prompt ${prArg}, follow it, and write the file.`,
-    );
-    return 1;
+    return {
+      ...base,
+      ok: false,
+      reason: 'no-judgment',
+      headline: `no judgment file at ${source}.`,
+      errors: [],
+    };
   }
 
   const text = readFileSync(source, 'utf8');
-  const reject = (headline: string, errors: string[]): number => {
+  const reject = (headline: string, errors: string[]): MergeOutcome => {
     keepRejected(source, rejectedPath, text);
-    console.error(headline);
-    for (const message of errors.slice(0, ERRORS_SHOWN)) console.error(`  ${message}`);
-    if (errors.length > ERRORS_SHOWN) {
-      console.error(`  and ${errors.length - ERRORS_SHOWN} more`);
-    }
-    console.error(`kept your file as ${rejectedPath}. Nothing was merged.`);
-    console.error(
-      `Fix those errors, write the file again to ${judgmentFile(ref)}, and run cockpit judge-merge ${prArg}.`,
-    );
-    return 1;
+    return { ...base, ok: false, reason: 'rejected', headline, errors };
   };
 
   let judgment: unknown;
   try {
     judgment = JSON.parse(text);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    return reject(`${source} is not valid JSON.`, [reason]);
+    return reject(`${source} is not valid JSON.`, [
+      error instanceof Error ? error.message : String(error),
+    ]);
   }
 
   const document = readDocument(documentPath);
   const documentResult = validateDocument(document);
   if (!documentResult.ok) {
-    console.error(`${documentPath} is not a valid review document (${countsOf(documentResult)}).`);
-    printIssues(documentResult);
-    console.error(`Nothing was merged. Re-run cockpit analyze ${prArg}.`);
-    return 1;
+    return {
+      ...base,
+      ok: false,
+      reason: 'invalid-document',
+      headline: `${documentPath} is not a valid review document (${countsOf(documentResult)}).`,
+      errors: documentResult.errors.map((issue) => issue.message),
+    };
   }
 
   const judgmentResult = validateJudgment(judgment);
@@ -93,11 +125,73 @@ export function judgeMergeCommand(prArg: string, flags: JudgeMergeFlags): number
 
   writeDocument(documentPath, result.document);
   writeMergeLog(logFile(ref), target, result.log);
-  printMergeLog(result.log);
-  console.error(`[judge-merge] ${summarise(result.document)}`);
-  console.error(`[judge-merge] wrote ${documentPath}, log in ${logFile(ref)}`);
-  console.log(documentPath);
+  recordHistory(ref);
+
+  return {
+    ...base,
+    ok: true,
+    reason: null,
+    headline: '',
+    errors: [],
+    log: result.log,
+    summary: summarise(result.document),
+  };
+}
+
+export function judgeMergeCommand(prArg: string, flags: JudgeMergeFlags): number {
+  const ref = resolveRef(prArg, flags.cwd);
+  const source = flags.judgment === undefined ? judgmentFile(ref) : resolve(flags.judgment);
+  const outcome = applyJudgment(ref, source);
+
+  if (!outcome.ok) {
+    printRejection(outcome, prArg, judgmentFile(ref));
+    return 1;
+  }
+
+  printMergeLog(outcome.log);
+  console.error(`[judge-merge] ${outcome.summary}`);
+  console.error(`[judge-merge] wrote ${outcome.documentPath}, log in ${logFile(ref)}`);
+  console.log(outcome.documentPath);
   return 0;
+}
+
+export function printRejection(outcome: MergeOutcome, prArg: string, judgmentPath: string): void {
+  console.error(outcome.headline);
+  for (const message of outcome.errors.slice(0, ERRORS_SHOWN)) console.error(`  ${message}`);
+  if (outcome.errors.length > ERRORS_SHOWN) {
+    console.error(`  and ${outcome.errors.length - ERRORS_SHOWN} more`);
+  }
+  if (outcome.reason === 'no-judgment') {
+    console.error(`Run cockpit judge ${prArg}, follow it, and write the file.`);
+    return;
+  }
+  if (outcome.reason !== 'rejected') {
+    console.error(`Nothing was merged. Re-run cockpit analyze ${prArg}.`);
+    return;
+  }
+  console.error(`kept your file as ${outcome.rejectedPath}. Nothing was merged.`);
+  console.error(
+    `Fix those errors, write the file again to ${judgmentPath}, and run cockpit judge-merge ${prArg}.`,
+  );
+}
+
+/** The estimate for the next review of this repository is only as good as what this one measured. */
+function recordHistory(ref: PrRef): void {
+  const record = readRunRecord(runFile(ref));
+  if (record === null) return;
+  try {
+    appendHistory(historyFile(ref), {
+      hunks: record.hunks,
+      files: record.files,
+      stage1Seconds: record.stage1Seconds,
+      graphSeconds: record.graphSeconds,
+      judgmentSeconds: secondsSince(record.stage1At),
+      mode: record.mode,
+      timestamp: nowIso(),
+    });
+  } catch {
+    console.error('[judge-merge] the run history could not be written; the estimate stays as it was');
+  }
 }
 
 /** The rejected file keeps the name the docs promise, wherever the judgment was read from. */

@@ -12,8 +12,11 @@ export const SECTION_NAMES: SectionName[] = [
   'graph',
 ];
 
-/** A summary once status.summary is ready: the validator guarantees every field. */
-export type ReadySummary = Required<Summary>;
+/**
+ * A summary once status.summary is ready. `overview` stays optional because a document
+ * written before schema 1.3 has none and still renders.
+ */
+export type ReadySummary = Required<Omit<Summary, 'overview'>> & Pick<Summary, 'overview'>;
 
 export function isReadySummary(summary: Summary): summary is ReadySummary {
   return (

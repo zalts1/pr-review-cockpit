@@ -3,7 +3,7 @@ import type {
   DraftsFile,
   Hunk,
   Judgment,
-  ReadySummary,
+  JudgmentSummary,
   ReviewDocument,
   ReviewFile,
   RiskLevel,
@@ -149,8 +149,11 @@ export function readyDocument(): ReviewDocument {
 }
 
 /** The brief the ready fixtures and the judgment helper share, so a merge can be compared to it. */
-export function readySummaryText(): Omit<ReadySummary, 'counts'> {
+export function readySummaryText(): JudgmentSummary {
   return {
+    overview:
+      'The record service gets an API for creating and updating records. ' +
+      'A request that names no id is now rejected before it reaches the store, so a caller sees an invalid-argument error instead of a saved record with no id.',
     tldr: 'Adds a record API.',
     whereItFits: ['The record service and its HTTP handler.'],
     flow: { before: 'handler -> store', after: 'handler -> validate -> store' },

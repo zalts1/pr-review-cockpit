@@ -322,6 +322,7 @@ The shape follows the reviewer brief the team already uses (the `pr-summary` ski
 
 ```jsonc
 "summary": {
+  "overview": "A detection can now record which tenants asked for it. Content sync writes that list alongside the detection, so reporting can credit a detection back to the customers who requested it. Nothing changes for anyone who does not read the new list.",
   "tldr": "Lets a detection carry the tenants that asked for it, so it can be credited back to them.",
   "whereItFits": [
     "Detection management service, store and gRPC handler.",
@@ -384,6 +385,7 @@ What the LLM produces. It is a separate file, never the document itself, so the 
     { "hunkId": "f6.h1", "level": "high", "why": "Migration is destructive on existing rows." }
   ],
   "summary": {
+    "overview": "...",
     "tldr": "...",
     "whereItFits": ["..."],
     "flow": { "before": "...", "after": "..." },
@@ -442,7 +444,7 @@ not repeat across `drafts` and `orphaned`.
 
 ## Versioning
 
-- `schemaVersion` follows semantic versioning. It is `1.2.0`: the drafts file gained the optional `updatedAt` and `orphaned` fields, as `conversation`, `botSummaries` and `threadId` arrived in `1.1.0`, so a cached `1.0.0` document still validates and still renders.
+- `schemaVersion` follows semantic versioning. It is `1.3.0`: `summary.overview` arrived, as the drafts file's optional `updatedAt` and `orphaned` arrived in `1.2.0` and `conversation`, `botSummaries` and `threadId` in `1.1.0`, so a cached `1.0.0` document still validates and still renders.
 - **Minor** bump: a new optional field, a new enum value the cockpit can ignore. The cockpit accepts any document with the same major version.
 - **Major** bump: a renamed or removed field, a changed meaning. The cockpit refuses a document with a different major version and shows the two versions.
 - The analyzer always writes the newest version. There are no migrations in v1; a stale cached document is re-analyzed.
@@ -485,7 +487,7 @@ Walk and groups:
 Counts and consistency:
 
 - `summary.counts` matches the document, whatever the state of `status.summary`.
-- `summary` carries `tldr`, `whereItFits`, `flow`, `example` and `watchFor` when `status.summary` is `ready`. `watchFor` may be empty, but it is written.
+- `summary` carries `overview`, `tldr`, `whereItFits`, `flow`, `example` and `watchFor` when `status.summary` is `ready`. `watchFor` may be empty, but it is written. A document written before `1.3.0` has no `overview` and is still valid; the cockpit shows its `tldr` in that place instead.
 - `file.additions` and `file.deletions` match the hunk lines, and `pr.additions`, `pr.deletions` and `pr.changedFiles` match the files.
 - A hunk's `oldLines` and `newLines` match its line list, and the line numbers run consecutively from `oldStart` and `newStart`.
 - `status.<section>.message` is present when `state` is `failed`.

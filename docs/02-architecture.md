@@ -153,7 +153,12 @@ rather than taken from `gh`. GitHub counts a rename and a binary file differentl
 validator requires the totals to match the hunks in the document, which are the only lines
 the reviewer can actually see.
 
-**4. Serve and open.** Start the server on a free port. Print the URL. Open the browser. The cockpit is usable from this moment, with the recommended order and the graph tab showing a loading state.
+**4. Serve.** Start the server on a free port. Print the URL. The cockpit is servable from this moment, with the recommended order and the graph tab showing a loading state, but by default nobody is looking at it yet: `cockpit run --open-when ready`, which is the default, opens no browser and leaves that to `cockpit open` once the judgment is merged (ADR-51). `--open-when stage1` opens it here instead, which is what the tool did until 0.3.0.
+
+`cockpit open <pr>` opens the browser on that server and prints its URL. It records the
+server's pid and url in `opened.json` and opens nothing when they still match, so a second
+call — which a re-analysis makes — does not put a second tab on the same cockpit. `--force`
+opens anyway.
 
 `cockpit run` starts the server as a detached `cockpit serve` and waits for its
 `/api/health` to answer, because the resident session needs its terminal back while the
@@ -185,7 +190,7 @@ hunk that is not generated, carrying its id, path, enclosing symbols, kind, risk
 the signals behind it, and the change text — in full under 40 changed lines, the first 15
 otherwise.
 
-`cockpit judge-prompt <pr>` prints the whole prompt to stdout: the instructions, the judgment
+`cockpit judge <pr>` prints the whole prompt to stdout: the instructions, the judgment
 JSON Schema embedded from `packages/schema/schemas`, the floor rules, the merge rules, the
 shape of the summary, and the compact view at the end. The prompt text lives in
 `skills/cockpit/judgment-prompt.md` with `{{placeholders}}` the CLI fills (ADR-32), so it is
@@ -194,7 +199,34 @@ command.
 
 `cockpit judge-merge <pr>` reads `judgment.json`, validates it, merges it, validates the
 merged document and writes it by rename, so a cockpit that is already open picks it up over
-server-sent events. Every dropped or clamped proposal is printed and appended to `log.txt`.
+server-sent events. Every dropped or clamped proposal is printed and appended to `log.txt`. It
+also appends this run to the repository's `history.json`, which is what the next run's estimate
+is made of.
+
+`cockpit judge <pr> --headless` runs the pass itself instead of printing it (ADR-52). It starts
+a headless Claude Code in the checkout with the prompt on stdin, `--output-format stream-json
+--verbose`, `--permission-mode dontAsk` and an `--allowedTools` list of Read, Grep, Glob and
+read-only `git` and `cat`. The pass writes no file: a `Write` allow rule for an absolute path
+outside the working directory is refused in a `-p` run whatever the permission mode, so a
+postscript on the prompt tells it to return the judgment as its whole final message, and
+`judge` writes that to `judgment.json` and merges it. A judgment an earlier run left behind is
+removed first, so a pass that returns nothing fails rather than merging stale work. On a
+rejection it re-invokes once with the errors appended, and marks stage 2 failed on a second one.
+Its last line of stdout is `{status, durationSeconds, url}`.
+
+Progress comes off the event stream, not from anything the model is asked to print: `Read`,
+`Grep` and `Glob` calls in `assistant` events whose `parent_tool_use_id` is null are counted, a
+`Write` of the judgment path or the final `result` event turns the line to "writing…", and the
+line is rewritten in place on a TTY and printed at intervals into a pipe:
+
+```
+judgment · 2m10s / ~4m30s · 9 files read · writing…
+```
+
+Which path runs is the `judgment` key of the user config, `session` or `headless`, default
+`session`. `cockpit run --judgment` overrides it for one run and reports the resolved value in
+its JSON, so the skill reads one value rather than resolving the config itself;
+`cockpit config get judgment` prints it on its own.
 
 The compact view is not always smaller than the diff. On a 24-file, 194-hunk pull request it
 came to 164 kB against 131 kB of `gh pr diff` and 776 kB of `review.json`: the change text
@@ -294,11 +326,12 @@ Three options were considered.
 
 | Option | How | Trade-off |
 |---|---|---|
-| **A. Resident session does it** | The skill tells the current Claude session to read stage 1 and write `judgment.json`. | No API key, no extra cost model, one session. The reviewer waits in the terminal for a minute while the cockpit is already open. Recommended. |
-| B. CLI calls the Anthropic API | The analyzer sends a prompt and parses the response. | Fully automatic and works headless. Needs an API key and separate billing. Adds a second Claude identity to manage. |
-| C. CLI spawns `claude -p` | A headless Claude Code subprocess does the judgment. | Automatic, same login as the user. Slower to start and harder to debug. Good fallback for a non-interactive mode later. |
+| **A. Resident session does it** | The skill tells the current Claude session to read stage 1 and write `judgment.json`. | No API key, no extra cost model, one session. The reviewer's own session is busy for about five minutes. The default. |
+| B. CLI calls the Anthropic API | The analyzer sends a prompt and parses the response. | Fully automatic and works headless. Needs an API key and separate billing. Adds a second Claude identity to manage. Not built. |
+| **C. CLI spawns a headless Claude Code** | A `-p` subprocess does the judgment. | Automatic, same login as the user, and the reviewer's session stays free. Costs a second session's startup. Built in 0.3.0, opt in. |
 
-Decision: A for v1. The document format makes B or C a drop-in swap later.
+A is still the default and C is one config key away (ADR-52). B stays unbuilt: the judgment file
+format makes it a drop-in swap whenever an API key is worth managing.
 
 ## Cockpit-to-agent questions
 
@@ -328,6 +361,9 @@ status.
 ```
 ~/.cache/review-cockpit/
   <owner>/<repo>/
+    history.json           the last 20 runs of this repository: hunks, files, stage 1,
+                           graph and judgment seconds, mode and timestamp — the estimate
+                           `cockpit run` prints is the median of these, scaled by hunks
     repo/                  temp clone, only when no local clone was found
     index/                 tree-sitter symbol index, one file per commit, keyed inside by
                            path and blob sha; reused across PRs of this repository, three
@@ -338,6 +374,9 @@ status.
       compact.md           the pull request as text for the judgment pass
       judgment.json        raw LLM output, kept for debugging
       judgment.rejected.json   the last judgment that failed validation
+      run.json             what the last run measured, and when stage 1 landed, which is
+                           what judge-merge times the judgment against
+      opened.json          the server pid and url `cockpit open` last opened a tab on
       drafts.json          the reviewer's unsent comments, verdict and review body
       drafts.orphaned.json     the drafts a re-analysis could not re-attach
       submitted-<ts>.json  one file per posted review, the drafts as they were sent
@@ -347,7 +386,7 @@ status.
       log.txt
 ```
 
-An optional `~/.config/review-cockpit/config.json` holds workspace roots to search for local clones, and nothing else in v1. Per-repository overrides for generated-code patterns and sensitive paths live in `.review-cockpit.json` at the repository root, and are optional.
+An optional `~/.config/review-cockpit/config.json` holds `workspaceRoots`, the roots to search for local clones, and `judgment`, which is `session` or `headless` and decides who runs the judgment pass. Both are optional and both have a working default. Per-repository overrides for generated-code patterns and sensitive paths live in `.review-cockpit.json` at the repository root, and are optional.
 
 ## Failure behavior
 

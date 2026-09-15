@@ -1726,6 +1726,11 @@ const allHunks = files.flatMap((f) => f.hunks);
 const groupedHunkIds = new Set(groups.flatMap((g) => g.hunkIds));
 
 const summary: ReadySummary = {
+  overview:
+    'A tenant profile can now record which region it runs in, which tier it is on, and how long its data is kept. ' +
+    'The per-region console needs those three facts, and until now they lived in a spreadsheet. ' +
+    'An update now only touches the fields the caller asked for, so two people editing different fields of the same tenant no longer overwrite each other. ' +
+    'Callers that matched on the old missing-profile error have to match on an invalid-argument status instead.',
   tldr:
     'Lets a tenant profile carry region, tier and retention, and validates an update against the field mask the caller sent.',
   whereItFits: [
@@ -1943,6 +1948,7 @@ const judgment: Judgment = {
       why: (h.risk.adjustedBy as RiskAdjustment).why,
     })),
   summary: {
+    overview: summary.overview as string,
     tldr: summary.tldr,
     whereItFits: summary.whereItFits,
     flow: summary.flow,
@@ -2030,6 +2036,9 @@ const emptyPr: ReviewDocument = {
   groups: [],
   path: [],
   summary: {
+    overview:
+      'This pull request merges main back into the release branch. Nothing in the service changes: ' +
+      'the two branches already hold the same file contents, so there is no code to read and nothing changes for anyone using the service.',
     tldr: 'Merge of main into the release branch. No file content changed.',
     whereItFits: ['Release branch only: no package in the service is touched.'],
     flow: { before: 'release-2026-09', after: 'release-2026-09 + main' },

@@ -41,6 +41,7 @@ export function judgmentFromDocument(document: ReviewDocument): Judgment | null 
       return raise === null ? [] : [{ hunkId: hunk.id, level: raise.to, why: raise.why }];
     }),
     summary: {
+      overview: document.summary.overview ?? document.summary.tldr,
       tldr: document.summary.tldr,
       whereItFits: [...document.summary.whereItFits],
       flow: { ...document.summary.flow },

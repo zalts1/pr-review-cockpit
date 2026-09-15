@@ -57,6 +57,7 @@ export function merge(
   applyReasons(judgment, hunkById, note);
 
   merged.summary = {
+    overview: judgment.summary.overview,
     tldr: judgment.summary.tldr,
     whereItFits: [...judgment.summary.whereItFits],
     flow: { before: judgment.summary.flow.before, after: judgment.summary.flow.after },

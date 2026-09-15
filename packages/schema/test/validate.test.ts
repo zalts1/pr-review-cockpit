@@ -24,6 +24,19 @@ describe('a valid document', () => {
     }
     expect(validateDocument(doc).errors).toEqual([]);
   });
+
+  it('requires the overview once stage 2 is ready', () => {
+    const doc = readyDocument();
+    delete doc.summary.overview;
+    expect(validateDocument(doc).errors.map((issue) => issue.rule)).toContain('summary-ready');
+  });
+
+  it('accepts a document written before the overview existed', () => {
+    const doc = readyDocument();
+    delete doc.summary.overview;
+    doc.schemaVersion = '1.2.0';
+    expect(validateDocument(doc).errors).toEqual([]);
+  });
 });
 
 const breaks: Array<[rule: string, apply: (doc: ReviewDocument) => void]> = [

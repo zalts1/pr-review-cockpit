@@ -194,6 +194,10 @@ coverage**. Someone who reads it should be able to open the diff and know what t
 looking at — not every file, not every edge case. Keep the whole thing under about 400 words.
 Every string is markdown.
 
+- **`overview`** — a short, simple, high-level summary a teammate could read in ten seconds:
+  what the PR does, why, and what changes for users or callers; no file names. Two to four
+  sentences of plain words, no code spans required. This is the first thing the reviewer sees,
+  so write it for someone who has not opened the diff yet.
 - **`tldr`** — one sentence: what this pull request does, in plain words. If the reader stops
   here they still have the gist.
 - **`whereItFits`** — two to four bullets: which service and which part of the system, what
@@ -236,7 +240,8 @@ Judgment notes, in order of importance:
 4. No reason restates the diff, and none is longer than one sentence.
 5. No `riskAdjustments` entry proposes a level at or below that hunk's floor.
 6. Every step's `ref.id` is a hunk id from the compact view, or a stage 1 group id.
-7. `summary.example` uses real values from this pull request.
+7. `summary.example` uses real values from this pull request, and `summary.overview` names no
+   file and reads in ten seconds.
 8. The file parses as JSON and its `schemaVersion` is `{{schemaVersion}}`.
 
 Stage 1 groups you may name directly in a step:

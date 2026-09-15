@@ -27,6 +27,11 @@ export function indexDir(ref: PrRef): string {
   return join(repoCacheDir(ref), 'index');
 }
 
+/** Per repository, not per pull request: the estimate is only useful across reviews. */
+export function historyFile(ref: PrRef): string {
+  return join(repoCacheDir(ref), 'history.json');
+}
+
 export function prDir(ref: PrRef): string {
   return join(repoCacheDir(ref), `pr-${ref.number}`);
 }
@@ -61,6 +66,15 @@ export function orphanedDraftsFile(ref: PrRef): string {
 
 export function serverFile(ref: PrRef): string {
   return join(prDir(ref), 'server.json');
+}
+
+/** What the last `cockpit run` measured, so judge-merge can time the judgment against it. */
+export function runFile(ref: PrRef): string {
+  return join(prDir(ref), 'run.json');
+}
+
+export function openedFile(ref: PrRef): string {
+  return join(prDir(ref), 'opened.json');
 }
 
 export function logFile(ref: PrRef): string {

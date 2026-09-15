@@ -43,8 +43,8 @@ export {
   writeCompact,
 } from './compact.js';
 export type { CheckoutOptions } from './checkout.js';
-export { noOverrides, readRepoOverrides, readUserConfig } from './config.js';
-export type { RepoOverrides, UserConfig } from './config.js';
+export { JUDGMENT_MODES, noOverrides, readRepoOverrides, readUserConfig } from './config.js';
+export type { JudgmentMode, RepoOverrides, UserConfig } from './config.js';
 export { firstLines, readWorktreeFile, showFile } from './content.js';
 export { parseDiff } from './diff.js';
 export type { ParsedFile, ParsedHunk } from './diff.js';

@@ -2,8 +2,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { configFile } from './paths.js';
 
+export type JudgmentMode = 'session' | 'headless';
+
+export const JUDGMENT_MODES: readonly JudgmentMode[] = ['session', 'headless'];
+
 export interface UserConfig {
   workspaceRoots: string[];
+  /** Who runs the judgment pass: the resident Claude session, or a `claude -p` the CLI spawns. */
+  judgment: JudgmentMode;
 }
 
 export interface RepoOverrides {
@@ -33,8 +39,14 @@ function stringArray(value: unknown): string[] {
 
 export function readUserConfig(file = configFile()): UserConfig {
   const parsed = readJson(file);
-  if (parsed === null || typeof parsed !== 'object') return { workspaceRoots: [] };
-  return { workspaceRoots: stringArray((parsed as { workspaceRoots?: unknown }).workspaceRoots) };
+  if (parsed === null || typeof parsed !== 'object') return { workspaceRoots: [], judgment: 'session' };
+  const raw = parsed as { workspaceRoots?: unknown; judgment?: unknown };
+  return {
+    workspaceRoots: stringArray(raw.workspaceRoots),
+    judgment: JUDGMENT_MODES.includes(raw.judgment as JudgmentMode)
+      ? (raw.judgment as JudgmentMode)
+      : 'session',
+  };
 }
 
 /** `.review-cockpit.json` at the repository root. Overrides add to the built-in lists. */

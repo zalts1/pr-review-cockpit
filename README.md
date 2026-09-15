@@ -131,15 +131,18 @@ Here is what happens, and roughly how long each part takes on a medium pull requ
    first time and reused after that.
 2. **Stage 1** — the diff, git history, Go structure through tree-sitter, a risk floor per
    hunk, and the pull request's existing comments and checks. A few seconds to a minute,
-   depending on the repository.
-3. **The cockpit opens** in your browser, on stage 1. The diff, the heatmap, the comments and
-   the checks are all there. The summary, the groups and the reading order say they are being
-   analysed.
-4. **The call graph** finishes in the background and the page picks it up. The Map tab fills
-   in.
-5. **The judgment pass** — the Claude session reads the pull request and writes the brief, the
-   groups, the reading order and the reasons. It appears in the page on its own, about a
-   minute in.
+   depending on the repository. The call graph follows it.
+3. **An estimate**, in one line, before the wait starts: how long stage 1 and the judgment pass
+   have taken on this repository before. Nothing to read for the first review of a repository;
+   it says so.
+4. **The judgment pass** — Claude reads the pull request and writes the brief, the groups, the
+   reading order and the reasons. Three to six minutes. By default this is your own session,
+   which is busy while it works; set `"judgment": "headless"` in the config below and a separate
+   Claude does it while your session stays free.
+5. **The cockpit opens** in your browser, with everything in it: the summary, the reading order,
+   the heatmap, the comments and the checks. If you would rather have the diff while the
+   judgment runs, say so and the session runs `cockpit open` there and then; the page fills in
+   on its own as each stage lands.
 6. **You review.** `n` walks the recommended order, `c` drafts a comment on the line under the
    cursor, Submit posts one GitHub review with all of it. Your posted comments come back into
    the page as pinned threads a second later.
@@ -156,13 +159,16 @@ Everything the tool writes is under one directory, `~/.cache/review-cockpit`:
 
 ```
 ~/.cache/review-cockpit/<owner>/<repo>/
+  history.json                the last 20 reviews of this repository, and how long each took
   repo/                       a clone, only when no local clone was found
   index/                      parsed Go symbols, shared by every review of this repository
   pr-123/
     worktree/                 the repository at the pull request's head
     review.json               the review document: the diff, the risk, the groups, the walk
     compact.md                the pull request as one text file, for the judgment pass
-    judgment.json             what the Claude session proposed
+    judgment.json             what the judgment pass proposed
+    run.json                  what the last run measured, and when stage 1 landed
+    opened.json               the server `cockpit open` last opened a tab on
     drafts.json               your unsent comments, verdict and review body
     drafts.orphaned.json      drafts a re-analysis could not place in the new diff
     submitted-<ts>.json       one file per review you posted, as it was sent
@@ -217,15 +223,41 @@ command that deletes the cache, if that is what you want.
 
 Both files are optional.
 
-`~/.config/review-cockpit/config.json` tells the tool where your clones are, so it can take a
-worktree instead of cloning:
+`~/.config/review-cockpit/config.json` tells the tool where your clones are and who runs the
+judgment pass:
 
 ```json
-{ "workspaceRoots": ["/Users/me/workspace"] }
+{
+  "workspaceRoots": ["/Users/me/workspace"],
+  "judgment": "headless"
+}
 ```
 
-Each root is searched one level deep for a clone whose origin matches the pull request's
-repository.
+Each workspace root is searched one level deep for a clone whose origin matches the pull
+request's repository, so the tool can take a worktree instead of cloning.
+
+`judgment` is `"session"`, the default, or `"headless"`. On `session` your own Claude session
+reads the pull request and writes the judgment, and is busy for the three to six minutes that
+takes. On `headless` the tool runs a separate Claude for it, under your same login, and your
+session is free the whole time; you get a live progress line instead of a busy terminal. The
+result is identical either way — the same prompt, the same schema, the same merge. Run
+`cockpit config get judgment` to see which is set.
+
+### What the estimate means
+
+Every review appends what it measured to `~/.cache/review-cockpit/<owner>/<repo>/history.json`,
+and the last 20 are what the next review's estimate is made of:
+
+```
+estimate: stage 1 ~9s, judgment ~4m (from 6 past runs on this repo)
+```
+
+It is the median of those runs, scaled by how many hunks this pull request has, and clamped so
+one strange run cannot produce a number nobody would believe. A repository you have never
+reviewed has no history and says so. The judgment time it reports is wall clock from the moment
+the cockpit became servable to the moment the brief was merged — the wait you actually have, not
+the model's own clock — so a review you walked away from in the middle reads long. The median
+absorbs one of those; it is not a benchmark.
 
 `.review-cockpit.json`, at the root of the repository under review, adds to the built-in
 lists:
@@ -260,11 +292,13 @@ also its own command, which is how you debug one.
 
 | Command | What it does |
 |---|---|
-| `cockpit run <pr> [--reuse-server] [--port <n>] [--no-open] [--skip-graph] [--idle-minutes <n>] [--session <id>] [--cwd <dir>]` | Prepare, stage 1, serve, open the browser, then the graph, then a `gc` pass. Last stdout line is JSON: `{url, prDir, compact, judgmentOut, headSha}`. |
+| `cockpit run <pr> [--open-when ready\|stage1] [--judgment session\|headless] [--reuse-server] [--port <n>] [--no-open] [--skip-graph] [--idle-minutes <n>] [--session <id>] [--cwd <dir>]` | Prepare, stage 1, serve, then the graph, then a `gc` pass. Last stdout line is JSON: `{url, prDir, compact, judgmentOut, headSha, judgment, hunks}`. |
+| `cockpit open <pr> [--force]` | Open the browser on the server already running for the pull request. Idempotent: a second call opens no second tab. |
 | `cockpit prepare <pr>` | Resolve and check out only. Prints the checkout as JSON. |
 | `cockpit analyze <pr> [--expect-judgment] [--no-fold-generated] [--skip-graph]` | Stage 1 and stage 3 into `review.json`, and `compact.md` beside it. |
 | `cockpit compact <pr>` | Rewrite `compact.md` from the document on its own. |
-| `cockpit judge-prompt <pr>` | Print the whole judgment prompt to stdout. |
+| `cockpit judge <pr> [--headless] [--model <name>] [--timeout <min>]` | Print the judgment prompt, or with `--headless` run the whole pass: a separate Claude, the merge, one retry, and `mark-failed` on a second rejection. Last stdout line is JSON: `{status, durationSeconds, url}`. |
+| `cockpit judge-prompt <pr>` | An alias for `cockpit judge` with no `--headless`. |
 | `cockpit judge-merge <pr> [--judgment <file>]` | Validate `judgment.json`, merge it, write the document and the log. |
 | `cockpit mark-failed <pr> --stage 2 --message <text>` | Mark the judgment sections failed with a message the cockpit shows. |
 | `cockpit serve <pr> [--port <n>] [--open] [--idle-minutes <n>] [--session <id>]` | Serve the cockpit, the document and the drafts on 127.0.0.1, or print the URL of the server already serving them. |
@@ -273,6 +307,7 @@ also its own command, which is how you debug one.
 | `cockpit gc [--days <n>] [--dry-run]` | Remove the checkout of every review with no server and a document older than `--days`, which defaults to 7. |
 | `cockpit ps` | List the running servers. |
 | `cockpit doctor` | Check the installation and print the table above. |
+| `cockpit config get judgment\|workspaceRoots` | Print one key of the user config to stdout. |
 | `cockpit validate <file> [--as document\|judgment\|drafts]` | Schema and referential rules. |
 | `cockpit merge <document> <judgment> [--out <file>]` | Apply a judgment file to a document. |
 
@@ -284,6 +319,11 @@ last line of stdout. Running it again on a pull request whose head has not moved
 analysis and serves the cached document. Running it after new commits re-analyses, keeps every
 draft whose line survived, and sets the rest aside where you can see them. `--reuse-server`
 keeps a server that is already running and leaves its browser tab alone.
+
+`--open-when` decides when the browser opens: `ready`, the default, opens nothing and leaves it
+to `cockpit open` once the judgment is in, and `stage1` opens it as soon as the diff is on disk,
+which is what the tool did before 0.3.0. `--no-open` opens nothing either way. `--judgment`
+overrides the configured judgment mode for one run, and the resolved value is in the JSON.
 
 `--expect-judgment` says a judgment pass will follow: without it the stage 2 sections are
 marked `not-attached` and the cockpit shows "Not analyzed" instead of "Analyzing…".
@@ -392,8 +432,14 @@ Every step the skill takes is a command, so the pass can be run without Claude C
 ```sh
 cockpit analyze owner/repo#123 --expect-judgment
 cockpit serve   owner/repo#123 --open
-cockpit judge-prompt owner/repo#123      # read the prompt, write judgment.json yourself
-cockpit judge-merge  owner/repo#123
+cockpit judge   owner/repo#123           # read the prompt, write judgment.json yourself
+cockpit judge-merge owner/repo#123
+```
+
+Or have a headless Claude do the pass and the merge in one command:
+
+```sh
+cockpit judge owner/repo#123 --headless
 ```
 
 The prompt lives in `skills/cockpit/judgment-prompt.md` with `{{placeholders}}` the CLI fills,

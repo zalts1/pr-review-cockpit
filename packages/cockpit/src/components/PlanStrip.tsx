@@ -146,6 +146,10 @@ export function PlanStrip({
         ) : (
           <div className="plan-detail plan-brief">
             <CloseDetail onClose={onToggle} />
+            <div className="plan-overview">
+              <div className="plan-detail-label">Summary</div>
+              <Markdown className="plan-body" text={summary.overview ?? summary.tldr} />
+            </div>
             <div className="plan-col">
               <div className="plan-detail-label">Flow</div>
               <div className="plan-flow">

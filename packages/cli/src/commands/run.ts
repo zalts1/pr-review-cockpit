@@ -1,30 +1,43 @@
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, openSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import type { AnalyzeOptions, AnalyzeResult, PrRef } from '@review-cockpit/analyzer';
+import type { AnalyzeOptions, AnalyzeResult, JudgmentMode, PrRef } from '@review-cockpit/analyzer';
 import {
   analyze,
   compactFile,
   documentFile,
+  historyFile,
   judgmentFile,
   logFile,
   prDir,
   prepare,
   readDocument,
+  readUserConfig,
   resolvePr,
   run as execute,
+  runFile,
   worktreeDir,
 } from '@review-cockpit/analyzer';
 import { readServerFile, serverIsAlive } from '@review-cockpit/server';
+import { estimate, estimateLine, readHistory } from '../history.js';
 import { progress } from '../progress.js';
+import { writeRunRecord } from '../runRecord.js';
 import type { GcResult } from './gc.js';
 import { collectGarbage, GC_DEFAULT_DAYS } from './gc.js';
+import { markOpened } from './open.js';
+
+/** When the browser is opened: as soon as the diff is on screen, or once the judgment is in. */
+export type OpenWhen = 'ready' | 'stage1';
+
+export const OPEN_WHEN: readonly OpenWhen[] = ['ready', 'stage1'];
 
 export interface RunFlags {
   cwd: string;
   reuseServer: boolean;
   open: boolean;
+  openWhen: OpenWhen;
   skipGraph: boolean;
+  judgment?: JudgmentMode;
   port?: number;
   idleMinutes?: number;
   sessionId?: string;
@@ -45,15 +58,22 @@ export interface ServeOutcome {
   started: boolean;
 }
 
+export interface CachedDocument {
+  headSha: string;
+  hunks: number;
+  files: number;
+}
+
 /** Injected whole in tests, so `run` is exercised without gh, git or a real server. */
 export interface RunDeps {
   resolve(prArg: string, cwd: string): { ref: PrRef; headSha: string; title: string };
-  cachedHead(ref: PrRef): string | null;
+  cached(ref: PrRef): CachedDocument | null;
   restoreCheckout(prArg: string, cwd: string, step: (message: string) => void): void;
   analyze(options: AnalyzeOptions): Promise<AnalyzeResult>;
   serve(ref: PrRef, spawn: ServeSpawn): Promise<ServeOutcome>;
   open(url: string): void;
   collect(): GcResult | null;
+  mode(): JudgmentMode;
 }
 
 export const CLI_ENTRY = fileURLToPath(new URL('../cockpit.js', import.meta.url));
@@ -67,11 +87,16 @@ const defaults: RunDeps = {
     const resolved = resolvePr(prArg, cwd);
     return { ref: resolved.ref, headSha: resolved.pr.head.sha, title: resolved.pr.title };
   },
-  cachedHead(ref) {
+  cached(ref) {
     const file = documentFile(ref);
     if (!existsSync(file)) return null;
     try {
-      return readDocument(file).pr.head.sha;
+      const document = readDocument(file);
+      return {
+        headSha: document.pr.head.sha,
+        hunks: document.files.reduce((total, file) => total + file.hunks.length, 0),
+        files: document.files.length,
+      };
     } catch {
       return null;
     }
@@ -91,6 +116,9 @@ const defaults: RunDeps = {
     } catch {
       return null;
     }
+  },
+  mode() {
+    return readUserConfig().judgment;
   },
 };
 
@@ -163,8 +191,11 @@ export async function runCommand(
   const target = targetOf(ref);
   step(`${target} at ${headSha.slice(0, 12)}: "${title}"`);
 
-  const cached = deps.cachedHead(ref);
-  const analyzed = cached !== headSha;
+  const cached = deps.cached(ref);
+  const analyzed = cached?.headSha !== headSha;
+  const mode = flags.judgment ?? deps.mode();
+
+  step(estimateLine(estimate(readHistory(historyFile(ref)), cached?.hunks ?? null)));
 
   const box: { served: ServeOutcome | null } = { served: null };
   const serveAndOpen = async (): Promise<void> => {
@@ -180,13 +211,21 @@ export async function runCommand(
         : `reusing the server already on ${served.url} (pid ${served.pid})`,
     );
     if (!flags.open) return;
+    if (flags.openWhen === 'ready') {
+      step(`browser not opened yet: cockpit open ${target} opens it once the judgment is merged`);
+      return;
+    }
     if (!served.started && flags.reuseServer) {
       step('browser not opened: the tab on the running server is already showing this pull request');
       return;
     }
     deps.open(served.url);
+    markOpened(ref, served.url, served.pid);
     step('browser opened');
   };
+
+  let stage1At = Date.now();
+  let record = { stage1Seconds: 0, hunks: cached?.hunks ?? 0, files: cached?.files ?? 0 };
 
   if (analyzed) {
     await deps.analyze({
@@ -197,6 +236,12 @@ export async function runCommand(
       onProgress: step,
       onStage1: async (handoff) => {
         const hunks = handoff.document.files.reduce((total, file) => total + file.hunks.length, 0);
+        record = {
+          stage1Seconds: handoff.stage1Ms / 1000,
+          hunks,
+          files: handoff.document.files.length,
+        };
+        stage1At = Date.now();
         step(`stage 1 ready: ${handoff.document.files.length} files, ${hunks} hunks (${handoff.stage1Ms} ms)`);
         await serveAndOpen();
       },
@@ -207,11 +252,21 @@ export async function runCommand(
       step('the checkout is gone, so it is made again; the document is kept');
       deps.restoreCheckout(prArg, flags.cwd, step);
     }
+    stage1At = Date.now();
     await serveAndOpen();
   }
 
   if (box.served === null) throw new Error('stage 1 finished without starting a server');
   const { url } = box.served;
+
+  writeRunRecord(runFile(ref), {
+    stage1At: new Date(stage1At).toISOString(),
+    stage1Seconds: record.stage1Seconds,
+    graphSeconds: (Date.now() - stage1At) / 1000,
+    hunks: record.hunks,
+    files: record.files,
+    mode,
+  });
 
   // A review nobody cleaned up leaves a worktree behind, and this is the moment the tool is
   // already in the cache with nothing waiting on it.
@@ -229,6 +284,8 @@ export async function runCommand(
       compact: compactFile(ref),
       judgmentOut: judgmentFile(ref),
       headSha,
+      judgment: mode,
+      hunks: record.hunks,
     }),
   );
   return 0;
