@@ -1,5 +1,5 @@
 import type { PrInfo } from '@review-cockpit/schema';
-import { run, runOk } from './exec.js';
+import { run } from './exec.js';
 import type { PrRef } from './paths.js';
 
 export interface RemoteRepo {
@@ -134,9 +134,10 @@ export interface ResolvedPr {
 
 export function resolvePr(arg: string, cwd: string): ResolvedPr {
   const ref = resolveRef(arg, cwd);
+  const fromCwd = parsePrArg(arg).owner === null;
   requireGhAuth();
 
-  const raw = runOk('gh', [
+  const result = run('gh', [
     'pr',
     'view',
     String(ref.number),
@@ -145,7 +146,19 @@ export function resolvePr(arg: string, cwd: string): ResolvedPr {
     '--json',
     GH_FIELDS,
   ]);
-  const view = JSON.parse(raw) as GhPr;
+  if (result.code !== 0) {
+    const detail = result.stderr.trim().split('\n').pop() ?? '';
+    if (/Could not resolve to a PullRequest/.test(detail)) {
+      throw new Error(
+        `${ref.owner}/${ref.repo} has no pull request #${ref.number}. ` +
+          (fromCwd
+            ? `A bare number is looked up in the repository you are in. Run this from a clone of the right repository, or name it: cockpit run owner/repo#${ref.number}`
+            : `Check the number, or paste the pull request URL.`),
+      );
+    }
+    throw new Error(`gh pr view failed: ${detail}`);
+  }
+  const view = JSON.parse(result.stdout) as GhPr;
 
   const emails = new Set<string>();
   for (const commit of view.commits) {
