@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cockpit facelift · three directions</title>
+<style>
+  :root{color-scheme:light dark}
+  body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:#e9e9ec;color:#18181b}
+  @media (prefers-color-scheme:dark){body{background:#151517;color:#f4f4f5}}
+  header{display:flex;align-items:center;gap:14px;padding:12px 20px;flex-wrap:wrap}
+  h1{font-size:15px;margin:0 16px 0 0;font-weight:600}
+  .tabs{display:inline-flex;gap:4px;padding:3px;border-radius:9px;background:rgb(0 0 0 / .08)}
+  .tabs button{font:inherit;border:0;background:none;padding:5px 12px;border-radius:6px;cursor:pointer;color:inherit;opacity:.75}
+  .tabs button.on{background:#fff;color:#18181b;opacity:1;box-shadow:0 1px 2px rgb(0 0 0 / .1)}
+  .note{flex-basis:100%;font-size:13px;opacity:.8;max-width:80ch}
+  .stage{display:flex;justify-content:center;padding:0 20px 20px}
+  iframe{width:1440px;height:900px;border:1px solid rgb(0 0 0 / .15);border-radius:10px;background:#fff;box-shadow:0 12px 40px rgb(0 0 0 / .18)}
+  @media (max-width:1500px){iframe{zoom:.9}}
+  @media (max-width:1350px){iframe{zoom:.8}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Cockpit facelift</h1>
+  <div class="tabs" id="dir">
+    <button data-src="1-ledger.html" class="on">1 · Ledger</button>
+    <button data-src="2-instrument-panel.html">2 · Instrument panel</button>
+    <button data-src="3-reading-room.html">3 · Reading room</button>
+  </div>
+  <div class="tabs" id="theme">
+    <button data-theme="light" class="on">Light</button>
+    <button data-theme="dark">Dark</button>
+  </div>
+  <p class="note" id="note"></p>
+</header>
+<div class="stage"><iframe id="frame" src="1-ledger.html#light" title="Mockup"></iframe></div>
+<script>
+  const notes = {
+    '1-ledger.html': 'Same layout as today, rebuilt on shadcn zinc. The review path is a numbered spine with a progress line; the header is one row; the plan strip keeps the phase bars. The safe pick: everything stays where your hands expect it.',
+    '2-instrument-panel.html': 'Three columns. The diff takes the centre; a right inspector holds the step note, the risk reasons with factor bars, the threads on the hunk, the brief and Ask Claude. A status bar at the bottom carries position and keys. Dark first.',
+    '3-reading-room.html': 'One reading column. The walk is a stepper across the top, the files list opens as a sheet from the Files button, and Prev / Mark reviewed / Ask Claude / Next sit in a floating bar. Warm stone palette, IBM Plex type.',
+  };
+  let src = '1-ledger.html', theme = 'light';
+  const frame = document.getElementById('frame'), note = document.getElementById('note');
+  function apply() {
+    frame.src = `${src}#${theme}`;
+    note.textContent = notes[src];
+  }
+  document.querySelectorAll('#dir button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('#dir button').forEach(x => x.classList.toggle('on', x === b));
+    src = b.dataset.src; apply();
+  });
+  document.querySelectorAll('#theme button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('#theme button').forEach(x => x.classList.toggle('on', x === b));
+    theme = b.dataset.theme; apply();
+  });
+  apply();
+</script>
+</body>
+</html>

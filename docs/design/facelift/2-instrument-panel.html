@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Cockpit facelift · 2 Instrument panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Three columns: the walk, the diff, the instruments. Dark first, cool graphite, indigo for the walk. */
+:root[data-theme="dark"] {
+  --background:#15181e; --panel:#1b1f26; --panel-2:#222831; --foreground:#e6e8ec; --muted-foreground:#98a0ad; --subtle:#6b7280;
+  --border:#2b313b; --ring:#3b4250;
+  --primary:#8b93ff; --primary-foreground:#0f1120; --accent:#8b93ff; --accent-wash:rgb(139 147 255 / .12);
+  --high:#f0655f; --high-wash:rgb(240 101 95 / .10); --high-num:rgb(240 101 95 / .22);
+  --medium:#e8b048; --medium-wash:rgb(232 176 72 / .12);
+  --ok:#4cc38a; --ok-wash:rgb(76 195 138 / .12);
+  --add:rgb(76 195 138 / .11); --add-num:rgb(76 195 138 / .24); --del:rgb(240 101 95 / .11); --del-num:rgb(240 101 95 / .24);
+  --draft:rgb(232 176 72 / .12); --draft-border:#b98a2c;
+  --shadow:0 1px 2px rgb(0 0 0 / .4);
+  --syn-k:#c792ea; --syn-s:#7fdbca; --syn-t:#82aaff;
+}
+:root[data-theme="light"] {
+  --background:#f4f5f8; --panel:#ffffff; --panel-2:#eef0f4; --foreground:#1b1f26; --muted-foreground:#667085; --subtle:#98a2b3;
+  --border:#e3e6eb; --ring:#c9cfd8;
+  --primary:#4f5bd5; --primary-foreground:#ffffff; --accent:#4f5bd5; --accent-wash:rgb(79 91 213 / .10);
+  --high:#d13c37; --high-wash:#fdf1f0; --high-num:#fadcda;
+  --medium:#b7791f; --medium-wash:#fdf6e7;
+  --ok:#1f9d5a; --ok-wash:#e9f8ef;
+  --add:#eafaf0; --add-num:#cdf0da; --del:#fdf0ef; --del-num:#f9d9d7;
+  --draft:#fff7db; --draft-border:#d9a61b;
+  --shadow:0 1px 2px rgb(16 24 40 / .06);
+  --syn-k:#7c3aed; --syn-s:#0f766e; --syn-t:#1d4ed8;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--background);color:var(--foreground);font:13px/1.5 Geist,Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+svg{flex:none}
+code,.mono{font-family:"Geist Mono",ui-monospace,Menlo,monospace}
+.frame{width:1440px;height:900px;display:flex;flex-direction:column;overflow:hidden;background:var(--background)}
+
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid var(--border);border-radius:6px;background:var(--panel);font-size:12.5px;font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--panel-2)}
+.btn-ghost{border-color:transparent;background:transparent;color:var(--muted-foreground)}
+.btn-primary{background:var(--primary);color:var(--primary-foreground);border-color:transparent;font-weight:600}
+.btn-icon{width:30px;padding:0;justify-content:center}
+.btn-sm{height:26px;padding:0 9px;font-size:12px}
+.btn-block{width:100%;justify-content:center;height:32px}
+.badge{display:inline-flex;align-items:center;gap:4px;height:19px;padding:0 7px;border-radius:5px;font-size:11px;font-weight:500;white-space:nowrap;border:1px solid var(--border);color:var(--muted-foreground)}
+.badge-ok{color:var(--ok);border-color:transparent;background:var(--ok-wash)}
+.badge-high{color:var(--high);border-color:transparent;background:var(--high-wash)}
+.badge-medium{color:var(--medium);border-color:transparent;background:var(--medium-wash)}
+.tabs{display:inline-flex;padding:2px;border-radius:7px;background:var(--panel-2);gap:2px;border:1px solid var(--border)}
+.tabs button{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 11px;border-radius:5px;font-size:12px;font-weight:500;color:var(--muted-foreground)}
+.tabs button[aria-selected="true"]{background:var(--panel);color:var(--foreground);box-shadow:var(--shadow)}
+kbd{font:10.5px/1 "Geist Mono",monospace;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:var(--panel-2);color:var(--muted-foreground)}
+
+.header{display:flex;align-items:center;gap:14px;height:56px;padding:0 16px;border-bottom:1px solid var(--border);background:var(--panel);flex:none}
+.identity{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.identity .line{display:flex;align-items:baseline;gap:8px;min-width:0}
+.identity .t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.identity .repo{color:var(--muted-foreground);white-space:nowrap}
+.identity .num{color:var(--subtle)}
+.meta{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted-foreground);white-space:nowrap;min-width:0;overflow:hidden}
+.meta code{font-size:11.5px}
+.actions{display:flex;align-items:center;gap:6px}
+.drafts{font-size:12px;color:var(--muted-foreground);margin:0 6px}
+
+.body{flex:1;display:flex;min-height:0}
+.rail{width:236px;flex:none;border-right:1px solid var(--border);background:var(--panel);overflow:auto;padding:10px 0 16px}
+.rh{display:flex;justify-content:space-between;align-items:baseline;padding:4px 14px 6px;font-size:11px;font-weight:600;color:var(--muted-foreground)}
+.rh span:last-child{font-weight:400}
+.row{display:grid;grid-template-columns:3px 20px 1fr;align-items:center;gap:8px;width:100%;height:30px;padding-right:12px;text-align:left;color:var(--muted-foreground);position:relative}
+.row:hover{background:var(--panel-2)}
+.row .bar{height:100%;width:3px}
+.row.high .bar{background:var(--high)}
+.row.medium .bar{background:var(--medium)}
+.row .n{font:500 11px "Geist Mono",monospace;text-align:right;color:var(--subtle)}
+.row .p{font:12px "Geist Mono",monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .g{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row.done .p{color:var(--subtle)}
+.row.done .n{color:var(--ok)}
+.row.cur{background:var(--accent-wash);color:var(--foreground)}
+.row.cur .bar{background:var(--accent)}
+.row.cur .n{color:var(--accent)}
+.row.cur .p{font-weight:500}
+.sep{margin:10px 14px 6px;border-top:1px solid var(--border)}
+.skip{display:grid;grid-template-columns:14px 1fr auto;align-items:center;gap:6px;width:100%;height:28px;padding:0 12px 0 14px;text-align:left;color:var(--muted-foreground);font-size:12.5px;white-space:nowrap}
+.skip span:nth-child(2){overflow:hidden;text-overflow:ellipsis}
+.skip .c{font-size:11px}
+.ritem{padding:2px 14px 8px;font-size:12px;color:var(--muted-foreground);display:flex;flex-direction:column}
+.ritem a{color:var(--accent);font:11px "Geist Mono",monospace}
+details.conv summary{padding:6px 14px;font-size:11px;font-weight:600;color:var(--muted-foreground);cursor:pointer;display:flex;justify-content:space-between}
+
+.center{flex:1;min-width:0;display:flex;flex-direction:column;overflow:auto;padding:12px 14px 16px;gap:8px}
+.file{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;flex:none}
+.file.cur{border-color:var(--accent)}
+.fhead{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;background:var(--panel-2);border-bottom:1px solid var(--border);font-size:12px}
+.fhead .path{font:600 12px "Geist Mono",monospace}
+.adds{color:var(--ok);font-family:"Geist Mono",monospace}
+.dels{color:var(--high);font-family:"Geist Mono",monospace}
+.spacer{flex:1}
+.viewed{display:inline-flex;align-items:center;gap:6px;color:var(--muted-foreground)}
+.viewed i{width:14px;height:14px;border:1px solid var(--ring);border-radius:4px;display:inline-block}
+
+.hunk{position:relative;padding-left:3px}
+.hunk.high::before,.hunk.medium::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.hunk.high::before{background:var(--high)}
+.hunk.medium::before{background:var(--medium)}
+table.diff{width:100%;border-collapse:collapse;font:12px/20px "Geist Mono",monospace;table-layout:fixed}
+.diff td{padding:0;vertical-align:top}
+.diff .plus{width:22px;text-align:center}
+.diff .plus button{visibility:hidden;width:16px;height:16px;border-radius:4px;background:var(--accent);color:var(--primary-foreground);font-size:12px;line-height:16px;margin-top:2px}
+.diff tr:hover .plus button{visibility:visible}
+.diff .num{width:44px;text-align:right;padding:0 10px 0 4px;color:var(--subtle);user-select:none}
+.diff .code{white-space:pre-wrap;word-break:break-word;padding:0 10px 0 6px}
+.diff .hh td{background:var(--panel-2);color:var(--muted-foreground);padding:5px 12px;white-space:pre;overflow:hidden;text-overflow:ellipsis;font-size:11.5px}
+.diff .hh .ctx{color:var(--subtle)}
+.diff .hh .tag{float:right;font:600 10.5px Geist,sans-serif;letter-spacing:.02em;color:var(--high);background:var(--high-wash);border-radius:4px;padding:1px 6px}
+.r-add .code,.r-add .num{background:var(--add)}.r-add .num{background:var(--add-num)}
+.r-del .code,.r-del .num{background:var(--del)}.r-del .num{background:var(--del-num)}
+.hk{color:var(--syn-k)}.hs{color:var(--syn-s);font-style:normal}.ht{color:var(--syn-t);font-style:normal}
+
+.pin{display:flex;align-items:center;gap:8px;width:fit-content;max-width:calc(100% - 112px);margin:4px 12px 4px 100px;padding:4px 10px;white-space:nowrap;border:1px solid var(--border);border-radius:6px;background:var(--panel-2);font:12px/1.4 Geist,sans-serif;color:var(--muted-foreground)}
+.pin b{color:var(--foreground);font-weight:500}
+.pin .sev{font-weight:600;color:var(--medium)}
+.pin .prev{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pin .rep{background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:0 6px;font-size:11px;flex:none}
+.draft{margin:4px 12px 4px 100px;border:1px solid var(--draft-border);border-left-width:3px;border-radius:6px;background:var(--draft);padding:6px 10px;font:12.5px/1.5 Geist,sans-serif}
+.draft .h{display:flex;gap:8px;font-size:12px;color:var(--muted-foreground);margin-bottom:2px}
+.draft .h a{margin-left:auto;color:var(--accent)}
+
+.frow{display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;font-size:12px;text-align:left;width:100%;background:var(--panel);border:1px solid var(--border);border-radius:8px;flex:none}
+.frow .path{font:500 12px "Geist Mono",monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.frow .where{margin-left:auto;color:var(--muted-foreground);white-space:nowrap}
+.frow .where.high{color:var(--high);font-weight:600}
+.frow .chev,.frow .gm{color:var(--muted-foreground)}
+
+/* Inspector */
+.inspector{width:336px;flex:none;border-left:1px solid var(--border);background:var(--panel);overflow:auto;display:flex;flex-direction:column}
+.sec{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+.sec h3{margin:0;font-size:11px;font-weight:600;color:var(--muted-foreground);display:flex;justify-content:space-between;align-items:baseline}
+.sec h3 span{font-weight:400}
+.stepno{display:flex;align-items:baseline;gap:8px}
+.stepno b{font-size:24px;font-weight:600;line-height:1;color:var(--accent)}
+.stepno span{font-size:12px;color:var(--muted-foreground)}
+.where{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted-foreground)}
+.where b{color:var(--foreground);font-weight:600}
+.note{font-size:13.5px;line-height:1.5}
+.acts{display:flex;gap:6px}
+.reason{font-size:12.5px;line-height:1.5}
+.factors{display:flex;flex-direction:column;gap:6px;margin-top:2px}
+.factor{display:grid;grid-template-columns:118px 1fr 34px;align-items:center;gap:8px;font-size:11.5px;color:var(--muted-foreground)}
+.factor .bar{height:5px;border-radius:3px;background:var(--panel-2);overflow:hidden}
+.factor .bar i{display:block;height:100%;background:var(--high);border-radius:3px}
+.factor .v{font-family:"Geist Mono",monospace;text-align:right;font-size:11px}
+.thread{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--muted-foreground);padding:6px 8px;border-radius:6px;background:var(--panel-2)}
+.thread b{color:var(--foreground);font-weight:500}
+.thread .l{font:11px "Geist Mono",monospace;color:var(--subtle);flex:none;padding-top:1px}
+.thread .txt{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.thread.draft-t{background:var(--draft);border-left:3px solid var(--draft-border)}
+.brief .tl{font-size:12.5px;line-height:1.5}
+.brief ul{margin:2px 0 0;padding-left:16px;font-size:12px;color:var(--muted-foreground);display:flex;flex-direction:column;gap:4px}
+.brief .more{color:var(--accent);font-size:12px;font-weight:500}
+.sec.ask{margin-top:auto;border-bottom:0;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--panel)}
+
+.status{display:flex;align-items:center;gap:18px;height:28px;padding:0 14px;border-top:1px solid var(--border);background:var(--panel);font-size:11.5px;color:var(--muted-foreground);flex:none;white-space:nowrap}
+.status b{color:var(--foreground);font-weight:500}
+.status .hi{color:var(--high);font-weight:600}
+.ph{display:inline-flex;gap:3px;align-items:center}
+.ph i{display:inline-block;height:6px;width:14px;border-radius:2px;background:var(--panel-2)}
+.ph i.d{background:var(--ok)}
+.ph i.c{background:var(--accent)}
+.ph .lab{margin-left:4px}
+.status .keys{margin-left:auto;display:flex;gap:10px}
+.themebtn{position:fixed;left:8px;bottom:34px;z-index:9;height:24px;padding:0 8px;font-size:11px;opacity:.75}
+</style>
+<script>if(location.hash==="#dark"||location.hash==="#light")document.documentElement.dataset.theme=location.hash.slice(1)</script>
+</head>
+<body>
+<div class="frame">
+
+<header class="header">
+  <div class="identity">
+    <div class="line"><span class="repo">tenant-platform</span><span class="t"><a href="#">Add tenant profile API</a> <span class="num">#1234</span></span></div>
+    <div class="meta">
+      <span>jdoe</span><span>·</span><code>TP-329-tenant-profile-api → main</code><span>·</span><code>d4e5f6a</code>
+      <span class="badge badge-ok">✓ 3 checks passed</span>
+      <span class="badge badge-high">✕ Analyze failed</span>
+      <span class="badge badge-medium">Bugbot: medium risk</span>
+    </div>
+  </div>
+  <div class="tabs" role="tablist"><button role="tab" aria-selected="true">Files</button><button role="tab" aria-selected="false">Map</button></div>
+  <div class="actions">
+    <span class="drafts">1 draft</span>
+    <button class="btn btn-ghost btn-icon" title="Theme (t)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.5 1.5M11.5 11.5L13 13M3 13l1.5-1.5M11.5 4.5L13 3"/></svg></button>
+    <button class="btn btn-ghost btn-icon" title="Keyboard (?)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 7h1M7 7h1M10 7h1M5 9.5h6"/></svg></button>
+    <button class="btn">Submit review</button>
+    <button class="btn">Finish review</button>
+    <button class="btn btn-primary">Next: Validation is now driven… →</button>
+  </div>
+</header>
+
+<div class="body">
+  <nav class="rail" aria-label="Review path">
+    <div class="rh"><span>Review path</span><span>20 changed</span></div>
+    <button class="row done medium"><span class="bar"></span><span class="n">✓</span><span class="p">…/v1/tenant.proto</span></button>
+    <button class="row done high"><span class="bar"></span><span class="n">✓</span><span class="p">…/0042_tenant_profile_region.sql</span></button>
+    <button class="row done medium"><span class="bar"></span><span class="n">✓</span><span class="p">db/queries/tenant.sql</span></button>
+    <button class="row cur high"><span class="bar"></span><span class="n">5</span><span class="p">…/service/tenant/record.go</span></button>
+    <button class="row high"><span class="bar"></span><span class="n">6</span><span class="p">…/service/tenant/validate.go</span></button>
+    <button class="row"><span class="bar"></span><span class="n">9</span><span class="g">Rename TenantRecord to TenantProfile</span></button>
+    <button class="row"><span class="bar"></span><span class="n">10</span><span class="p">…/tenant/record_test.go</span></button>
+    <button class="row"><span class="bar"></span><span class="n">12</span><span class="p">…/store/tenant_test.go</span></button>
+    <div class="sep"></div>
+    <div class="rh"><span>Skippable</span></div>
+    <button class="skip"><span>›</span><span>Generated code</span><span class="c">4 files</span></button>
+    <button class="skip"><span>›</span><span>Rename TenantRecord to TenantProfile</span><span class="c">9 files</span></button>
+    <div class="sep"></div>
+    <div class="rh"><span>Outdated comments</span><span>1</span></div>
+    <div class="ritem"><a href="#">…/tenant/list.go:62</a><span>cursor[bot]: listParams does not clamp the page size…</span></div>
+    <div class="sep"></div>
+    <details class="conv"><summary><span>Conversation</span><span>2</span></summary></details>
+  </nav>
+
+  <main class="center">
+    <section class="file cur">
+      <div class="fhead">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l5 5 5-5"/></svg>
+        <span class="path">api/service/tenant/record.go</span><span class="adds">+42</span><span class="dels">−10</span>
+        <span class="spacer"></span><label class="viewed"><i></i>Viewed</label>
+      </div>
+      <div class="hunk high">
+        <table class="diff"><colgroup><col style="width:22px"><col style="width:44px"><col style="width:44px"><col></colgroup><tbody>
+<tr class="hh"><td colspan="4"><span class="at">@@ -88,19 +91,36 @@</span> <span class="ctx">func (s *Service) UpdateRecord(ctx context.Context, req *pb.UpdateTenantProfileRequest) (*pb.UpdateTenantProfileResponse, error) {</span><span class="tag">HIGH</span></td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">88</td><td class="num">91</td><td class="code"> <b class="hk">func</b> (s *Service) UpdateRecord(ctx context.Context, req *pb.<em class="ht">UpdateTenantProfileRequest</em>) (*pb.<em class="ht">UpdateTenantProfileResponse</em>, error) {</td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">89</td><td class="num">92</td><td class="code">     <b class="hk">if</b> req.GetProfile() == <b class="hk">nil</b> {</td></tr>
+<tr class="r-del"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">90</td><td class="num"></td><td class="code">-        <b class="hk">return</b> <b class="hk">nil</b>, ErrMissingProfile</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">93</td><td class="code">+        <b class="hk">return</b> <b class="hk">nil</b>, status.<em class="ht">Error</em>(codes.<em class="ht">InvalidArgument</em>, <i class="hs">&quot;profile is required&quot;</i>)</td></tr>
+<tr><td></td><td colspan="3"><button class="pin"><b>Cursor Bugbot</b><span class="sev">medium</span><span class="prev">status.Error drops the sentinel. Callers in api/http and cmd/worker compare against ErrMissingProfile…</span></button></td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">91</td><td class="num">94</td><td class="code">     }</td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">92</td><td class="num">95</td><td class="code">     <b class="hk">if</b> req.GetProfile().GetId() == <i class="hs">&quot;&quot;</i> {</td></tr>
+<tr class="r-del"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">93</td><td class="num"></td><td class="code">-        <b class="hk">return</b> <b class="hk">nil</b>, ErrMissingID</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">96</td><td class="code">+        <b class="hk">return</b> <b class="hk">nil</b>, status.<em class="ht">Error</em>(codes.<em class="ht">InvalidArgument</em>, <i class="hs">&quot;id is required&quot;</i>)</td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">94</td><td class="num">97</td><td class="code">     }</td></tr>
+<tr class="r-del"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">95</td><td class="num"></td><td class="code">-    <b class="hk">if</b> <b class="hk">err</b> := s.<em class="ht">validate</em>(req.GetProfile()); <b class="hk">err</b> != <b class="hk">nil</b> {</td></tr>
+<tr class="r-del"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">96</td><td class="num"></td><td class="code">-        <b class="hk">return</b> <b class="hk">nil</b>, <b class="hk">err</b></td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">98</td><td class="code">+    <b class="hk">if</b> <b class="hk">err</b> := s.<em class="ht">validate</em>(ctx, req.GetProfile(), req.GetUpdateMask()); <b class="hk">err</b> != <b class="hk">nil</b> {</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">99</td><td class="code">+        <b class="hk">return</b> <b class="hk">nil</b>, status.<em class="ht">Error</em>(codes.<em class="ht">InvalidArgument</em>, <b class="hk">err</b>.Error())</td></tr>
+<tr><td></td><td colspan="3"><div class="draft"><div class="h"><b>Draft</b><span>line 99 (RIGHT)</span><a href="#">delete</a></div>Wrap the validation error so a caller can tell a bad mask from a bad field.</div></td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">97</td><td class="num">100</td><td class="code">     }</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">101</td><td class="code">+    <b class="hk">if</b> req.GetIfMatch() != <i class="hs">&quot;&quot;</i> {</td></tr>
+<tr><td></td><td colspan="3"><button class="pin"><b>danat</b><span class="rep">1 reply</span><span class="prev">The If-Match read happens outside the transaction that writes, so two concurrent updates can both pass the etag check…</span></button></td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">102</td><td class="code">+        current, <b class="hk">err</b> := s.<em class="ht">store</em>.GetTenantProfile(ctx, req.GetProfile().GetId())</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">103</td><td class="code">+        <b class="hk">if</b> <b class="hk">err</b> != <b class="hk">nil</b> {</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">104</td><td class="code">+            <b class="hk">return</b> <b class="hk">nil</b>, toStatus(<b class="hk">err</b>)</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">105</td><td class="code">+        }</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">106</td><td class="code">+        <b class="hk">if</b> etag(current) != req.GetIfMatch() {</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">107</td><td class="code">+            <b class="hk">return</b> <b class="hk">nil</b>, status.<em class="ht">Error</em>(codes.<em class="ht">Aborted</em>, <i class="hs">&quot;profile changed since it was read&quot;</i>)</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">108</td><td class="code">+        }</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">109</td><td class="code">+    }</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">110</td><td class="code">+    <b class="hk">if</b> req.GetDryRun() {</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">111</td><td class="code">+        <b class="hk">return</b> &amp;pb.<em class="ht">UpdateTenantProfileResponse</em>{Profile: req.GetProfile()}, <b class="hk">nil</b></td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">112</td><td class="code">+    }</td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">98</td><td class="num">113</td><td class="code">     updated, <b class="hk">err</b> := s.<em class="ht">store</em>.UpdateTenantProfile(ctx, gen.<em class="ht">UpdateTenantProfileParams</em>{</td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">99</td><td class="num">114</td><td class="code">         ID:          req.GetProfile().GetId(),</td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">100</td><td class="num">115</td><td class="code">         DisplayName: req.GetProfile().GetDisplayName(),</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">116</td><td class="code">+        Region:        req.GetProfile().GetRegion(),</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">117</td><td class="code">+        Tier:          req.GetProfile().GetTier().String(),</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">118</td><td class="code">+        RetentionDays: req.GetProfile().GetRetentionDays(),</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">119</td><td class="code">+        OwnerEmail:    nullString(req.GetProfile().GetOwnerEmail()),</td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">101</td><td class="num">120</td><td class="code">     })</td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">102</td><td class="num">121</td><td class="code">     <b class="hk">if</b> <b class="hk">err</b> != <b class="hk">nil</b> {</td></tr>
+<tr class="r-del"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">103</td><td class="num"></td><td class="code">-        <b class="hk">return</b> <b class="hk">nil</b>, <b class="hk">err</b></td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">122</td><td class="code">+        <b class="hk">return</b> <b class="hk">nil</b>, toStatus(<b class="hk">err</b>)</td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">104</td><td class="num">123</td><td class="code">     }</td></tr>
+<tr class="r-add"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num"></td><td class="num">124</td><td class="code">+    s.<em class="ht">audit</em>.RecordProfileChange(ctx, updated.ID, time.<em class="ht">Now</em>().UTC())</td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">105</td><td class="num">125</td><td class="code">     <b class="hk">return</b> &amp;pb.<em class="ht">UpdateTenantProfileResponse</em>{Profile: toProto(updated)}, <b class="hk">nil</b></td></tr>
+<tr class="r-context"><td class="plus"><button type="button" aria-label="Add a comment on this line">+</button></td><td class="num">106</td><td class="num">126</td><td class="code"> }</td></tr>
+        </tbody></table>
+      </div>
+    </section>
+    <button class="frow"><span class="chev">›</span><span class="path">api/service/tenant/validate.go</span><span class="adds">+42</span><span class="dels">−8</span><span class="where high">step 6 · high</span></button>
+    <button class="frow"><span class="chev">›</span><span class="path" style="font-family:inherit;font-weight:600">Rename TenantRecord to TenantProfile</span><span class="gm">mechanical-rename · 9 files · 72 lines</span><span class="where">step 9 · skim</span></button>
+    <button class="frow"><span class="chev">›</span><span class="path">api/service/tenant/record_test.go</span><span class="adds">+91</span><span class="dels">−9</span><span class="where">step 10 · low</span></button>
+  </main>
+
+  <aside class="inspector">
+    <div class="sec">
+      <div class="stepno"><b>Step 5</b><span>of 12 · core</span></div>
+      <div class="where"><code>Service.UpdateRecord</code></div>
+      <div class="note">UpdateRecord now validates the id and returns a gRPC status instead of a sentinel error.</div>
+      <div class="acts">
+        <button class="btn btn-sm">‹ Prev</button>
+        <button class="btn btn-sm">✓ Mark reviewed</button>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>Why this hunk is high risk</h3>
+      <div class="reason">Changes the error contract of UpdateRecord. Callers matching on ErrMissingID will silently stop matching, and the new If-Match branch reads the row before writing it.</div>
+      <div class="factors">
+        <div class="factor"><span>sensitive path</span><span class="bar"><i style="width:100%"></i></span><span class="v">.30</span></div>
+        <div class="factor"><span>23 callers</span><span class="bar"><i style="width:73%"></i></span><span class="v">.22</span></div>
+        <div class="factor"><span>5 fix commits, 90 d</span><span class="bar"><i style="width:60%"></i></span><span class="v">.18</span></div>
+        <div class="factor"><span>complexity 18 → 27</span><span class="bar"><i style="width:40%"></i></span><span class="v">.12</span></div>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>On this hunk <span>2 threads · 1 draft</span></h3>
+      <div class="thread"><span class="l">:93</span><span class="txt"><b>Cursor Bugbot</b> <span class="sev" style="color:var(--medium);font-weight:600">medium</span> · status.Error drops the sentinel. Callers in api/http and cmd/worker compare against ErrMissingProfile with errors.Is.</span></div>
+      <div class="thread"><span class="l">:101</span><span class="txt"><b>danat</b> · 1 reply · The If-Match read happens outside the transaction that writes, so two concurrent updates can both pass the etag check.</span></div>
+      <div class="thread draft-t"><span class="l">:99</span><span class="txt"><b>Your draft</b> · Wrap the validation error so a caller can tell a bad mask from a bad field.</span></div>
+    </div>
+    <div class="sec brief">
+      <h3>Brief <span>3 to watch for</span></h3>
+      <div class="tl">Lets a tenant profile carry region, tier and retention, and validates an update against the field mask the caller sent.</div>
+      <ul>
+        <li>The error contract moved from the ErrMissingProfile sentinel to a gRPC InvalidArgument status.</li>
+        <li>Migration 0042 adds region as NOT NULL with no default and backfills afterwards.</li>
+        <li>An empty update_mask validates every field instead of the ones the caller sent.</li>
+      </ul>
+      <a class="more" href="#">Read the whole brief</a>
+    </div>
+    <div class="sec ask">
+      <button class="btn btn-block">✦ Ask Claude about this hunk</button>
+    </div>
+  </aside>
+</div>
+
+<footer class="status">
+  <span><b>Step 5 of 12</b> · core · Service.UpdateRecord</span>
+  <span class="ph"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><span class="lab">models · core · call sites · tests</span></span>
+  <span><span class="hi">1 high-risk</span> ahead · 31 hunks skippable</span>
+  <span>1 draft</span>
+  <span class="keys"><span><kbd>n</kbd> next</span><span><kbd>p</kbd> prev</span><span><kbd>c</kbd> comment</span><span><kbd>a</kbd> ask</span><span><kbd>?</kbd> all keys</span></span>
+</footer>
+</div>
+<button class="btn themebtn" onclick="var r=document.documentElement;r.dataset.theme=r.dataset.theme==='dark'?'light':'dark'">Toggle theme</button>
+</body>
+</html>

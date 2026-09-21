@@ -1,15 +1,17 @@
 import { Fragment, useMemo } from 'react';
 import type { Hunk as HunkModel, ReviewFile } from '@review-cockpit/schema';
+import { Plus } from 'lucide-react';
 import type { CommentThread } from '../lib/derive';
 import type { CockpitDraft } from '../lib/drafts';
 import { grammarFor, highlightHunkCached } from '../lib/highlight';
 import { Markdown } from '../lib/markdown';
 import type { DragRange, EditorTarget, LineTarget } from '../lib/interaction';
 import { lineTarget, rangeOf } from '../lib/interaction';
-import { CommentPin } from './CommentPin';
+import { cn } from '../lib/utils';
+import { CommentPin, inlineBlock } from './CommentPin';
 import { DraftEditor } from './DraftEditor';
 import { HeatBar, ReasonBanner } from './HeatBar';
-import { PlusIcon } from './Icons';
+import { Button } from './ui/button';
 
 export interface DiffHandlers {
   threadsByHunk: Map<string, CommentThread[]>;
@@ -40,19 +42,18 @@ export function Hunk({ hunk, file, handlers }: Props) {
   const code = useMemo(() => highlightHunkCached(hunk, grammar), [hunk, grammar]);
   const threads = handlers.threadsByHunk.get(hunk.id) ?? [];
   const drafts = handlers.drafts.filter((d) => d.hunkId === hunk.id);
-  const selection = handlers.drag && handlers.drag.start.hunkId === hunk.id
-    ? { side: handlers.drag.start.side, ...rangeOf(handlers.drag) }
-    : null;
+  const selection =
+    handlers.drag && handlers.drag.start.hunkId === hunk.id
+      ? { side: handlers.drag.start.side, ...rangeOf(handlers.drag) }
+      : null;
 
   return (
     <div
-      className={[
-        'hunk',
+      className={cn(
+        'relative pl-1 [&+&]:mt-2 [&+&]:border-t [&+&]:border-border',
         `heat-${hunk.risk.level}`,
-        handlers.flashedHunkId === hunk.id ? 'hunk-target' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
+        handlers.flashedHunkId === hunk.id && 'hunk-target',
+      )}
       ref={(el) => handlers.registerHunk(hunk.id, el)}
       data-hunk-id={hunk.id}
     >
@@ -60,9 +61,9 @@ export function Hunk({ hunk, file, handlers }: Props) {
       <ReasonBanner hunk={hunk} />
       <table className="diff">
         <colgroup>
-          <col className="col-plus" />
-          <col className="col-num" />
-          <col className="col-num" />
+          <col className="w-[22px]" />
+          <col className="w-11" />
+          <col className="w-11" />
           <col />
         </colgroup>
         <tbody>
@@ -104,12 +105,7 @@ export function Hunk({ hunk, file, handlers }: Props) {
             return (
               <Fragment key={`${hunk.id}-${i}`}>
                 <tr
-                  className={[
-                    `row-${line.type}`,
-                    selected ? 'row-selected' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
+                  className={cn(`row-${line.type}`, selected && 'row-selected')}
                   onMouseEnter={() => {
                     if (!target) return;
                     handlers.hoverLine(target);
@@ -120,6 +116,7 @@ export function Hunk({ hunk, file, handlers }: Props) {
                   <td className="plus-cell">
                     {target && (
                       <button
+                        type="button"
                         className="plus"
                         title="Add a comment on this line. Drag to another line for a range."
                         aria-label={`Comment on ${file.path} line ${target.line}`}
@@ -128,7 +125,7 @@ export function Hunk({ hunk, file, handlers }: Props) {
                           handlers.startDrag(target);
                         }}
                       >
-                        <PlusIcon size={11} />
+                        <Plus className="size-[11px]" strokeWidth={2.5} />
                       </button>
                     )}
                   </td>
@@ -136,14 +133,18 @@ export function Hunk({ hunk, file, handlers }: Props) {
                   <td className="num">{line.newNo ?? ''}</td>
                   <td className="code">
                     {line.type === 'add' ? '+' : line.type === 'del' ? '-' : ' '}
-                    {html === null ? line.text : <span dangerouslySetInnerHTML={{ __html: html }} />}
+                    {html === null ? (
+                      line.text
+                    ) : (
+                      <span dangerouslySetInnerHTML={{ __html: html }} />
+                    )}
                   </td>
                 </tr>
 
                 {(rowThreads.length > 0 || rowDrafts.length > 0 || editor) && (
                   <tr>
                     <td />
-                    <td className="thread-cell" colSpan={3}>
+                    <td className="pr-3" colSpan={3}>
                       {rowThreads.map((thread) => (
                         <CommentPin
                           key={thread.id}
@@ -153,24 +154,30 @@ export function Hunk({ hunk, file, handlers }: Props) {
                         />
                       ))}
                       {rowDrafts.map((draft) => (
-                        <div className="draft" key={draft.id}>
-                          <div className="draft-head">
-                            <strong>Draft</strong>
+                        <div
+                          className={cn(
+                            inlineBlock,
+                            'rounded-md border border-l-4 border-draft-border bg-draft px-2.5 py-1.5 text-[13px]',
+                          )}
+                          key={draft.id}
+                        >
+                          <div className="mb-1 flex items-baseline gap-2 text-xs text-muted-foreground">
+                            <strong className="text-foreground">Draft</strong>
                             <span>
                               {draft.startLine !== null && draft.startLine !== draft.line
                                 ? `lines ${draft.startLine}–${draft.line}`
                                 : `line ${draft.line}`}{' '}
                               ({draft.side})
                             </span>
-                            <div className="header-spacer" />
-                            <button
-                              className="btn-link"
+                            <Button
+                              variant="link"
+                              className="ml-auto text-xs"
                               onClick={() => handlers.removeDraft(draft.id)}
                             >
                               delete
-                            </button>
+                            </Button>
                           </div>
-                          <Markdown text={draft.body} className="draft-body" />
+                          <Markdown text={draft.body} />
                         </div>
                       ))}
                       {editor && (

@@ -1,12 +1,12 @@
 # 04 — Cockpit UX
 
-Status: as built after M4b. Renders the document in `03-review-document-schema.md`. The approved mockups are `design/m4b/files-screen.html` and `design/m4b/map.html`.
+Status: as built after M4b and the shadcn rebuild. Renders the document in `03-review-document-schema.md`. The approved layout mockups are `design/m4b/files-screen.html` and `design/m4b/map.html`; the visual rebuild follows `design/facelift/1-ledger.html`, with the two directions not chosen beside it.
 
 ## Principle
 
 The cockpit looks like GitHub's "Files changed" tab and behaves like it wherever GitHub already behaves well: same diff, same Viewed checkbox, same gutter `+` for a comment. Everything we add answers one of two questions — *where do I start* and *what should I be afraid of* — and everything else stays quiet. One primary action on screen, and it names the next step rather than saying "Next".
 
-Light theme only, using GitHub's light palette: white page, `#f6f8fa` panels, green and red diff backgrounds, `#0969da` links, 6 px radii, 1 px `#d0d7de` borders. Every icon is inline SVG that inherits `currentColor`.
+The chrome is shadcn/ui's zinc palette, in both a light and a dark theme: a white page, `#f4f4f5` panels, 1 px `#e4e4e7` borders, 8 px radii, black primary buttons, and the system sans-serif stack, so nothing is fetched from a font host. The cockpit's own colours sit beside the kit's: one blue for the walk (the current rail row, the open file's ring, the step number), red for high risk, amber for medium and for drafts, green for passed checks and for done steps, and GitHub's green and red washes on the diff rows. Every token is a CSS variable on `:root`, redefined under `[data-theme='dark']`, and exposed to Tailwind through `@theme inline`, so a component says `bg-walk-wash` and the two themes are one class. Icons are Lucide. The primitives in `components/ui/` are shadcn's Button, Badge, Tabs and Dialog, written into the repository the way the shadcn CLI would, with two departures: the dialog renders in place rather than through a portal, so the page's own Escape handling and the static render in tests still see it, and checkboxes and radios are native inputs.
 
 ## Screen 1: Files
 
@@ -42,7 +42,7 @@ Light theme only, using GitHub's light palette: white page, `#f6f8fa` panels, gr
 - **Check pills**, compact and aggregated: one green "N checks passed" pill naming the checks on hover, one red pill per failing check linking to it, one amber "N running" pill, one grey "N skipped" pill for neutral, skipped and cancelled. Every pill is a link: a failing check goes to its own run, a pill standing for one check goes to that check, and a pill standing for several goes to the PR's checks tab. Before `checks` is ready the pill says "Loading checks"; with no checks at all it says "No checks reported"; when the fetch failed it says "Checks unavailable" with the `gh` error on hover, rather than claiming there are none. The old one-chip-per-check strip cost a whole header row on a repository with fifteen checks, and one pill per pending check would cost the same row again on a repository mid-build.
 - **Bot summary pill**, one per entry of `botSummaries`: "Bugbot: medium risk", coloured by the level, linking to the PR, with a hover card holding the rendered overview. The block it came from is dropped from the rendered PR description, so the summary is on screen once.
 - **Files / Map** toggle, the **draft count**, the theme and keyboard help buttons, then **Submit review** and **Finish review**, both secondary, in that order: posting comes before ending. Finish review is absent in fixture mode, where there is no server to end.
-- The **theme button** flips between GitHub's light and dark palettes and remembers the choice for every pull request. Until it is pressed the cockpit follows the operating system and keeps following it.
+- The **theme button** flips between the light and dark palettes and remembers the choice for every pull request. Until it is pressed the cockpit follows the operating system and keeps following it.
 - **One primary action**, green: `Next: <note of the next step>`, falling back to that step's enclosing symbol and then to its file name, clipped to 38 characters. At the end of the walk it reads "Walk complete" and is disabled. There is no bottom bar; `Prev` lives on the step card.
 
 ### Plan strip
@@ -88,7 +88,7 @@ Unified diff only; split view is not in v1.
 
 ### Code rendering
 
-Every line of the diff is syntax highlighted. `highlight.js`, the core build with twelve grammars registered by hand — go, typescript, javascript, python, protobuf, sql, yaml, json, bash, markdown, xml and css — costs 74 kB in the single file, 24 kB gzipped, against the whole bundle's 442 kB.
+Every line of the diff is syntax highlighted. `highlight.js`, the core build with twelve grammars registered by hand — go, typescript, javascript, python, protobuf, sql, yaml, json, bash, markdown, xml and css — costs 74 kB in the single file, 24 kB gzipped, against the whole bundle's 492 kB.
 
 The grammar comes from `file.language` first: `go`, `typescript`, `python`, `proto`, `yaml`, `json` and `markdown` map straight across, `tsx` uses the typescript grammar. `other` falls back to the extension, which is where `.sql`, `.sh`, `.html`, `.css` and `.js` are picked up; `.tf` uses the bash grammar, because HCL has no grammar in the set and shares bash's `#` comment, double-quoted string and `${…}` interpolation. Anything else renders plain, and a plain line is a text node, not markup.
 
@@ -187,7 +187,7 @@ On the verification PR that reads "level 2 · 40 of 110 changed, 40 callers and 
 
 ### Markdown rendering
 
-Every body the cockpit shows a person is rendered as markdown, not raw text: the PR description, the summary sections, existing comments, drafts on their line and the dry-run list in the submit modal. `marked` parses and `DOMPurify` sanitises, both bundled into the single file. Headings, lists, emphasis, inline code, fenced code, tables and blockquotes are styled in GitHub's light palette; links open in a new tab with `rel="noopener noreferrer"`; HTML comments are dropped, a few inline tags GitHub bodies rely on (`sup`, `sub`, `kbd`, `br`, `details`, `summary`) pass through the sanitiser, GitHub alert blockquotes such as `[!NOTE]` render with a bold label, and any other raw HTML is escaped and shown as the text it was written as. Fenced code in a body is not syntax highlighted; the highlighter is wired to the diff only. One-line previews — a comment chip, an outdated comment, the disclosure hint — strip the markers instead of rendering them, because a chip showing `**bold**` reads as a bug.
+Every body the cockpit shows a person is rendered as markdown, not raw text: the PR description, the summary sections, existing comments, drafts on their line and the dry-run list in the submit modal. `marked` parses and `DOMPurify` sanitises, both bundled into the single file. Headings, lists, emphasis, inline code, fenced code, tables and blockquotes are styled with the page's own tokens, in plain CSS because the sanitiser strips every class from a body; links open in a new tab with `rel="noopener noreferrer"`; HTML comments are dropped, a few inline tags GitHub bodies rely on (`sup`, `sub`, `kbd`, `br`, `details`, `summary`) pass through the sanitiser, GitHub alert blockquotes such as `[!NOTE]` render with a bold label, and any other raw HTML is escaped and shown as the text it was written as. Fenced code in a body is not syntax highlighted; the highlighter is wired to the diff only. One-line previews — a comment chip, an outdated comment, the disclosure hint — strip the markers instead of rendering them, because a chip showing `**bold**` reads as a bug.
 
 ## Screen 3: Submit review
 

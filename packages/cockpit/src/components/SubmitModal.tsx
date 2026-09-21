@@ -1,9 +1,12 @@
 import type { Draft, PrInfo } from '@review-cockpit/schema';
+import { Check, Loader2, TriangleAlert } from 'lucide-react';
+import { shortSha } from '../lib/derive';
 import { draftTarget } from '../lib/drafts';
 import { Markdown } from '../lib/markdown';
-import { shortSha } from '../lib/derive';
 import type { SubmitResult, Verdict } from '../lib/submit';
-import { CheckIcon, CrossIcon, SpinnerIcon, WarnIcon } from './Icons';
+import { Button } from './ui/button';
+import { Callout } from './ui/callout';
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from './ui/dialog';
 
 export type { Verdict } from '../lib/submit';
 
@@ -27,6 +30,8 @@ interface Props {
   onPost(): void;
 }
 
+const noteClass = 'px-2.5 py-2 text-xs text-muted-foreground';
+
 export function SubmitModal({
   pr,
   drafts,
@@ -44,124 +49,112 @@ export function SubmitModal({
   // at all, so the button says so rather than posting an empty review.
   const empty = drafts.length === 0 && verdict === 'COMMENT' && body.trim().length === 0;
   const posted = result?.kind === 'posted';
+  const locked = posting || posted;
 
   return (
-    <div className="overlay" role="dialog" aria-modal="true" aria-label="Submit review">
-      <div className="modal">
-        <div className="modal-head">
-          <span>Submit review</span>
-          <button className="btn btn-icon" onClick={onCancel} aria-label="Close">
-            <CrossIcon size={12} />
-          </button>
+    <Dialog label="Submit review">
+      <DialogHeader onClose={onCancel}>Submit review</DialogHeader>
+
+      <DialogBody>
+        <div className="flex flex-wrap gap-4">
+          {verdicts.map((option) => (
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-[13px]" key={option.value}>
+              <input
+                type="radio"
+                name="verdict"
+                className="accent-primary"
+                checked={verdict === option.value}
+                disabled={locked}
+                onChange={() => onVerdict(option.value)}
+              />
+              {option.label}
+            </label>
+          ))}
         </div>
 
-        <div className="modal-body">
-          <div className="verdicts">
-            {verdicts.map((option) => (
-              <label className="verdict" key={option.value}>
-                <input
-                  type="radio"
-                  name="verdict"
-                  checked={verdict === option.value}
-                  disabled={posting || posted}
-                  onChange={() => onVerdict(option.value)}
-                />
-                {option.label}
-              </label>
-            ))}
+        <label className="flex flex-col gap-1 text-[13px] font-semibold">
+          Review summary (optional)
+          <textarea
+            className="min-h-[90px] resize-y rounded-md border border-input bg-background px-2 py-1.5 text-[13px] leading-normal font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-60"
+            value={body}
+            disabled={locked}
+            onChange={(e) => onBody(e.target.value)}
+          />
+        </label>
+
+        <div className="rounded-md border border-border">
+          <div className="border-b border-border bg-muted px-2.5 py-1.5 text-[13px]">
+            {drafts.length} {drafts.length === 1 ? 'comment' : 'comments'} will be posted on
+            commit <code>{shortSha(pr.head.sha)}</code>
           </div>
+          {drafts.length === 0 ? (
+            <div className={noteClass}>No draft comments. Only the verdict will be posted.</div>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-1 px-2.5 py-1.5">
+              {drafts.map((draft) => (
+                <li key={draft.id} className="flex gap-2.5 font-mono text-xs">
+                  <span className="whitespace-nowrap">{draftTarget(draft)}</span>
+                  <Markdown text={draft.body} className="min-w-0 text-muted-foreground" />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
-          <label className="field">
-            Review summary (optional)
-            <textarea
-              value={body}
-              disabled={posting || posted}
-              onChange={(e) => onBody(e.target.value)}
-            />
-          </label>
+        {verdict === 'APPROVE' && unseenHigh > 0 && !posted && (
+          <Callout>
+            <TriangleAlert />
+            <span>
+              Approve with unseen high-risk hunks: {unseenHigh} remaining. This does not block
+              you.
+            </span>
+          </Callout>
+        )}
 
-          <div className="dry-run">
-            <div className="dry-run-head">
-              {drafts.length} {drafts.length === 1 ? 'comment' : 'comments'} will be posted on
-              commit <code>{shortSha(pr.head.sha)}</code>
-            </div>
-            {drafts.length === 0 ? (
-              <div className="dry-run-note">
-                No draft comments. Only the verdict will be posted.
-              </div>
-            ) : (
-              <ul>
-                {drafts.map((draft) => (
-                  <li key={draft.id}>
-                    <span className="dry-run-target">{draftTarget(draft)}</span>
-                    <Markdown text={draft.body} className="dry-run-preview" />
-                  </li>
-                ))}
-              </ul>
-            )}
+        {result?.kind === 'posted' && (
+          <Callout tone="ok" role="status">
+            <Check />
+            <span>
+              Posted {result.comments} {result.comments === 1 ? 'comment' : 'comments'}.{' '}
+              <a href={result.url} target="_blank" rel="noreferrer">
+                Open the review on GitHub
+              </a>
+            </span>
+          </Callout>
+        )}
+
+        {result?.kind === 'head_moved' && (
+          <Callout role="alert">
+            <TriangleAlert />
+            <span>
+              The PR has new commits since this review started ({shortSha(result.expected)} →{' '}
+              {shortSha(result.actual)}). Your drafts are saved. Run{' '}
+              <code>cockpit run {pr.number}</code> again to re-attach them.
+            </span>
+          </Callout>
+        )}
+
+        {result?.kind === 'refused' && (
+          <Callout role="alert">
+            <TriangleAlert />
+            <span className="font-mono text-xs whitespace-pre-wrap">{result.message}</span>
+          </Callout>
+        )}
+
+        {empty && !posted && (
+          <div className={noteClass}>
+            Nothing to post: a comment review needs a summary or at least one comment.
           </div>
+        )}
+      </DialogBody>
 
-          {verdict === 'APPROVE' && unseenHigh > 0 && !posted && (
-            <div className="warn">
-              <WarnIcon size={13} />
-              <span>
-                Approve with unseen high-risk hunks: {unseenHigh} remaining. This does not block
-                you.
-              </span>
-            </div>
-          )}
-
-          {result?.kind === 'posted' && (
-            <div className="submit-result" role="status">
-              <CheckIcon size={13} />
-              <span>
-                Posted {result.comments} {result.comments === 1 ? 'comment' : 'comments'}.{' '}
-                <a href={result.url} target="_blank" rel="noreferrer">
-                  Open the review on GitHub
-                </a>
-              </span>
-            </div>
-          )}
-
-          {result?.kind === 'head_moved' && (
-            <div className="warn" role="alert">
-              <WarnIcon size={13} />
-              <span>
-                The PR has new commits since this review started ({shortSha(result.expected)} →{' '}
-                {shortSha(result.actual)}). Your drafts are saved. Run{' '}
-                <code>cockpit run {pr.number}</code> again to re-attach them.
-              </span>
-            </div>
-          )}
-
-          {result?.kind === 'refused' && (
-            <div className="warn" role="alert">
-              <WarnIcon size={13} />
-              <span className="submit-error">{result.message}</span>
-            </div>
-          )}
-
-          {empty && !posted && (
-            <div className="dry-run-note">
-              Nothing to post: a comment review needs a summary or at least one comment.
-            </div>
-          )}
-        </div>
-
-        <div className="modal-foot">
-          <button className="btn" onClick={onCancel}>
-            {posted ? 'Close' : 'Cancel'}
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={posting || posted || empty}
-            onClick={onPost}
-          >
-            {posting && <SpinnerIcon size={12} />}
-            {posting ? 'Posting…' : 'Post to GitHub'}
-          </button>
-        </div>
-      </div>
-    </div>
+      <DialogFooter>
+        <Button onClick={onCancel}>{posted ? 'Close' : 'Cancel'}</Button>
+        <Button variant="default" disabled={locked || empty} onClick={onPost}>
+          {posting && <Loader2 className="size-3 spinner" />}
+          {posting ? 'Posting…' : 'Post to GitHub'}
+        </Button>
+      </DialogFooter>
+    </Dialog>
   );
 }

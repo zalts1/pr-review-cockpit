@@ -1,6 +1,8 @@
 import type { Phase } from '@review-cockpit/schema';
+import { Check, ChevronLeft, Sparkles } from 'lucide-react';
 import { PHASE_LABELS } from '../lib/plan';
-import { ChevronLeftIcon, CheckIcon, SparkIcon } from './Icons';
+import { cn } from '../lib/utils';
+import { Button } from './ui/button';
 
 interface Props {
   step: number;
@@ -32,43 +34,47 @@ export function StepCard({
   onAsk,
 }: Props) {
   return (
-    <div className="step-card">
-      <div className="step-number">
-        <span className="step-number-label">STEP</span>
-        <span className="step-number-value">{step}</span>
-        <span className="step-number-of">of {total}</span>
+    <div className="flex flex-none items-start gap-4 rounded-lg border border-border bg-card px-4 py-3 shadow-xs">
+      <div className="flex min-w-12 flex-col items-center pt-0.5">
+        <span className="text-[22px] leading-none font-semibold text-walk">{step}</span>
+        <span className="mt-1 text-[11px] text-muted-foreground">of {total}</span>
       </div>
 
-      <div className="step-body">
-        <div className="step-where">
-          <span className="step-phase">{PHASE_LABELS[phase]}</span>
-          <span className="step-sep">·</span>
-          <code>{symbol ?? fileLabel}</code>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground capitalize">{PHASE_LABELS[phase]}</span>
+          <span>·</span>
+          <code className="truncate text-xs">{symbol ?? fileLabel}</code>
         </div>
-        <div className="step-note">
-          {note ?? <span className="empty">No note for this step. Read it on its own terms.</span>}
+        <div className="text-[13.5px]">
+          {note ?? (
+            <span className="text-muted-foreground">
+              No note for this step. Read it on its own terms.
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="step-actions">
-        <button className="btn btn-small" onClick={onPrev} disabled={!canPrev} title="Previous step (p)">
-          <ChevronLeftIcon size={11} /> Prev
-        </button>
-        <button
-          className={`btn btn-small${reviewed ? ' is-on' : ''}`}
+      <div className="flex flex-none gap-1.5">
+        <Button size="sm" onClick={onPrev} disabled={!canPrev} title="Previous step (p)">
+          <ChevronLeft className="size-3" /> Prev
+        </Button>
+        <Button
+          size="sm"
+          className={cn(reviewed && 'border-ok text-ok')}
           onClick={onMarkReviewed}
           title="Mark this file viewed and move on (v then n)"
         >
-          <CheckIcon size={12} /> Mark reviewed
-        </button>
-        <button
-          className="btn btn-small"
+          <Check className="size-3" /> Mark reviewed
+        </Button>
+        <Button
+          size="sm"
           onClick={onAsk}
           disabled={!canAsk}
           title="Copy a prompt about this hunk to the clipboard (a)"
         >
-          <SparkIcon size={13} /> Ask Claude about this hunk
-        </button>
+          <Sparkles className="size-3" /> Ask Claude about this hunk
+        </Button>
       </div>
     </div>
   );

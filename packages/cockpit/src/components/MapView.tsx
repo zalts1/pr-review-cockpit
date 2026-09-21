@@ -3,13 +3,10 @@ import type { ReactNode } from 'react';
 import type { Graph, RiskLevel, SectionStatus } from '@review-cockpit/schema';
 import type { MapLayout, PlacedNode } from '../lib/mapLayout';
 import { functionLevel, packageLevel } from '../lib/mapLayout';
-import {
-  ArrowRightIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  SpinnerIcon,
-  WarnIcon,
-} from './Icons';
+import { ArrowRight, ChevronLeft, ChevronRight, Loader2, TriangleAlert } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { Button } from './ui/button';
+import { Callout } from './ui/callout';
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
@@ -40,9 +37,11 @@ function clamp(value: number, low: number, high: number): number {
 
 function MapMessage({ children }: { children: ReactNode }) {
   return (
-    <div className="map">
-      <div className="map-message">
-        <div className="map-message-card">{children}</div>
+    <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className="flex flex-1 items-center justify-center bg-muted p-10">
+        <div className="flex max-w-[520px] flex-col items-start gap-2 rounded-lg border border-border bg-card px-6 py-5 text-muted-foreground shadow-xs [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:text-xs [&_h2]:m-0 [&_h2]:text-[15px] [&_h2]:font-semibold [&_h2]:text-foreground [&_p]:m-0 [&_p]:text-[13px] [&_p]:text-foreground">
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -69,11 +68,37 @@ function cardMeta(node: PlacedNode): string {
   return `${hunks} changed ${hunks === 1 ? 'hunk' : 'hunks'}`;
 }
 
+function heatText(heat: RiskLevel): string {
+  if (heat === 'high') return 'font-semibold text-high';
+  if (heat === 'medium') return 'font-semibold text-medium';
+  return '';
+}
+
 function heatWord(node: PlacedNode): string {
   if (node.highFunctions > 0) {
     return `${node.highFunctions} high`;
   }
   return node.changed ? node.heat : 'unchanged';
+}
+
+function Legend({ swatch, children }: { swatch: 'high' | 'medium' | 'muted' | 'plain' | 'line'; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      {swatch === 'line' ? (
+        <span className="inline-block w-7 border-t-[3px] border-subtle" />
+      ) : (
+        <span
+          className={cn(
+            'inline-block size-3 flex-none rounded-[3px] border-2 border-border bg-card',
+            swatch === 'high' && 'border-high',
+            swatch === 'medium' && 'border-medium',
+            swatch === 'muted' && 'border border-dashed border-subtle bg-muted',
+          )}
+        />
+      )}
+      {children}
+    </span>
+  );
 }
 
 function PackageCard({
@@ -109,30 +134,30 @@ function PackageCard({
       title={node.title}
     >
       <div className="map-card-name">{node.label}</div>
-      <div className="map-card-meta">
+      <div className="flex gap-2.5 text-[11px] text-muted-foreground">
         <span>{cardMeta(node)}</span>
-        {node.changed && <span className={`map-card-heat-${node.heat}`}>{heat}</span>}
+        {node.changed && <span className={heatText(node.heat)}>{heat}</span>}
       </div>
 
       {node.members.length > 0 && (
-        <div className="map-members">
+        <div className="mt-0.5 flex flex-col gap-[3px] font-mono text-[11px] leading-snug">
           {node.members.map((member) => (
-            <div className="map-member" key={member.id}>
-              <span className={`map-member-${member.heat}`}>{member.label}</span>
-              <span className="map-member-callers">
+            <div className="flex justify-between gap-3 whitespace-nowrap" key={member.id}>
+              <span className={cn('min-w-0 truncate', heatText(member.heat))}>{member.label}</span>
+              <span className="flex-none text-subtle">
                 {member.callers} {member.callers === 1 ? 'caller' : 'callers'}
               </span>
             </div>
           ))}
           {node.hiddenMembers > 0 && (
-            <div className="map-more">and {node.hiddenMembers} more</div>
+            <div className="text-subtle">and {node.hiddenMembers} more</div>
           )}
         </div>
       )}
 
       {node.clickable && (
-        <span className="map-open">
-          Open package <ArrowRightIcon size={10} />
+        <span className="inline-flex items-center gap-1 text-[11px] text-link">
+          Open package <ArrowRight className="size-2.5" />
         </span>
       )}
     </Tag>
@@ -167,9 +192,15 @@ function FunctionNode({
       title={node.title}
     >
       {node.changed && node.heat !== 'low' && (
-        <span className={`rail-dot rail-dot-${node.heat}`} title={`${node.heat} risk`} />
+        <span
+          className={cn(
+            'size-[7px] flex-none rounded-full',
+            node.heat === 'high' ? 'bg-high' : 'border-[1.5px] border-medium',
+          )}
+          title={`${node.heat} risk`}
+        />
       )}
-      <span className="map-node-label">{node.label}</span>
+      <span className="truncate">{node.label}</span>
     </Tag>
   );
 }
@@ -243,9 +274,9 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
   if (status.state === 'pending') {
     return (
       <MapMessage>
-        <SpinnerIcon size={20} />
+        <Loader2 className="size-5 spinner text-link" />
         <h2>Building the call graph</h2>
-        <p className="empty">This can take up to a minute on a large repository.</p>
+        <p className="text-muted-foreground!">This can take up to a minute on a large repository.</p>
       </MapMessage>
     );
   }
@@ -253,10 +284,10 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
   if (status.state === 'failed') {
     return (
       <MapMessage>
-        <WarnIcon size={20} className="map-message-warn" />
+        <TriangleAlert className="size-5 text-high" />
         <h2>The call graph could not be built</h2>
         <p>{status.message ?? 'No message given.'}</p>
-        <p className="empty">
+        <p className="text-muted-foreground!">
           Re-run from the terminal with <code>cockpit run {prNumber}</code>.
         </p>
       </MapMessage>
@@ -271,15 +302,15 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
             ? 'Nothing to map'
             : 'This package has no changed function'}
         </h2>
-        <p className="empty">
+        <p className="text-muted-foreground!">
           {graph.nodes.length === 0
             ? 'The analyzer found no call graph nodes for this PR.'
             : 'Its changed hunks are outside any function the analyzer tracks.'}
         </p>
         {level.kind === 'package' && (
-          <button className="btn btn-small" onClick={() => setLevel({ kind: 'packages' })}>
-            <ChevronLeftIcon size={11} /> Back to all packages
-          </button>
+          <Button size="sm" onClick={() => setLevel({ kind: 'packages' })}>
+            <ChevronLeft className="size-3" /> Back to all packages
+          </Button>
         )}
       </MapMessage>
     );
@@ -296,22 +327,22 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
         };
 
   return (
-    <div className="map">
-      <div className="map-toolbar">
-        <span className="map-crumbs">
+    <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className="flex flex-none items-center gap-3 border-b border-border bg-muted px-5 py-2 text-xs text-muted-foreground">
+        <span className="flex flex-none items-center gap-1.5 [&_strong]:font-mono [&_strong]:text-foreground">
           {packages ? (
             <strong>All packages</strong>
           ) : (
             <>
-              <button className="btn-link" onClick={() => setLevel({ kind: 'packages' })}>
+              <Button variant="link" className="text-xs" onClick={() => setLevel({ kind: 'packages' })}>
                 All packages
-              </button>
-              <ChevronRightIcon size={10} />
+              </Button>
+              <ChevronRight className="size-2.5" />
               <strong title={openPackage?.label}>{openPackage?.label}</strong>
             </>
           )}
         </span>
-        <span className="map-count">
+        <span className="truncate whitespace-nowrap">
           {packages
             ? `· ${counts.nodes} packages touched, ${counts.neighbours} with no changed function of their own`
             : `· level 2 · ${counts.changedFunctions}${
@@ -322,58 +353,47 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
                 counts.folded > 0 ? `, ${counts.folded} folded` : ''
               }`}
         </span>
-        <div className="map-legend">
+        <div className="ml-auto flex flex-none items-center gap-3.5">
           {packages ? (
             <>
-              <span className="legend-item">
-                <span className="legend-swatch is-high" /> changed, high
-              </span>
-              <span className="legend-item">
-                <span className="legend-swatch is-medium" /> changed, medium
-              </span>
-              <span className="legend-item">
-                <span className="legend-swatch is-muted" /> unchanged caller
-              </span>
-              <span className="legend-item">
-                <span className="legend-line" /> calls, thicker = more
-              </span>
+              <Legend swatch="high">changed, high</Legend>
+              <Legend swatch="medium">changed, medium</Legend>
+              <Legend swatch="muted">unchanged caller</Legend>
+              <Legend swatch="line">calls, thicker = more</Legend>
             </>
           ) : (
             <>
-              <span className="legend-item">
-                <span className="legend-swatch is-high" /> changed in this PR
-              </span>
-              <span className="legend-item">
-                <span className="legend-swatch" /> unchanged caller or callee
-              </span>
-              <span className="legend-item">
-                <span className="legend-swatch is-muted" /> counted, not drawn
-              </span>
+              <Legend swatch="high">changed in this PR</Legend>
+              <Legend swatch="plain">unchanged caller or callee</Legend>
+              <Legend swatch="muted">counted, not drawn</Legend>
             </>
           )}
           {!packages && (
-            <button className="btn btn-small" onClick={() => setLevel({ kind: 'packages' })}>
-              <ChevronLeftIcon size={11} /> Back
-            </button>
+            <Button size="sm" onClick={() => setLevel({ kind: 'packages' })}>
+              <ChevronLeft className="size-3" /> Back
+            </Button>
           )}
-          <button className="btn btn-small" onClick={fit}>
+          <Button size="sm" onClick={fit}>
             Fit
-          </button>
+          </Button>
         </div>
       </div>
 
       {packages && graph.truncated && (
-        <div className="banner">
-          <WarnIcon size={13} />
+        <Callout className="m-3 mb-0 flex-none">
+          <TriangleAlert />
           <span>
             Some packages have more callers than the map draws. Open one to see how many were
             folded into it.
           </span>
-        </div>
+        </Callout>
       )}
 
       <div
-        className={`map-canvas${panning ? ' is-panning' : ''}`}
+        className={cn(
+          'relative flex-1 touch-none overflow-hidden bg-card',
+          panning ? 'cursor-grabbing' : 'cursor-grab',
+        )}
         ref={canvas}
         onPointerDown={(e) => {
           if (e.button !== 0) return;
@@ -402,15 +422,20 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
         onDoubleClick={fit}
       >
         <div
-          className="map-scene"
+          className="absolute top-0 left-0 origin-top-left"
           style={{
             width: laid.width,
             height: laid.height,
             transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`,
           }}
         >
+          {/* Level 2 draws one edge per call, so at a hundred of them the lines
+              would read louder than the function names they connect. */}
           <svg
-            className={`map-edges${packages ? '' : ' is-dense'}`}
+            className={cn(
+              'pointer-events-none absolute top-0 left-0 overflow-visible',
+              !packages && 'opacity-50',
+            )}
             width={laid.width}
             height={laid.height}
             fill="none"
@@ -425,14 +450,14 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
                 markerHeight="7"
                 orient="auto-start-reverse"
               >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fg-subtle)" />
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--subtle)" />
               </marker>
             </defs>
             {laid.edges.map((edge) => (
               <polyline
                 key={edge.key}
                 points={edge.points.map((p) => `${p.x},${p.y}`).join(' ')}
-                stroke="var(--fg-subtle)"
+                stroke="var(--subtle)"
                 strokeWidth={edge.width}
                 strokeDasharray={edge.folded ? '4 4' : undefined}
                 markerEnd="url(#arrow-calls)"
@@ -446,7 +471,10 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
               key={box.id}
               style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
             >
-              <span className="map-box-label" title={box.title}>
+              <span
+                className="absolute top-1 left-2.5 font-mono text-[11px] leading-tight text-muted-foreground"
+                title={box.title}
+              >
                 {box.label}
               </span>
             </div>
@@ -476,8 +504,11 @@ export function MapView({ graph, status, prNumber, heatOfHunks, onJumpToHunk }: 
         </div>
 
         {hovered && hoverAt && (
-          <div className="map-hover" style={{ left: hoverAt.left, top: hoverAt.top }}>
-            <div className="map-hover-title">{hovered.title}</div>
+          <div
+            className="pointer-events-none absolute z-[6] flex max-w-[320px] flex-col gap-0.5 rounded-md bg-inverse px-2.5 py-2 text-xs text-inverse-foreground shadow-card [&_span]:text-inverse-foreground/70"
+            style={{ left: hoverAt.left, top: hoverAt.top }}
+          >
+            <div className="font-mono font-semibold">{hovered.title}</div>
             {hovered.kind === 'package' ? (
               <>
                 <span>

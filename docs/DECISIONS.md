@@ -1429,3 +1429,54 @@ A tab left open on a review somebody else finished shows the end state without p
 anything about what is still on disk, because it does not know which way the purge went. And
 `clean` now has two shapes and three flags where it had none, which is the cost of it being the
 one place that knows how a review ends.
+
+## ADR-55: The chrome is rebuilt on Tailwind and shadcn/ui, and the diff keeps its own CSS
+
+**Context.** After 0.4.0 the cockpit did everything it was asked to and looked like it was built
+some years ago: a hand-written 2,500-line stylesheet in GitHub's 2022 palette, sixteen inline SVG
+icons, and controls that read as a form rather than a tool. Three directions were mocked up in
+`docs/design/facelift/` on the `pr-fake-1` fixture: the same layout on shadcn's zinc palette, a
+three-column layout with a right inspector, and a single reading column with a stepper and a
+floating action bar. The first was chosen for the rebuild, with a toggle between the first and the
+third to follow.
+
+**Options.**
+1. Restyle the existing classes in place. Cheapest, and keeps the look tied to one author's
+   choices with no vocabulary a second contributor already knows.
+2. A component library that ships its own components and theme, such as MUI or Radix Themes.
+   A second design language on top of GitHub's diff conventions, and a runtime the single file
+   would carry for every page.
+3. Tailwind v4 with shadcn/ui: the kit's tokens and a handful of its components copied into the
+   repository as source, which is how shadcn is meant to be used, and utility classes in the
+   components.
+
+**Decision.** Option 3. `styles.css` now holds the tokens (zinc light and dark, plus the walk,
+heat, diff and draft colours), an `@theme inline` block that hands them to Tailwind, and three
+things that stay as plain CSS on purpose: the rendered markdown, because the sanitiser strips every
+class from a body; the diff table, because its cells are styled by row type and by the hunk's heat
+and a hundred rows of utility classes would say the same thing a hundred times; and the map's
+cards, whose sizes `lib/mapLayout.ts` measures and which ADR-49 already ties to those rules.
+Everything else is Tailwind on the element, with `components/ui/` holding Button, Badge, Tabs,
+Dialog, Callout and Kbd. Lucide replaces the hand-drawn icons.
+
+Two of the kit's habits were left out. The dialog renders in place rather than through a portal:
+Radix's portal mounts on the client only, which would empty the finish modal's static render in
+its tests and move Escape handling out of the page's one key handler. Checkboxes and radios are
+native inputs, because the finish modal's test reads `checked` off the markup and a Radix checkbox
+carries `aria-checked` and `data-state="unchecked"` whether or not it is ticked. The shadcn CLI
+itself was not run: the components are the same files it would write, with the class names the
+cockpit needs.
+
+Fonts are the system stack. The mockups used Inter, JetBrains Mono, Geist and IBM Plex from a font
+host, and the cockpit's one promise is that nothing leaves the machine but the review, so the
+build carries no `<link>` to one.
+
+**Consequences.** The single file grew from 442 kB to 492 kB, 160 kB gzipped; Tailwind emits only
+the classes in use, and the difference is mostly Lucide's icons and the utility rules. Every colour
+is one token in two themes, so a new component picks `text-muted-foreground` rather than a hex
+value and is right in both. The class names the docs and the tests refer to are gone except for
+`.diff`, `.md`, `.hunk-target` and `.map-*`; a test that wants to know whether a button is
+disabled now reads the attribute, because the button's classes name `disabled:` variants either
+way. The layout is the same as before this change, on purpose: the toggle between layouts is its
+own decision.
+

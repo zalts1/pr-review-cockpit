@@ -1,5 +1,6 @@
 import type { ReviewDocument, SectionName } from '@review-cockpit/schema';
-import { WarnIcon } from './Icons';
+import { TriangleAlert } from 'lucide-react';
+import { Callout } from './ui/callout';
 
 const stage2: SectionName[] = ['groups', 'path', 'summary'];
 
@@ -17,11 +18,11 @@ export function StatusBanner({ doc }: Props) {
   const messages = [...new Set(failed.map((status) => status.message ?? 'no message given'))];
 
   return (
-    <div className="banner" role="status">
-      <WarnIcon size={13} />
+    <Callout className="flex-none" role="status">
+      <TriangleAlert />
       <span>
         Analysis did not complete: {messages.join(' · ')}. Risk shown is from code signals only.
       </span>
-    </div>
+    </Callout>
   );
 }
