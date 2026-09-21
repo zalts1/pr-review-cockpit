@@ -46,10 +46,15 @@ function render(state: ModalState = {}): string {
   );
 }
 
-/** The Finish button is the last one in the modal, and disabled means a second confirm is due. */
+/**
+ * The Finish button is the last one in the modal, and disabled means a second confirm is due.
+ * The attribute, not the word: the button's classes name disabled: variants whether or not
+ * it is.
+ */
 function finishIsDisabled(html: string): boolean {
   const button = html.slice(html.lastIndexOf('<button'));
-  return button.includes('disabled');
+  const tag = button.slice(0, button.indexOf('>'));
+  return /\sdisabled(=""|\s|$)/.test(tag);
 }
 
 describe('the finish modal', () => {

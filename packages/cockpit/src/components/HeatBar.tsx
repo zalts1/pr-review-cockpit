@@ -1,6 +1,7 @@
 import type { Hunk } from '@review-cockpit/schema';
+import { TriangleAlert } from 'lucide-react';
 import { factorText } from '../lib/derive';
-import { AlertIcon } from './Icons';
+import { cn } from '../lib/utils';
 
 interface Props {
   hunk: Hunk;
@@ -20,7 +21,10 @@ export function HeatBar({ hunk }: Props) {
 
   return (
     <div
-      className="heatbar"
+      className={cn(
+        'absolute top-0 bottom-0 left-0 z-[2] w-1 cursor-help',
+        level === 'high' ? 'bg-high' : 'bg-medium',
+      )}
       title={`${level.toUpperCase()} risk${raised}${factors ? ` · ${factors}` : ''}`}
       aria-label={`${level} risk`}
     />
@@ -38,17 +42,31 @@ export function ReasonBanner({ hunk }: Props) {
   if (level === 'medium' && reason === null) return null;
 
   const detail = factorText(hunk);
+  const high = level === 'high';
 
   return (
-    <div className={`reason reason-${level}`}>
-      <span className="reason-level">
-        <AlertIcon size={11} />
+    <div
+      className={cn(
+        'flex items-baseline gap-2.5 border-b px-3 py-1.5 text-xs',
+        high ? 'border-high-num bg-high-wash' : 'border-medium/30 bg-medium-wash',
+      )}
+    >
+      <span
+        className={cn(
+          'inline-flex items-center gap-1 font-semibold whitespace-nowrap',
+          high ? 'text-high' : 'text-medium',
+        )}
+      >
+        <TriangleAlert className="size-[11px]" />
         {level.toUpperCase()}
       </span>
-      <span className="reason-text">{reason ?? `${factors.length} code signals raised this.`}</span>
-      <span className="reason-factors" title={detail}>
+      <span className="min-w-0">{reason ?? `${factors.length} code signals raised this.`}</span>
+      <span
+        className="ml-auto max-w-[46%] cursor-help truncate whitespace-nowrap text-muted-foreground"
+        title={detail}
+      >
         {adjustedBy !== null && (
-          <span className="reason-adjusted" title={adjustedBy.why}>
+          <span className="text-medium" title={adjustedBy.why}>
             raised from {adjustedBy.from} ·{' '}
           </span>
         )}

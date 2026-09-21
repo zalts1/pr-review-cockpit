@@ -1,4 +1,6 @@
-import { CrossIcon } from './Icons';
+import { Fragment } from 'react';
+import { Dialog, DialogBody, DialogHeader } from './ui/dialog';
+import { Kbd } from './ui/kbd';
 
 const keys: Array<[string, string]> = [
   ['n / p', 'Next / previous step of the review path'],
@@ -19,40 +21,27 @@ interface Props {
 
 export function KeyboardHelp({ onClose }: Props) {
   return (
-    <div
-      className="overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Keyboard shortcuts"
-      onClick={onClose}
-    >
-      <div className="modal modal-keys" onClick={(event) => event.stopPropagation()}>
-        <div className="modal-head">
-          <span>Keyboard</span>
-          <button className="btn btn-icon" onClick={onClose} aria-label="Close">
-            <CrossIcon size={12} />
-          </button>
-        </div>
-        <div className="modal-body">
-          <table className="keys">
-            <tbody>
-              {keys.map(([key, action]) => (
-                <tr key={key}>
-                  <td>
-                    {key.split(' / ').map((one, at) => (
-                      <span key={one}>
-                        {at > 0 && <span className="keys-or">/</span>}
-                        <kbd>{one}</kbd>
-                      </span>
-                    ))}
-                  </td>
-                  <td>{action}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    <Dialog label="Keyboard shortcuts" className="w-[420px]" onDismiss={onClose}>
+      <DialogHeader onClose={onClose}>Keyboard</DialogHeader>
+      <DialogBody>
+        <table className="w-full border-collapse text-[13px]">
+          <tbody>
+            {keys.map(([key, action]) => (
+              <tr key={key} className="border-b border-border last:border-0">
+                <td className="w-24 px-2 py-1 whitespace-nowrap">
+                  {key.split(' / ').map((one, at) => (
+                    <Fragment key={one}>
+                      {at > 0 && <span className="mx-1 text-subtle">/</span>}
+                      <Kbd>{one}</Kbd>
+                    </Fragment>
+                  ))}
+                </td>
+                <td className="px-2 py-1">{action}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </DialogBody>
+    </Dialog>
   );
 }

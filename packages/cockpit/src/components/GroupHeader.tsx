@@ -1,8 +1,10 @@
 import type { Group, Hunk as HunkModel, ReviewFile } from '@review-cockpit/schema';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { groupLineCount } from '../lib/derive';
+import { cn } from '../lib/utils';
+import { closedRowClass, Where } from './DiffFile';
 import type { DiffHandlers } from './Hunk';
 import { Hunk } from './Hunk';
-import { ChevronDownIcon, ChevronRightIcon } from './Icons';
 
 interface Props {
   group: Group;
@@ -33,49 +35,51 @@ export function GroupHeader({
   const fileCount = entries.length;
   const lines = groupLineCount(entries);
   const where = step === null ? group.mode : `step ${step} · ${group.mode}`;
+  const Caret = expanded ? ChevronDown : ChevronRight;
 
   return (
     <section
-      className={[
-        'group',
-        expanded ? 'is-open' : '',
-        isTarget ? 'is-current' : '',
-        flashed ? 'hunk-target' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
+      className={cn(
+        'flex-none',
+        expanded && 'overflow-hidden rounded-lg border border-border bg-card shadow-xs',
+        isTarget && 'border-walk',
+        flashed && 'hunk-target',
+      )}
       ref={(el) => registerGroup(group.id, el)}
       data-group-id={group.id}
       onMouseEnter={() => onHover(group.id)}
       onMouseLeave={() => onHover(null)}
     >
       <button
-        className="group-row"
+        type="button"
+        className={cn(
+          closedRowClass,
+          expanded && 'rounded-none border-0 border-b bg-muted shadow-none hover:border-border',
+          isTarget && !expanded && 'border-walk',
+        )}
         onClick={onToggle}
         aria-expanded={expanded}
         title={group.description || group.title}
       >
-        {expanded ? (
-          <ChevronDownIcon size={11} className="file-caret" />
-        ) : (
-          <ChevronRightIcon size={11} className="file-caret" />
-        )}
-        <span className="group-title">{group.title}</span>
-        <span className="group-meta">
+        <Caret className="size-[11px] flex-none text-muted-foreground" />
+        <span className="font-semibold">{group.title}</span>
+        <span className="text-muted-foreground">
           {group.kind} · {fileCount} {fileCount === 1 ? 'file' : 'files'} · {lines} lines
         </span>
-        <span className="file-where">{where}</span>
+        <Where text={where} />
       </button>
 
       {expanded && (
-        <div className="group-body">
-          {group.description && <p className="group-desc">{group.description}</p>}
+        <div className="px-2.5 pt-2 pb-2.5">
+          {group.description && (
+            <p className="m-0 px-1 pb-1 text-xs text-muted-foreground">{group.description}</p>
+          )}
           {entries.map(({ file, hunks }) => (
             <div key={file.id}>
-              <div className="group-file">
-                <span className="file-path">{file.path}</span>
-                <span className="file-adds">+{file.additions}</span>
-                <span className="file-dels">−{file.deletions}</span>
+              <div className="mt-2.5 mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="min-w-0 truncate font-mono font-semibold">{file.path}</span>
+                <span className="font-mono text-ok">+{file.additions}</span>
+                <span className="font-mono text-high">−{file.deletions}</span>
               </div>
               {hunks.map((hunk) => (
                 <Hunk key={hunk.id} hunk={hunk} file={file} handlers={handlers} />

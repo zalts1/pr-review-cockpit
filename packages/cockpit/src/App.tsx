@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { Group, Hunk, ReviewDocument, ReviewFile } from '@review-cockpit/schema';
 import { checkVersion } from '@review-cockpit/schema/version';
 import { derive, pendingLabel } from './lib/derive';
@@ -31,13 +32,14 @@ import { postReview } from './lib/submit';
 import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
 import { description } from './lib/prBody';
 import { editorTargetFromDrag, firstCommentableLine } from './lib/interaction';
+import { Loader2, TriangleAlert } from 'lucide-react';
+import { CenteredCard } from './components/CenteredCard';
 import { DiffFile } from './components/DiffFile';
 import { FinishModal, ReviewFinished } from './components/FinishModal';
 import { GroupHeader } from './components/GroupHeader';
 import { Header } from './components/Header';
 import type { Tab } from './components/Header';
 import type { DiffHandlers } from './components/Hunk';
-import { SpinnerIcon, WarnIcon } from './components/Icons';
 import { KeyboardHelp } from './components/KeyboardHelp';
 import { MapView } from './components/MapView';
 import { PlanStrip } from './components/PlanStrip';
@@ -45,6 +47,8 @@ import { Rail } from './components/Rail';
 import { StatusBanner } from './components/StatusBanner';
 import { StepCard } from './components/StepCard';
 import { SubmitModal } from './components/SubmitModal';
+import { Button } from './components/ui/button';
+import { cn } from './lib/utils';
 
 const fixture = documentSource.mode === 'fixture' ? documentSource.fixture : null;
 
@@ -53,71 +57,79 @@ export function App() {
 
   if (load.kind === 'loading') {
     return (
-      <div className="centered">
-        <div className="centered-card">
-          <SpinnerIcon size={22} />
-          <h1>Loading the review document</h1>
-          <p className="empty">
-            {fixture !== null ? (
-              <>
-                Fixture <code>{fixture}</code>
-              </>
-            ) : (
-              <>
-                From the local server at <code>{documentUrlOf(documentSource)}</code>
-              </>
-            )}
-          </p>
-        </div>
-      </div>
+      <CenteredCard
+        icon={<Loader2 className="size-[22px] spinner text-link" />}
+        title="Loading the review document"
+      >
+        <p className="text-muted-foreground!">
+          {fixture !== null ? (
+            <>
+              Fixture <code>{fixture}</code>
+            </>
+          ) : (
+            <>
+              From the local server at <code>{documentUrlOf(documentSource)}</code>
+            </>
+          )}
+        </p>
+      </CenteredCard>
     );
   }
 
   if (load.kind === 'error') {
     return (
-      <div className="centered">
-        <div className="centered-card is-warn">
-          <WarnIcon size={22} />
-          <h1>The review document could not be loaded</h1>
-          <p>{load.message}</p>
-          <p className="empty">
-            {fixture !== null ? (
-              <>
-                Pick a fixture with <code>?fixture=pr-fake-1</code>.
-              </>
-            ) : (
-              <>
-                The analysis may still be running. This page loads the document as soon as the
-                server has it.
-              </>
-            )}
-          </p>
-        </div>
-      </div>
+      <CenteredCard
+        icon={<TriangleAlert className="size-[22px]" />}
+        title="The review document could not be loaded"
+        warn
+      >
+        <p>{load.message}</p>
+        <p className="text-muted-foreground!">
+          {fixture !== null ? (
+            <>
+              Pick a fixture with <code>?fixture=pr-fake-1</code>.
+            </>
+          ) : (
+            <>
+              The analysis may still be running. This page loads the document as soon as the
+              server has it.
+            </>
+          )}
+        </p>
+      </CenteredCard>
     );
   }
 
   const version = checkVersion(load.doc);
   if (!version.ok) {
     return (
-      <div className="centered">
-        <div className="centered-card is-warn">
-          <WarnIcon size={22} />
-          <h1>This document has an unsupported schema version</h1>
-          <p>
-            The document is <code>{version.documentVersion}</code>. This cockpit renders{' '}
-            <code>{version.supportedMajor}.x</code> documents only.
-          </p>
-          <p className="empty">
-            A major version means a field changed meaning, so rendering it could show the wrong
-            diff. Re-run the analyzer to get a current document.
-          </p>
-        </div>
-      </div>
+      <CenteredCard
+        icon={<TriangleAlert className="size-[22px]" />}
+        title="This document has an unsupported schema version"
+        warn
+      >
+        <p>
+          The document is <code>{version.documentVersion}</code>. This cockpit renders{' '}
+          <code>{version.supportedMajor}.x</code> documents only.
+        </p>
+        <p className="text-muted-foreground!">
+          A major version means a field changed meaning, so rendering it could show the wrong
+          diff. Re-run the analyzer to get a current document.
+        </p>
+      </CenteredCard>
     );
   }
 
   return <Cockpit doc={load.doc} connection={connection} revision={revision} />;
+}
+
+function PaneEmpty({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-6 text-center">
+      <h2 className="mb-1.5 text-[15px] font-semibold">{title}</h2>
+      <p className="m-0 text-[13px] text-muted-foreground">{children}</p>
+    </div>
+  );
 }
 
 interface CockpitProps {
@@ -744,10 +756,18 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
   if (isFinished(connection)) return <ReviewFinished pr={doc.pr} purged={purged} />;
 
   return (
-    <div className="app">
+    <div className="flex h-screen flex-col">
       {banner !== null && (
-        <div className={banner.tone === 'stopped' ? 'banner-stopped' : 'banner-offline'} role="alert">
-          <WarnIcon size={13} />
+        <div
+          className={cn(
+            'flex flex-none items-center gap-2 border-b px-5 py-2 text-[13px] font-medium [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-background [&_code]:px-1 [&_code]:text-xs',
+            banner.tone === 'stopped'
+              ? 'border-border bg-muted-2 text-foreground'
+              : 'border-high bg-high-wash text-high',
+          )}
+          role="alert"
+        >
+          <TriangleAlert className="size-[13px] flex-none" />
           <span>
             {banner.text}
             {banner.command !== null && (
@@ -762,21 +782,25 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
       )}
 
       {store.orphaned.length > 0 && (
-        <div className="banner-drafts" role="status">
-          <WarnIcon size={13} />
+        <div
+          className="flex flex-none items-center gap-2 border-b border-draft-border bg-draft px-5 py-2 text-[13px]"
+          role="status"
+        >
+          <TriangleAlert className="size-[13px] flex-none" />
           <span>
             {store.orphaned.length}{' '}
             {store.orphaned.length === 1 ? 'draft' : 'drafts'} could not be re-attached after new
             commits.{' '}
-            <button
-              className="banner-link"
+            <Button
+              variant="link"
+              className="text-[13px]"
               onClick={() => {
                 setTab('files');
                 orphansRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }}
             >
               See the list
-            </button>
+            </Button>
           </span>
         </div>
       )}
@@ -820,10 +844,10 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
         />
       )}
 
-      <div className="main">
+      <div className="flex min-h-0 flex-1">
         {tab === 'files' ? (
           <>
-            <aside className="sidebar">
+            <aside className="w-[280px] flex-none overflow-auto border-r border-border bg-background">
               <Rail
                 entries={order.entries}
                 skippable={order.skippable}
@@ -848,7 +872,7 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
               />
             </aside>
 
-            <div className="pane-wrap">
+            <div className="flex min-w-0 flex-1 flex-col gap-3 bg-muted px-5 pt-4">
               <StatusBanner doc={doc} />
 
               {currentStep && (
@@ -872,25 +896,19 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
                 />
               )}
 
-              <div className="pane" ref={paneRef}>
+              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto pb-6" ref={paneRef}>
                 {doc.files.length === 0 && (
-                  <div className="pane-empty">
-                    <h2>No textual changes</h2>
-                    <p className="empty">
-                      This pull request changes no file content, so there is nothing to read
-                      here. The summary above says what it does.
-                    </p>
-                  </div>
+                  <PaneEmpty title="No textual changes">
+                    This pull request changes no file content, so there is nothing to read here.
+                    The summary above says what it does.
+                  </PaneEmpty>
                 )}
 
                 {onlyGenerated && (
-                  <div className="pane-empty">
-                    <h2>Everything here is generated</h2>
-                    <p className="empty">
-                      Every change in this PR matched a generated-code pattern. Expand the group
-                      below to read it anyway.
-                    </p>
-                  </div>
+                  <PaneEmpty title="Everything here is generated">
+                    Every change in this PR matched a generated-code pattern. Expand the group
+                    below to read it anyway.
+                  </PaneEmpty>
                 )}
 
                 {paneItems.map((item) =>
@@ -986,7 +1004,11 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
 
       {helpOpen && <KeyboardHelp onClose={() => setHelpOpen(false)} />}
 
-      {toast && <div className="toast">{toast}</div>}
+      {toast && (
+        <div className="fixed bottom-10 left-1/2 z-[60] -translate-x-1/2 rounded-md bg-inverse px-3.5 py-2 text-[13px] text-inverse-foreground shadow-card">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

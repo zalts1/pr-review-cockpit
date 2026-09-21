@@ -1,9 +1,10 @@
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import type { Comment, ConversationComment, Draft, RiskLevel } from '@review-cockpit/schema';
+import { Check, ChevronRight } from 'lucide-react';
 import { draftTarget, preview } from '../lib/drafts';
 import type { RailEntry, SkippableEntry } from '../lib/plan';
 import { railPath } from '../lib/plan';
-import { CheckIcon, ChevronRightIcon } from './Icons';
+import { cn } from '../lib/utils';
 
 interface Props {
   entries: RailEntry[];
@@ -31,9 +32,33 @@ const heatWord: Record<RiskLevel, string> = {
 };
 
 function HeatDot({ level }: { level: RiskLevel }) {
-  if (level === 'low') return <span className="rail-dot rail-dot-none" />;
-  return <span className={`rail-dot rail-dot-${level}`} title={heatWord[level]} />;
+  if (level === 'low') return null;
+  return (
+    <span
+      className={cn(
+        'size-[7px] flex-none rounded-full',
+        level === 'high' ? 'bg-high' : 'border-[1.5px] border-medium',
+      )}
+      title={heatWord[level]}
+    />
+  );
 }
+
+function SectionHead({ title, count }: { title: string; count?: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 px-4 pb-2 text-[11px] font-semibold text-muted-foreground">
+      <span>{title}</span>
+      {count !== undefined && <span className="font-normal whitespace-nowrap">{count}</span>}
+    </div>
+  );
+}
+
+function Divider() {
+  return <div className="mx-4 mt-3 mb-2 border-t border-border" />;
+}
+
+const noteClass = 'px-4 pb-2 text-xs text-muted-foreground';
+const itemLinkClass = 'font-mono text-[11px]';
 
 export function Rail({
   entries,
@@ -52,25 +77,26 @@ export function Rail({
   onSkippable,
 }: Props) {
   return (
-    <nav className="rail" aria-label="Review path">
-      <div className="rail-head">
-        <span className="rail-title">Review path</span>
-        <span
-          className="rail-count"
-          title={`${fileCount} ${fileCount === 1 ? 'file' : 'files'} changed in this PR`}
-        >
-          {fileCount} changed
-        </span>
-      </div>
+    <nav className="py-3.5 pb-6 text-[13px]" aria-label="Review path">
+      <SectionHead
+        title="Review path"
+        count={
+          <span title={`${fileCount} ${fileCount === 1 ? 'file' : 'files'} changed in this PR`}>
+            {fileCount} changed
+          </span>
+        }
+      />
 
       {pathPending !== null && (
-        <div className="rail-note">
+        <div className={noteClass}>
           Recommended order: {pathPending.toLowerCase()}. Walking files in order, riskiest hunk
           of each first.
         </div>
       )}
 
-      <ul className="rail-list">
+      {/* The spine: one line through every step's number, the way a numbered
+          list reads as one route rather than a set of files. */}
+      <ul className="relative m-0 list-none px-2 before:absolute before:top-3.5 before:bottom-3.5 before:left-[27px] before:w-px before:bg-border">
         {entries.map((entry) => {
           // A file the walk visits at several steps has one row, so the row is
           // current whenever the walk is anywhere inside that file.
@@ -89,33 +115,42 @@ export function Rail({
             entry.note ?? 'no step note',
           ].join(' · ');
           return (
-            <li key={entry.id}>
+            <li key={entry.id} className="relative">
               <button
-                className={[
-                  'rail-row',
-                  current ? 'is-current' : '',
-                  done ? 'is-done' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
+                type="button"
+                className={cn(
+                  'grid w-full cursor-pointer grid-cols-[22px_1fr_auto] items-center gap-2.5 rounded-md px-2 py-[5px] text-left text-muted-foreground hover:bg-muted',
+                  current && 'bg-walk-wash text-foreground hover:bg-walk-wash',
+                )}
                 onClick={() => onEntry(entry)}
                 title={tip}
               >
-                {done ? (
-                  <CheckIcon size={13} className="rail-check" />
-                ) : (
-                  <HeatDot level={entry.kind === 'file' ? entry.heat : 'low'} />
-                )}
-                <span className={entry.kind === 'file' ? 'rail-path' : 'rail-group'}>
+                <span
+                  className={cn(
+                    'relative z-[1] grid size-[22px] place-items-center rounded-full border-[1.5px] border-border bg-card font-mono text-[11px] font-medium text-muted-foreground',
+                    done && 'border-ok bg-ok text-white',
+                    current && 'border-walk bg-walk text-white ring-[3px] ring-walk-ring',
+                  )}
+                >
+                  {done ? <Check className="size-[11px]" strokeWidth={2.6} /> : entry.step}
+                </span>
+                <span
+                  className={cn(
+                    'truncate',
+                    entry.kind === 'file' ? 'font-mono text-xs' : 'text-[12.5px]',
+                    current && 'font-semibold',
+                  )}
+                >
                   {label}
                 </span>
+                {!done && entry.kind === 'file' && <HeatDot level={entry.heat} />}
               </button>
             </li>
           );
         })}
         {entries.length === 0 && (
           <li>
-            <div className="rail-note">
+            <div className={noteClass}>
               {fileCount === 0 ? 'No files changed.' : 'Nothing to walk in this PR.'}
             </div>
           </li>
@@ -124,23 +159,23 @@ export function Rail({
 
       {skippable.length > 0 && (
         <>
-          <div className="rail-divider" />
-          <div className="rail-head">
-            <span className="rail-title">Skippable</span>
-          </div>
-          <ul className="rail-list">
+          <Divider />
+          <SectionHead title="Skippable" />
+          <ul className="m-0 list-none p-0">
             {skippable.map((group) => (
               <li key={group.id}>
                 <button
-                  className={`rail-row rail-skip${
-                    group.id === currentGroupId ? ' is-current' : ''
-                  }`}
+                  type="button"
+                  className={cn(
+                    'flex w-full cursor-pointer items-center gap-2 px-4 py-1.5 text-left text-[12.5px] whitespace-nowrap hover:bg-muted',
+                    group.id === currentGroupId && 'bg-walk-wash',
+                  )}
                   onClick={() => onSkippable(group.id)}
                   title={`${group.title} · ${group.hunkCount} hunks · skim`}
                 >
-                  <ChevronRightIcon size={11} className="rail-caret" />
-                  <span className="rail-group">{group.title}</span>
-                  <span className="rail-count">
+                  <ChevronRight className="size-[11px] flex-none text-subtle" />
+                  <span className="min-w-0 flex-1 truncate">{group.title}</span>
+                  <span className="text-[11px] text-muted-foreground">
                     {group.fileCount} {group.fileCount === 1 ? 'file' : 'files'}
                   </span>
                 </button>
@@ -152,15 +187,12 @@ export function Rail({
 
       {outdated.length > 0 && (
         <>
-          <div className="rail-divider" />
-          <div className="rail-head">
-            <span className="rail-title">Outdated comments</span>
-            <span className="rail-count">{outdated.length}</span>
-          </div>
-          <ul className="rail-outdated">
+          <Divider />
+          <SectionHead title="Outdated comments" count={outdated.length} />
+          <ul className="m-0 flex list-none flex-col gap-2 px-4">
             {outdated.map((comment) => (
-              <li key={comment.id}>
-                <a href={comment.url} target="_blank" rel="noreferrer">
+              <li key={comment.id} className="flex flex-col text-xs text-muted-foreground">
+                <a href={comment.url} target="_blank" rel="noreferrer" className={itemLinkClass}>
                   {railPath(comment.path)}:{comment.line}
                 </a>
                 <span>
@@ -173,19 +205,16 @@ export function Rail({
       )}
       {orphaned.length > 0 && (
         <div ref={orphansRef}>
-          <div className="rail-divider" />
-          <div className="rail-head">
-            <span className="rail-title">Drafts that did not re-attach</span>
-            <span className="rail-count">{orphaned.length}</span>
-          </div>
-          <div className="rail-note">
+          <Divider />
+          <SectionHead title="Drafts that did not re-attach" count={orphaned.length} />
+          <div className={noteClass}>
             New commits moved or removed these lines. Copy what you still want to say onto a
             line the current diff has.
           </div>
-          <ul className="rail-outdated">
+          <ul className="m-0 flex list-none flex-col gap-2 px-4">
             {orphaned.map((draft) => (
-              <li key={draft.id}>
-                <span className="rail-orphan-target">{draftTarget(draft)}</span>
+              <li key={draft.id} className="flex flex-col text-xs text-muted-foreground">
+                <span className={itemLinkClass}>{draftTarget(draft)}</span>
                 <span>{preview(draft.body, 72)}</span>
               </li>
             ))}
@@ -194,16 +223,16 @@ export function Rail({
       )}
       {conversation.length > 0 && (
         <>
-          <div className="rail-divider" />
-          <details className="rail-conversation">
-            <summary>
-              <span className="rail-title">Conversation</span>
-              <span className="rail-count">{conversation.length}</span>
+          <Divider />
+          <details>
+            <summary className="flex cursor-pointer items-center justify-between px-4 pb-2 text-[11px] font-semibold text-muted-foreground marker:text-subtle">
+              <span>Conversation</span>
+              <span className="font-normal">{conversation.length}</span>
             </summary>
-            <ul className="rail-outdated">
+            <ul className="m-0 flex list-none flex-col gap-2 px-4">
               {conversation.map((comment) => (
-                <li key={comment.id}>
-                  <a href={comment.url} target="_blank" rel="noreferrer">
+                <li key={comment.id} className="flex flex-col text-xs text-muted-foreground">
+                  <a href={comment.url} target="_blank" rel="noreferrer" className={itemLinkClass}>
                     {comment.source.name}
                     {comment.path === null ? '' : ` · ${railPath(comment.path)}`}
                   </a>

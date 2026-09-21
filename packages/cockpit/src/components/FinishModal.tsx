@@ -1,5 +1,9 @@
 import type { PrInfo } from '@review-cockpit/schema';
-import { CheckIcon, CrossIcon, SpinnerIcon, WarnIcon } from './Icons';
+import { Check, Loader2, TriangleAlert } from 'lucide-react';
+import { Button } from './ui/button';
+import { Callout } from './ui/callout';
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from './ui/dialog';
+import { CenteredCard } from './CenteredCard';
 
 interface Props {
   unsentDrafts: number;
@@ -12,6 +16,9 @@ interface Props {
   onCancel(): void;
   onFinish(): void;
 }
+
+const checkRow = 'flex cursor-pointer items-center gap-2 text-[13px]';
+const checkbox = 'size-[15px] accent-primary';
 
 export function FinishModal({
   unsentDrafts,
@@ -29,75 +36,64 @@ export function FinishModal({
   const noun = unsentDrafts === 1 ? 'draft' : 'drafts';
 
   return (
-    <div className="overlay" role="dialog" aria-modal="true" aria-label="Finish this review?">
-      <div className="modal modal-finish">
-        <div className="modal-head">
-          <span>Finish this review?</span>
-          <button className="btn btn-icon" onClick={onCancel} aria-label="Close">
-            <CrossIcon size={12} />
-          </button>
-        </div>
+    <Dialog label="Finish this review?" className="w-[520px]">
+      <DialogHeader onClose={onCancel}>Finish this review?</DialogHeader>
 
-        <div className="modal-body">
-          <p className="finish-line">Stops the local server and removes the checkout.</p>
-          <p className="finish-line">
-            The analysis and your drafts stay on disk until you clean them.
-          </p>
+      <DialogBody>
+        <p className="m-0 text-[13px]">Stops the local server and removes the checkout.</p>
+        <p className="m-0 text-[13px]">
+          The analysis and your drafts stay on disk until you clean them.
+        </p>
 
-          <label className="check-row">
+        <label className={checkRow}>
+          <input
+            type="checkbox"
+            className={checkbox}
+            checked={purge}
+            disabled={finishing}
+            onChange={(e) => onPurge(e.target.checked)}
+          />
+          Also delete the analysis and drafts for this pull request
+        </label>
+
+        {unsentDrafts > 0 && (
+          <Callout>
+            <TriangleAlert />
+            <span>
+              You have {unsentDrafts} unsent {noun}
+            </span>
+          </Callout>
+        )}
+
+        {losingDrafts && (
+          <label className={checkRow}>
             <input
               type="checkbox"
-              checked={purge}
+              className={checkbox}
+              checked={confirmDrafts}
               disabled={finishing}
-              onChange={(e) => onPurge(e.target.checked)}
+              onChange={(e) => onConfirmDrafts(e.target.checked)}
             />
-            Also delete the analysis and drafts for this pull request
+            Delete {unsentDrafts} {noun} too
           </label>
+        )}
 
-          {unsentDrafts > 0 && (
-            <div className="warn">
-              <WarnIcon size={13} />
-              <span>
-                You have {unsentDrafts} unsent {noun}
-              </span>
-            </div>
-          )}
+        {error !== null && (
+          <Callout role="alert">
+            <TriangleAlert />
+            <span>{error}</span>
+          </Callout>
+        )}
+      </DialogBody>
 
-          {losingDrafts && (
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={confirmDrafts}
-                disabled={finishing}
-                onChange={(e) => onConfirmDrafts(e.target.checked)}
-              />
-              Delete {unsentDrafts} {noun} too
-            </label>
-          )}
-
-          {error !== null && (
-            <div className="warn" role="alert">
-              <WarnIcon size={13} />
-              <span>{error}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="modal-foot">
-          <button className="btn" onClick={onCancel}>
-            Cancel
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={blocked || finishing}
-            onClick={onFinish}
-          >
-            {finishing && <SpinnerIcon size={12} />}
-            {finishing ? 'Finishing…' : 'Finish'}
-          </button>
-        </div>
-      </div>
-    </div>
+      <DialogFooter>
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button variant="default" disabled={blocked || finishing} onClick={onFinish}>
+          {finishing && <Loader2 className="size-3 spinner" />}
+          {finishing ? 'Finishing…' : 'Finish'}
+        </Button>
+      </DialogFooter>
+    </Dialog>
   );
 }
 
@@ -107,16 +103,12 @@ export function FinishModal({
  */
 export function ReviewFinished({ pr, purged }: { pr: PrInfo; purged: boolean | null }) {
   return (
-    <div className="centered">
-      <div className="centered-card">
-        <CheckIcon size={22} />
-        <h1>Review finished. You can close this tab.</h1>
-        {purged === false && (
-          <p>
-            Run <code>cockpit run {pr.number}</code> to reopen it.
-          </p>
-        )}
-      </div>
-    </div>
+    <CenteredCard icon={<Check className="size-[22px] text-ok" />} title="Review finished. You can close this tab.">
+      {purged === false && (
+        <p>
+          Run <code>cockpit run {pr.number}</code> to reopen it.
+        </p>
+      )}
+    </CenteredCard>
   );
 }

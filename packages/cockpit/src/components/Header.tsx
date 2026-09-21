@@ -1,24 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { BotSummary, Check, PrInfo } from '@review-cockpit/schema';
+import {
+  ArrowRight,
+  Bot,
+  Check as CheckMark,
+  ChevronRight,
+  Clock,
+  Keyboard,
+  Loader2,
+  Minus,
+  Moon,
+  RefreshCw,
+  Sun,
+  X,
+} from 'lucide-react';
 import { shortSha } from '../lib/derive';
 import { Markdown } from '../lib/markdown';
-import {
-  ArrowRightIcon,
-  BotIcon,
-  CheckIcon,
-  ClockIcon,
-  CrossIcon,
-  DashIcon,
-  FilesIcon,
-  KeyboardIcon,
-  MapIcon,
-  MoonIcon,
-  RefreshIcon,
-  SpinnerIcon,
-  SunIcon,
-} from './Icons';
 import type { Theme } from '../lib/theme';
+import { cn } from '../lib/utils';
+import { Badge, BadgeLink } from './ui/badge';
+import { Button } from './ui/button';
+import { TabsList, TabsTrigger } from './ui/tabs';
 
 export type Tab = 'files' | 'map';
 
@@ -72,13 +75,13 @@ function checksTab(pr: PrInfo): string {
 }
 
 function GroupPill({
-  className,
+  variant,
   checks,
   pr,
   title,
   children,
 }: {
-  className: string;
+  variant: 'ok' | 'high' | 'medium' | 'muted';
   checks: Check[];
   pr: PrInfo;
   title: string;
@@ -86,74 +89,76 @@ function GroupPill({
 }) {
   const single = checks.length === 1 ? checks[0] : undefined;
   return (
-    <a
-      className={`pill ${className}`}
-      href={single ? single.url : checksTab(pr)}
-      target="_blank"
-      rel="noreferrer"
-      title={title}
-    >
+    <BadgeLink variant={variant} href={single ? single.url : checksTab(pr)} title={title}>
       {children}
-    </a>
+    </BadgeLink>
   );
 }
 
-function CheckPills({ checks, pending, failed, pr }: { checks: Check[]; pending: boolean; failed: string | null; pr: PrInfo }) {
+function CheckPills({
+  checks,
+  pending,
+  failed,
+  pr,
+}: {
+  checks: Check[];
+  pending: boolean;
+  failed: string | null;
+  pr: PrInfo;
+}) {
   if (failed !== null) {
     return (
-      <span className="pill pill-fail" title={failed}>
-        <CrossIcon size={10} /> Checks unavailable
-      </span>
+      <Badge variant="high" title={failed}>
+        <X /> Checks unavailable
+      </Badge>
     );
   }
   if (pending) {
     return (
-      <span className="pill pill-running">
-        <ClockIcon size={10} /> Loading checks
-      </span>
+      <Badge variant="medium">
+        <Clock /> Loading checks
+      </Badge>
     );
   }
-  if (checks.length === 0) return <span className="pill pill-muted">No checks reported</span>;
+  if (checks.length === 0) return <Badge variant="muted">No checks reported</Badge>;
 
   const pills = pillsOf(checks);
   return (
     <>
       {pills.passed.count > 0 && (
-        <GroupPill className="pill-pass" checks={pills.passedChecks} pr={pr} title={pills.passed.names.join(', ')}>
-          <CheckIcon size={10} /> {pills.passed.count}{' '}
-          {pills.passed.count === 1 ? 'check' : 'checks'} passed
+        <GroupPill
+          variant="ok"
+          checks={pills.passedChecks}
+          pr={pr}
+          title={pills.passed.names.join(', ')}
+        >
+          <CheckMark /> {pills.passed.count} {pills.passed.count === 1 ? 'check' : 'checks'}{' '}
+          passed
         </GroupPill>
       )}
       {pills.failed.map((check) => (
-        <a
-          key={check.name}
-          className="pill pill-fail"
-          href={check.url}
-          target="_blank"
-          rel="noreferrer"
-          title={`${check.name} failed`}
-        >
-          <CrossIcon size={10} /> {check.name} failed
-        </a>
+        <BadgeLink key={check.name} variant="high" href={check.url} title={`${check.name} failed`}>
+          <X /> {check.name} failed
+        </BadgeLink>
       ))}
       {pills.runningChecks.length > 0 && (
         <GroupPill
-          className="pill-running"
+          variant="medium"
           checks={pills.runningChecks}
           pr={pr}
           title={pills.runningChecks.map((check) => check.name).join(', ')}
         >
-          <ClockIcon size={10} /> {pills.runningChecks.length} running
+          <Clock /> {pills.runningChecks.length} running
         </GroupPill>
       )}
       {pills.otherChecks.length > 0 && (
         <GroupPill
-          className="pill-muted"
+          variant="muted"
           checks={pills.otherChecks}
           pr={pr}
           title={pills.otherChecks.map((check) => `${check.name}: ${check.status}`).join(', ')}
         >
-          <DashIcon size={10} /> {pills.otherChecks.length} skipped
+          <Minus /> {pills.otherChecks.length} skipped
         </GroupPill>
       )}
     </>
@@ -167,7 +172,7 @@ function shortBotName(name: string): string {
 
 function BotSummaryPill({ summary }: { summary: BotSummary }) {
   const level = summary.riskLevel;
-  const className = level === 'high' ? 'pill-fail' : level === 'medium' ? 'pill-running' : 'pill-muted';
+  const variant = level === 'high' ? 'high' : level === 'medium' ? 'medium' : 'muted';
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
@@ -188,26 +193,35 @@ function BotSummaryPill({ summary }: { summary: BotSummary }) {
   }, [open]);
 
   return (
-    <div className="pill-hover" ref={root}>
+    <div className="relative inline-flex" ref={root}>
       <button
         type="button"
-        className={`pill ${className}`}
+        className={cn(
+          'inline-flex h-5 cursor-pointer items-center gap-1 rounded-full px-2 text-[11px] font-medium [&_svg]:size-2.5',
+          variant === 'high' && 'bg-high-wash text-high',
+          variant === 'medium' && 'bg-medium-wash text-medium',
+          variant === 'muted' && 'bg-muted text-muted-foreground',
+        )}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <BotIcon size={10} /> {shortBotName(summary.source.name)}:{' '}
-        {level === null ? 'summary' : `${level} risk`}
+        <Bot /> {shortBotName(summary.source.name)}: {level === null ? 'summary' : `${level} risk`}
       </button>
       {open && (
-        <div className="hovercard" role="dialog">
-          <span className="hovercard-head">
-            {summary.source.name}
-            {level !== null && ` · ${level} risk`}
-            <a href={summary.url} target="_blank" rel="noreferrer" className="hovercard-link">
+        <div
+          className="absolute top-[calc(100%+6px)] left-0 z-40 max-h-[420px] w-[460px] overflow-y-auto rounded-md border border-border bg-card p-3 text-left text-[13px] whitespace-normal shadow-pop"
+          role="dialog"
+        >
+          <div className="mb-1.5 flex items-baseline justify-between text-[11px] font-semibold text-muted-foreground">
+            <span>
+              {summary.source.name}
+              {level !== null && ` · ${level} risk`}
+            </span>
+            <a href={summary.url} target="_blank" rel="noreferrer" className="font-medium">
               Open on GitHub
             </a>
-          </span>
-          <Markdown text={summary.body} className="hovercard-body" />
+          </div>
+          <Markdown text={summary.body} />
         </div>
       )}
     </div>
@@ -235,35 +249,42 @@ export function Header({
   onTheme,
 }: Props) {
   return (
-    <header className="header">
-      <div className="header-identity">
-        <div className="header-line">
-          <span className="header-repo">{pr.repo}</span>
-          <h1 className="header-title">
-            <a href={pr.url} target="_blank" rel="noreferrer">
+    <header
+      // Above the plan row, or the strip wins the tie on DOM order and paints
+      // over the bot summary card this stacking context caps.
+      className="relative z-40 flex min-h-[60px] flex-none items-center gap-3 border-b border-border bg-background px-5 py-2"
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-px">
+        <div className="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
+          <span className="text-sm text-muted-foreground">{pr.repo}</span>
+          <h1 className="m-0 min-w-0 truncate text-[15px] font-semibold">
+            <a href={pr.url} target="_blank" rel="noreferrer" className="text-foreground">
               {pr.title}
             </a>
           </h1>
-          <span className="header-number">#{pr.number}</span>
-          {pr.draft && <span className="pill pill-muted">draft</span>}
+          <span className="text-sm text-subtle">#{pr.number}</span>
+          {pr.draft && <Badge variant="muted">draft</Badge>}
         </div>
-        <div className="header-meta">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
           <span>{pr.author}</span>
-          <span className="header-dot">·</span>
-          <code>{pr.head.ref}</code>
-          <ArrowRightIcon size={11} className="header-arrow" />
-          <code>{pr.base.ref}</code>
-          <span className="header-dot">·</span>
-          <code title={pr.head.sha}>{shortSha(pr.head.sha)}</code>
-          <div className="header-checks">
+          <span className="text-subtle">·</span>
+          <code className="text-[11.5px]">{pr.head.ref}</code>
+          <ArrowRight className="size-[11px] text-subtle" />
+          <code className="text-[11.5px]">{pr.base.ref}</code>
+          <span className="text-subtle">·</span>
+          <code className="text-[11.5px]" title={pr.head.sha}>
+            {shortSha(pr.head.sha)}
+          </code>
+          <span className="ml-1 inline-flex flex-wrap items-center gap-1.5">
             <CheckPills checks={checks} pending={checksPending} failed={checksFailed} pr={pr} />
             {botSummaries.map((summary) => (
               <BotSummaryPill key={summary.source.name} summary={summary} />
             ))}
             {onRefresh !== null && (
-              <button
-                type="button"
-                className={`btn btn-icon btn-refresh${refreshError === null ? '' : ' btn-refresh-failed'}`}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className={cn('size-[22px]', refreshError !== null && 'text-high')}
                 onClick={onRefresh}
                 disabled={refreshing}
                 aria-label="Refresh from GitHub"
@@ -274,67 +295,57 @@ export function Header({
                     : 'Refresh from GitHub: read the comments and checks again')
                 }
               >
-                {refreshing ? <SpinnerIcon size={12} /> : <RefreshIcon size={12} />}
-              </button>
+                {refreshing ? (
+                  <Loader2 className="size-3 spinner" />
+                ) : (
+                  <RefreshCw className="size-3" />
+                )}
+              </Button>
             )}
-          </div>
+          </span>
         </div>
       </div>
 
-      <div className="header-actions">
-        <div className="tabs" role="tablist">
-          <button
-            role="tab"
-            aria-selected={tab === 'files'}
-            onClick={() => onTab('files')}
-            title="Files (m)"
-          >
-            <FilesIcon size={12} /> Files
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === 'map'}
-            onClick={() => onTab('map')}
-            title="Map (m)"
-          >
-            <MapIcon size={12} /> Map
-          </button>
-        </div>
-        <span className="draft-count">
+      <TabsList>
+        <TabsTrigger selected={tab === 'files'} onClick={() => onTab('files')} title="Files (m)">
+          Files
+        </TabsTrigger>
+        <TabsTrigger selected={tab === 'map'} onClick={() => onTab('map')} title="Map (m)">
+          Map
+        </TabsTrigger>
+      </TabsList>
+
+      <div className="flex flex-none items-center gap-1.5">
+        <span className="mx-1 text-xs whitespace-nowrap text-muted-foreground">
           {draftCount} {draftCount === 1 ? 'draft' : 'drafts'}
         </span>
-        <button
-          className="btn btn-icon"
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onTheme}
           title={`Switch to the ${theme === 'dark' ? 'light' : 'dark'} theme (t)`}
           aria-label={`Switch to the ${theme === 'dark' ? 'light' : 'dark'} theme`}
         >
-          {theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />}
-        </button>
-        <button className="btn btn-icon" onClick={onHelp} title="Keyboard shortcuts (?)">
-          <KeyboardIcon size={14} />
-        </button>
-        <button className="btn" onClick={onSubmit}>
-          Submit review
-        </button>
+          {theme === 'dark' ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+        </Button>
+        <Button variant="ghost" size="icon" onClick={onHelp} title="Keyboard shortcuts (?)">
+          <Keyboard className="size-3.5" />
+        </Button>
+        <Button onClick={onSubmit}>Submit review</Button>
         {onFinish !== null && (
-          <button
-            className="btn"
-            onClick={onFinish}
-            title="Stop the local server and remove the checkout"
-          >
+          <Button onClick={onFinish} title="Stop the local server and remove the checkout">
             Finish review
-          </button>
+          </Button>
         )}
-        <button
-          className="btn btn-primary"
+        <Button
+          variant="default"
           onClick={onNext}
           disabled={nextLabel === null}
           title="Go to the next step of the review path (n)"
         >
           {nextLabel === null ? 'Walk complete' : `Next: ${nextLabel}`}
-          <ArrowRightIcon size={12} />
-        </button>
+          <ChevronRight className="size-3" />
+        </Button>
       </div>
     </header>
   );
