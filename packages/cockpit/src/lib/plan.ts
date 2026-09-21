@@ -55,6 +55,70 @@ export function phaseProgress(steps: PathStep[], index: number): PhaseProgress[]
   });
 }
 
+export interface StepperStep {
+  index: number;
+  step: number;
+  state: 'done' | 'current' | 'ahead';
+  high: boolean;
+  /** The step note, then the symbol, then the file, for the dot's tooltip. */
+  title: string;
+}
+
+export interface StepperPhase {
+  phase: Phase;
+  label: string;
+  done: number;
+  total: number;
+  current: boolean;
+  steps: StepperStep[];
+}
+
+/**
+ * The walk as dots, one run per phase in the order the path visits them, for
+ * the column layout's stepper. A phase the path comes back to would be two
+ * runs, which is what the reviewer would see in the rail too.
+ */
+export function stepperPhases(derived: Derived, index: number): StepperPhase[] {
+  const phases: StepperPhase[] = [];
+  for (const [at, step] of derived.steps.entries()) {
+    const hunkIds =
+      step.ref.kind === 'hunk'
+        ? [step.ref.id]
+        : (derived.groupById.get(step.ref.id)?.hunkIds ?? []);
+    const high = hunkIds.some((id) => derived.hunkById.get(id)?.hunk.risk.level === 'high');
+    const location = step.ref.kind === 'hunk' ? derived.hunkById.get(step.ref.id) : undefined;
+    const where =
+      location?.hunk.symbols[0] ??
+      location?.file.path ??
+      derived.groupById.get(step.ref.id)?.title ??
+      step.ref.id;
+    const entry: StepperStep = {
+      index: at,
+      step: step.step,
+      state: at < index ? 'done' : at === index ? 'current' : 'ahead',
+      high,
+      title: `Step ${step.step} · ${where}${step.note ? ` · ${step.note}` : ''}`,
+    };
+    const last = phases[phases.length - 1];
+    if (last !== undefined && last.phase === step.phase) {
+      last.steps.push(entry);
+      last.total += 1;
+      if (at <= index) last.done += 1;
+      if (at === index) last.current = true;
+      continue;
+    }
+    phases.push({
+      phase: step.phase,
+      label: PHASE_LABELS[step.phase],
+      done: at <= index ? 1 : 0,
+      total: 1,
+      current: at === index,
+      steps: [entry],
+    });
+  }
+  return phases;
+}
+
 export type RailEntry =
   | {
       kind: 'file';

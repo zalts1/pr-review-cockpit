@@ -11,6 +11,8 @@ const keys: Array<[string, string]> = [
   ['a', 'Copy an Ask Claude prompt for this hunk'],
   ['m', 'Switch between the Files and Map tabs'],
   ['t', 'Switch between the light and dark theme'],
+  ['l', 'Switch between the rail and column layouts'],
+  ['f', 'Open the file list, in the column layout'],
   ['?', 'Show this table'],
   ['Esc', 'Close an overlay or the comment editor'],
 ];

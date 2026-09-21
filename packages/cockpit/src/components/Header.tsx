@@ -11,12 +11,16 @@ import {
   Loader2,
   Minus,
   Moon,
+  PanelLeft,
+  Rows3,
   RefreshCw,
   Sun,
   X,
 } from 'lucide-react';
 import { shortSha } from '../lib/derive';
 import { Markdown } from '../lib/markdown';
+import type { Layout } from '../lib/layout';
+import { LAYOUT_LABELS, otherLayout } from '../lib/layout';
 import type { Theme } from '../lib/theme';
 import { cn } from '../lib/utils';
 import { Badge, BadgeLink } from './ui/badge';
@@ -39,7 +43,14 @@ interface Props {
   refreshError: string | null;
   tab: Tab;
   theme: Theme;
+  layout: Layout;
+  /** In the column layout the file list is behind this; null in the rail layout, where it is beside the diff. */
+  onOpenFiles: (() => void) | null;
+  fileCount: number;
+  /** The column layout carries Next in its action bar, so the header leaves it out there. */
+  showNext: boolean;
   onTab(tab: Tab): void;
+  onLayout(): void;
   onNext(): void;
   onSubmit(): void;
   /** Null in fixture mode, where there is no server to finish. */
@@ -241,7 +252,12 @@ export function Header({
   refreshError,
   tab,
   theme,
+  layout,
+  onOpenFiles,
+  fileCount,
+  showNext,
   onTab,
+  onLayout,
   onNext,
   onSubmit,
   onFinish,
@@ -254,6 +270,12 @@ export function Header({
       // over the bot summary card this stacking context caps.
       className="relative z-40 flex min-h-[60px] flex-none items-center gap-3 border-b border-border bg-background px-5 py-2"
     >
+      {onOpenFiles !== null && (
+        <Button onClick={onOpenFiles} title="Open the review path and the file list (f)">
+          <PanelLeft className="size-3.5" /> Files
+          <span className="font-normal text-muted-foreground">{fileCount}</span>
+        </Button>
+      )}
       <div className="flex min-w-0 flex-1 flex-col gap-px">
         <div className="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
           <span className="text-sm text-muted-foreground">{pr.repo}</span>
@@ -328,6 +350,15 @@ export function Header({
         >
           {theme === 'dark' ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
         </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onLayout}
+          title={`Switch to the ${LAYOUT_LABELS[otherLayout(layout)].toLowerCase()} layout (l)`}
+          aria-label={`Switch to the ${LAYOUT_LABELS[otherLayout(layout)].toLowerCase()} layout`}
+        >
+          {layout === 'rail' ? <Rows3 className="size-3.5" /> : <PanelLeft className="size-3.5" />}
+        </Button>
         <Button variant="ghost" size="icon" onClick={onHelp} title="Keyboard shortcuts (?)">
           <Keyboard className="size-3.5" />
         </Button>
@@ -337,15 +368,17 @@ export function Header({
             Finish review
           </Button>
         )}
-        <Button
-          variant="default"
-          onClick={onNext}
-          disabled={nextLabel === null}
-          title="Go to the next step of the review path (n)"
-        >
-          {nextLabel === null ? 'Walk complete' : `Next: ${nextLabel}`}
-          <ChevronRight className="size-3" />
-        </Button>
+        {showNext && (
+          <Button
+            variant="default"
+            onClick={onNext}
+            disabled={nextLabel === null}
+            title="Go to the next step of the review path (n)"
+          >
+            {nextLabel === null ? 'Walk complete' : `Next: ${nextLabel}`}
+            <ChevronRight className="size-3" />
+          </Button>
+        )}
       </div>
     </header>
   );
