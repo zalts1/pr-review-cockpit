@@ -12,6 +12,7 @@ import {
   railPath,
   reviewOrder,
   skippableHunkCount,
+  stepperPhases,
 } from '../src/lib/plan';
 
 function fixture(name: string): ReviewDocument {
@@ -258,5 +259,29 @@ describe('askClaudePrompt', () => {
       hunk: { ...(bare as NonNullable<typeof bare>).hunk, symbols: [] },
     });
     expect(text).toContain('Enclosing symbol: (no enclosing symbol)');
+  });
+});
+
+describe('stepperPhases', () => {
+  it('runs the phases in path order with every step as a dot', () => {
+    const phases = stepperPhases(derived, 4);
+    expect(phases.map((p) => [p.label, p.total, p.done])).toEqual([
+      ['models', 3, 3],
+      ['core', 5, 2],
+      ['call sites', 1, 0],
+      ['tests', 3, 0],
+    ]);
+    expect(phases.flatMap((p) => p.steps.map((s) => s.step))).toEqual(
+      derived.steps.map((s) => s.step),
+    );
+  });
+
+  it('marks the reviewer\'s step, the ones behind it and the high-risk ones', () => {
+    const phases = stepperPhases(derived, 4);
+    const core = phases[1];
+    expect(core?.current).toBe(true);
+    expect(core?.steps.map((s) => s.state)).toEqual(['done', 'current', 'ahead', 'ahead', 'ahead']);
+    expect(core?.steps.map((s) => s.high)).toEqual([false, true, true, false, false]);
+    expect(core?.steps[1]?.title).toContain('UpdateRecord');
   });
 });

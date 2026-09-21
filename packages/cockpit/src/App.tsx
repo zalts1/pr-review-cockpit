@@ -4,12 +4,14 @@ import type { Group, Hunk, ReviewDocument, ReviewFile } from '@review-cockpit/sc
 import { checkVersion } from '@review-cockpit/schema/version';
 import { derive, pendingLabel } from './lib/derive';
 import {
+  PHASE_LABELS,
   askClaudePrompt,
   heatOf,
   highRiskAhead,
   nextStepLabel,
   phaseProgress,
   reviewOrder,
+  stepperPhases,
   skippableHunkCount,
 } from './lib/plan';
 import type { RailEntry } from './lib/plan';
@@ -26,6 +28,7 @@ import {
 import { draftsKey, lineOwners, placeDrafts } from './lib/drafts';
 import { useDraftsSync } from './lib/draftsSync';
 import { refreshFromGitHub } from './lib/refresh';
+import { useLayout } from './lib/layout';
 import { useTheme } from './lib/theme';
 import type { SubmitResult } from './lib/submit';
 import { postReview } from './lib/submit';
@@ -33,6 +36,8 @@ import type { DragRange, EditorTarget, LineTarget } from './lib/interaction';
 import { description } from './lib/prBody';
 import { editorTargetFromDrag, firstCommentableLine } from './lib/interaction';
 import { Loader2, TriangleAlert } from 'lucide-react';
+import { ActionBar } from './components/ActionBar';
+import { BriefCard } from './components/BriefCard';
 import { CenteredCard } from './components/CenteredCard';
 import { DiffFile } from './components/DiffFile';
 import { FinishModal, ReviewFinished } from './components/FinishModal';
@@ -46,8 +51,10 @@ import { PlanStrip } from './components/PlanStrip';
 import { Rail } from './components/Rail';
 import { StatusBanner } from './components/StatusBanner';
 import { StepCard } from './components/StepCard';
+import { Stepper } from './components/Stepper';
 import { SubmitModal } from './components/SubmitModal';
 import { Button } from './components/ui/button';
+import { Sheet } from './components/ui/sheet';
 import { cn } from './lib/utils';
 
 const fixture = documentSource.mode === 'fixture' ? documentSource.fixture : null;
@@ -222,6 +229,8 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
   const [purged, setPurged] = useState<boolean | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const theme = useTheme();
+  const layout = useLayout();
+  const [filesOpen, setFilesOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -576,12 +585,19 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
         case 't':
           theme.toggle();
           break;
+        case 'l':
+          layout.toggle();
+          break;
+        case 'f':
+          if (layout.layout === 'column') setFilesOpen((current) => !current);
+          break;
         case '?':
           setHelpOpen(true);
           break;
         case 'Escape':
           setHelpOpen(false);
           setSubmitOpen(false);
+          setFilesOpen(false);
           setEditor(null);
           break;
         default:
@@ -598,6 +614,7 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
     goToStep,
     hoveredGroup,
     hoveredLine,
+    layout,
     skipToHigh,
     stepIndex,
     tab,
@@ -818,7 +835,12 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
         refreshError={refreshError}
         tab={tab}
         theme={theme.theme}
+        layout={layout.layout}
+        onOpenFiles={layout.layout === 'column' ? () => setFilesOpen(true) : null}
+        fileCount={doc.files.length}
+        showNext={layout.layout === 'rail' || tab === 'map'}
         onTab={setTab}
+        onLayout={layout.toggle}
         onNext={goNext}
         onSubmit={() => setSubmitOpen(true)}
         onFinish={documentSource.mode === 'server' ? () => setFinishOpen(true) : null}
@@ -826,7 +848,7 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
         onTheme={theme.toggle}
       />
 
-      {tab === 'files' && (
+      {tab === 'files' && layout.layout === 'rail' && (
         <PlanStrip
           summary={derived.summary}
           status={doc.status.summary}
@@ -844,38 +866,86 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
         />
       )}
 
-      <div className="flex min-h-0 flex-1">
+      {tab === 'files' && layout.layout === 'column' && (
+        <Stepper
+          phases={stepperPhases(derived, stepIndex)}
+          stepIndex={stepIndex}
+          stepCount={derived.steps.length}
+          highAhead={highRiskAhead(derived, stepIndex)}
+          skippable={skippableHunkCount(derived)}
+          onStep={goToStep}
+        />
+      )}
+
+      <div className="relative flex min-h-0 flex-1">
+        {tab === 'files' && layout.layout === 'column' && (
+          <Sheet label="Review path" className="pt-7" open={filesOpen} onClose={() => setFilesOpen(false)}>
+            <Rail
+              entries={order.entries}
+              skippable={order.skippable}
+              currentIndex={stepIndex}
+              currentFileId={targetFileId}
+              currentGroupId={targetGroupId}
+              viewed={viewed}
+              pathPending={
+                doc.status.path.state === 'pending' ? pendingLabel(doc.status.path) : null
+              }
+              fileCount={doc.files.length}
+              outdated={derived.outdatedComments}
+              orphaned={store.orphaned}
+              orphansRef={orphansRef}
+              conversation={doc.conversation ?? []}
+              onEntry={(entry: RailEntry) => {
+                setFilesOpen(false);
+                goToStep(entry.stepIndex);
+              }}
+              onSkippable={(groupId) => {
+                setFilesOpen(false);
+                setExpandedGroups((current) => new Set(current).add(groupId));
+                setFlashed(groupId);
+                setPendingScroll(groupId);
+              }}
+            />
+          </Sheet>
+        )}
         {tab === 'files' ? (
           <>
-            <aside className="w-[280px] flex-none overflow-auto border-r border-border bg-background">
-              <Rail
-                entries={order.entries}
-                skippable={order.skippable}
-                currentIndex={stepIndex}
-                currentFileId={targetFileId}
-                currentGroupId={targetGroupId}
-                viewed={viewed}
-                pathPending={
-                  doc.status.path.state === 'pending' ? pendingLabel(doc.status.path) : null
-                }
-                fileCount={doc.files.length}
-                outdated={derived.outdatedComments}
-                orphaned={store.orphaned}
-                orphansRef={orphansRef}
-                conversation={doc.conversation ?? []}
-                onEntry={(entry: RailEntry) => goToStep(entry.stepIndex)}
-                onSkippable={(groupId) => {
-                  setExpandedGroups((current) => new Set(current).add(groupId));
-                  setFlashed(groupId);
-                  setPendingScroll(groupId);
-                }}
-              />
-            </aside>
+            {layout.layout === 'rail' && (
+              <aside className="w-[280px] flex-none overflow-auto border-r border-border bg-background">
+                <Rail
+                  entries={order.entries}
+                  skippable={order.skippable}
+                  currentIndex={stepIndex}
+                  currentFileId={targetFileId}
+                  currentGroupId={targetGroupId}
+                  viewed={viewed}
+                  pathPending={
+                    doc.status.path.state === 'pending' ? pendingLabel(doc.status.path) : null
+                  }
+                  fileCount={doc.files.length}
+                  outdated={derived.outdatedComments}
+                  orphaned={store.orphaned}
+                  orphansRef={orphansRef}
+                  conversation={doc.conversation ?? []}
+                  onEntry={(entry: RailEntry) => goToStep(entry.stepIndex)}
+                  onSkippable={(groupId) => {
+                    setExpandedGroups((current) => new Set(current).add(groupId));
+                    setFlashed(groupId);
+                    setPendingScroll(groupId);
+                  }}
+                />
+              </aside>
+            )}
 
-            <div className="flex min-w-0 flex-1 flex-col gap-3 bg-muted px-5 pt-4">
-              <StatusBanner doc={doc} />
+            <div
+              className={cn(
+                'flex min-w-0 flex-1 flex-col gap-3 bg-muted',
+                layout.layout === 'rail' ? 'px-5 pt-4' : 'pt-0',
+              )}
+            >
+              {layout.layout === 'rail' && <StatusBanner doc={doc} />}
 
-              {currentStep && (
+              {layout.layout === 'rail' && currentStep && (
                 <StepCard
                   step={currentStep.step}
                   total={derived.steps.length}
@@ -896,7 +966,51 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
                 />
               )}
 
-              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto pb-6" ref={paneRef}>
+              <div
+                className={cn(
+                  'flex min-h-0 flex-1 flex-col gap-2 overflow-auto pb-6',
+                  layout.layout === 'column' && 'items-stretch px-6 pt-5 pb-28 [&>*]:mx-auto [&>*]:w-full [&>*]:max-w-[1120px]',
+                )}
+                ref={paneRef}
+              >
+                {layout.layout === 'column' && (
+                  <>
+                    <StatusBanner doc={doc} />
+                    <BriefCard
+                      summary={derived.summary}
+                      status={doc.status.summary}
+                      prBody={description(doc.pr.body)}
+                      open={planOpen}
+                      onToggle={() => {
+                        planAutoCollapse.current = 'user';
+                        setPlanOpen((current) => !current);
+                      }}
+                    />
+                    {currentStep && (
+                      <div className="flex flex-none flex-col gap-1 px-1 pt-1.5">
+                        <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
+                          <span className="font-semibold text-walk">Step {currentStep.step}</span>
+                          <span className="capitalize">{PHASE_LABELS[currentStep.phase]}</span>
+                          <span>·</span>
+                          <code className="truncate">
+                            {currentHunk?.hunk.symbols[0] ??
+                              derived.groupById.get(currentStep.ref.id)?.title ??
+                              currentFile?.path ??
+                              currentStep.ref.id}
+                          </code>
+                        </div>
+                        <div className="max-w-[72ch] text-[17px] leading-snug font-medium">
+                          {currentStep.note ?? (
+                            <span className="text-muted-foreground">
+                              No note for this step. Read it on its own terms.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 {doc.files.length === 0 && (
                   <PaneEmpty title="No textual changes">
                     This pull request changes no file content, so there is nothing to read here.
@@ -959,6 +1073,18 @@ export function Cockpit({ doc, connection, revision }: CockpitProps) {
             prNumber={doc.pr.number}
             heatOfHunks={heatOfHunks}
             onJumpToHunk={jumpToHunk}
+          />
+        )}
+        {tab === 'files' && layout.layout === 'column' && currentStep && (
+          <ActionBar
+            nextLabel={nextStepLabel(derived, stepIndex)}
+            reviewed={targetFileId !== null && viewed.has(targetFileId)}
+            canPrev={stepIndex > 0}
+            canAsk={currentStep.ref.kind === 'hunk'}
+            onPrev={() => goToStep(stepIndex - 1)}
+            onMarkReviewed={markReviewed}
+            onAsk={askAboutStep}
+            onNext={goNext}
           />
         )}
       </div>

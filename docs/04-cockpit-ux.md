@@ -8,6 +8,14 @@ The cockpit looks like GitHub's "Files changed" tab and behaves like it wherever
 
 The chrome is shadcn/ui's zinc palette, in both a light and a dark theme: a white page, `#f4f4f5` panels, 1 px `#e4e4e7` borders, 8 px radii, black primary buttons, and the system sans-serif stack, so nothing is fetched from a font host. The cockpit's own colours sit beside the kit's: one blue for the walk (the current rail row, the open file's ring, the step number), red for high risk, amber for medium and for drafts, green for passed checks and for done steps, and GitHub's green and red washes on the diff rows. Every token is a CSS variable on `:root`, redefined under `[data-theme='dark']`, and exposed to Tailwind through `@theme inline`, so a component says `bg-walk-wash` and the two themes are one class. Icons are Lucide. The primitives in `components/ui/` are shadcn's Button, Badge, Tabs and Dialog, written into the repository the way the shadcn CLI would, with two departures: the dialog renders in place rather than through a portal, so the page's own Escape handling and the static render in tests still see it, and checkboxes and radios are native inputs.
 
+## Two layouts
+
+The Files tab has two arrangements, and the reviewer picks one with the layout button in the header or with `l`. The choice is stored like the theme, for the person rather than the pull request.
+
+**Rail**, the default, is the screen drawn below: the review path beside the diff, the plan strip under the header, the step card above the diff. **Column** is one reading column of at most 1120 px: the walk is a stepper across the top, one dot per step grouped by phase with a red mark on a high-risk step; the TL;DR and the brief are a card at the top of the column and the brief unfolds in place; the step number, phase, symbol and note are a heading over the current file; and Prev, Mark reviewed, Ask Claude and Next sit in a bar floating over the bottom of the column, so the header carries no primary action there. The review path with its skippable groups, outdated comments, orphaned drafts and conversation is the same rail, behind the **Files** button at the left of the header, in a sheet that slides in from the left; `f` opens it, and choosing a step closes it.
+
+Everything below the stepper is the same in both: the same files in the same order, the same heat, the same threads, the same `+` gutter, the same keys. The Map tab is one layout.
+
 ## Screen 1: Files
 
 ```
@@ -148,6 +156,8 @@ On the step card and on `a`. It copies to the clipboard a prompt holding the PR 
 | `a` | Copy an Ask Claude prompt for this hunk |
 | `m` | Switch between the Files and Map tabs |
 | `t` | Switch between the light and dark theme |
+| `l` | Switch between the rail and column layouts |
+| `f` | Open the file list, in the column layout |
 | `?` | Show this table |
 | `Esc` | Close an overlay or the comment editor |
 

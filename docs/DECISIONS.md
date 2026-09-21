@@ -1480,3 +1480,32 @@ disabled now reads the attribute, because the button's classes name `disabled:` 
 way. The layout is the same as before this change, on purpose: the toggle between layouts is its
 own decision.
 
+## ADR-56: Two layouts of the Files tab, chosen by the reader
+
+**Context.** The three directions mocked up for the rebuild (ADR-55) were each useful to a
+different reader: the rail for someone who wants the whole walk in view, the reading column
+for someone who wants one thing at a time and the code as wide as the screen allows. ADR-34
+rejected a focus mode for hiding the diff; the column does not hide it, it takes the file list
+off the screen until asked for.
+
+**Options.**
+1. One layout, the rail, and leave it there.
+2. A responsive layout that becomes the column below some width. Nobody reviews on a phone,
+   and a 1440 px screen is where the two readers disagree.
+3. A toggle: the same document, the same state, two arrangements, remembered per person.
+
+**Decision.** Option 3. `lib/layout.ts` holds the choice under `review-cockpit:layout`, the
+way the theme is held, and the header carries a button for it beside the theme button, with
+`l` as its key. The column layout reuses the rail unchanged inside a sheet behind a **Files**
+button, and adds three small pieces: a stepper built by `stepperPhases` in `lib/plan.ts`, a
+brief card that unfolds `BriefDetail` in place, and an action bar with the step card's three
+actions and Next. The plan strip's numbers live in the stepper there. The walk, the drafts, the
+viewed marks and the expanded groups are the same state in both, so a toggle mid-review loses
+nothing.
+
+**Consequences.** Two arrangements to keep in step when a control is added to the Files tab;
+the rule is that a control belongs to one of the shared pieces (the rail, the diff, the brief)
+or has a place in both. The Next button leaves the header in the column layout, where the bar
+has it, so the principle of one primary action on screen holds in both. The fixtures and
+screenshots in `docs/design/facelift/screenshots/` cover both.
+

@@ -74,6 +74,71 @@ function DetailLabel({ children, warn }: { children: string; warn?: boolean }) {
   );
 }
 
+/** The brief itself: the overview, the flow, where it fits, what to watch for, the example. */
+export function BriefDetail({ summary, prBody }: { summary: ReadySummary | null; prBody: string }) {
+  return (
+    <>
+    {summary === null ? (
+      <div className="rounded-md border border-border bg-card px-3 py-2.5">
+        <Markdown text={prBody || 'This PR has no description.'} />
+      </div>
+    ) : (
+      <div className="grid grid-cols-2 gap-x-7 gap-y-2">
+        <div className="col-span-2 max-w-[78ch] min-w-0">
+          <DetailLabel>Summary</DetailLabel>
+          <Markdown text={summary.overview ?? summary.tldr} />
+        </div>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <DetailLabel>Flow</DetailLabel>
+          <div className="flex flex-col gap-1 overflow-x-auto rounded-md border border-border bg-card px-2.5 py-2">
+            {(['before', 'after'] as const).map((side) => (
+              <div className="grid grid-cols-[48px_1fr] items-baseline gap-2" key={side}>
+                <span className="text-[11px] text-muted-foreground">{side}</span>
+                <code className="text-[11px] break-words whitespace-pre-wrap">
+                  {summary.flow[side]}
+                </code>
+              </div>
+            ))}
+          </div>
+          {summary.whereItFits.length > 0 && (
+            <>
+              <DetailLabel>Where it fits</DetailLabel>
+              <ul className="m-0 list-disc pl-[18px] text-xs">
+                {summary.whereItFits.map((line) => (
+                  <li key={line} className="mb-0.5">
+                    <MarkdownInline text={line} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          {summary.watchFor.length > 0 && (
+            <>
+              <DetailLabel warn>Watch for</DetailLabel>
+              <ul className="m-0 list-disc pl-[18px] text-xs">
+                {summary.watchFor.map((line) => (
+                  <li key={line} className="mb-0.5">
+                    <MarkdownInline text={line} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {summary.example && (
+            <>
+              <DetailLabel>Example</DetailLabel>
+              <Markdown text={summary.example} />
+            </>
+          )}
+        </div>
+      </div>
+    )}
+    </>
+  );
+}
+
 export function PlanStrip({
   summary,
   status,
@@ -167,63 +232,7 @@ export function PlanStrip({
           >
             <X className="size-3" />
           </Button>
-          {summary === null ? (
-            <div className="rounded-md border border-border bg-card px-3 py-2.5">
-              <Markdown text={prBody || 'This PR has no description.'} />
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-x-7 gap-y-2">
-              <div className="col-span-2 max-w-[78ch] min-w-0">
-                <DetailLabel>Summary</DetailLabel>
-                <Markdown text={summary.overview ?? summary.tldr} />
-              </div>
-              <div className="flex min-w-0 flex-col gap-1.5">
-                <DetailLabel>Flow</DetailLabel>
-                <div className="flex flex-col gap-1 overflow-x-auto rounded-md border border-border bg-card px-2.5 py-2">
-                  {(['before', 'after'] as const).map((side) => (
-                    <div className="grid grid-cols-[48px_1fr] items-baseline gap-2" key={side}>
-                      <span className="text-[11px] text-muted-foreground">{side}</span>
-                      <code className="text-[11px] break-words whitespace-pre-wrap">
-                        {summary.flow[side]}
-                      </code>
-                    </div>
-                  ))}
-                </div>
-                {summary.whereItFits.length > 0 && (
-                  <>
-                    <DetailLabel>Where it fits</DetailLabel>
-                    <ul className="m-0 list-disc pl-[18px] text-xs">
-                      {summary.whereItFits.map((line) => (
-                        <li key={line} className="mb-0.5">
-                          <MarkdownInline text={line} />
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
-              <div className="flex min-w-0 flex-col gap-1.5">
-                {summary.watchFor.length > 0 && (
-                  <>
-                    <DetailLabel warn>Watch for</DetailLabel>
-                    <ul className="m-0 list-disc pl-[18px] text-xs">
-                      {summary.watchFor.map((line) => (
-                        <li key={line} className="mb-0.5">
-                          <MarkdownInline text={line} />
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-                {summary.example && (
-                  <>
-                    <DetailLabel>Example</DetailLabel>
-                    <Markdown text={summary.example} />
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+          <BriefDetail summary={summary} prBody={prBody} />
         </div>
       )}
     </section>
